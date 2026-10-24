@@ -13,6 +13,7 @@ type rule struct {
 	specificity int
 }
 type style struct {
+	collapse                        bool
 	size, line                      int
 	fg, bg, border                  color.RGBA
 	margin, padding                 [4]cssLength // top, right, bottom, left
@@ -197,7 +198,7 @@ func paint(s string) color.RGBA {
 	return color.RGBA{}
 }
 func (d *Document) styled(n *node, parent style) style {
-	s := style{family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
+	s := style{collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
 	switch n.tag {
 	case "span", "a", "em", "strong", "b", "i", "code", "small", "u", "s", "del":
 		s.display = "inline"
@@ -339,6 +340,12 @@ func (d *Document) styled(n *node, parent style) style {
 			s.bg = paint(v)
 		case "border-color":
 			s.border = paint(v)
+		case "border-collapse":
+			if v == "collapse" {
+				s.collapse = true
+			} else if v == "separate" {
+				s.collapse = false
+			}
 		case "border-width":
 			s.bw = min(number(v), 32)
 		case "width":

@@ -2,9 +2,6 @@ package document
 
 import (
 	"image"
-	"strings"
-
-	"golang.org/x/image/font"
 )
 
 type tableRow struct {
@@ -29,54 +26,6 @@ func (l *layout) tableStep() bool {
 		return false
 	}
 	return true
-}
-
-// preferredCell is a bounded preferred-width estimate, not a browser's
-// min/max-content algorithm. Words guide compression; long tokens can wrap.
-func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
-	preferred, word := 0, 0
-	var visit func(*node, style)
-	visit = func(n *node, st style) {
-		if !l.tableStep() {
-			return
-		}
-		if n.tag != "" {
-			st = l.d.styled(n, st)
-			if st.display == "none" {
-				return
-			}
-		}
-		if n.tag == "" {
-			f := l.face(st)
-			for _, part := range strings.Fields(n.text) {
-				if !l.tableStep() {
-					return
-				}
-				width := min(4096, font.MeasureString(f, part).Ceil())
-				preferred = min(4096, preferred+width+font.MeasureString(f, " ").Ceil())
-				word = max(word, width)
-			}
-		}
-		for _, c := range n.children {
-			visit(c, st)
-		}
-	}
-	// The cell style is already resolved; only visit descendants.
-	for _, c := range n.children {
-		visit(c, s)
-	}
-	p := resolveEdges(s.padding, basis)
-	extra := p[1] + p[3] + 2*s.bw
-	preferred += extra
-	word += extra
-	if s.width.definite(basis) {
-		requested := s.width.resolve(basis, 4096)
-		if !s.borderBox {
-			requested += extra
-		}
-		preferred = max(preferred, requested)
-	}
-	return max(1, min(word, 4096)), max(1, min(preferred, 4096))
 }
 
 // apportion distributes an exact pixel budget, with deterministic remainder
@@ -125,9 +74,20 @@ func tableWidths(minimum, preferred []int, width int) []int {
 	}
 	growth := make([]int, n)
 	for i := range growth {
-		growth[i] = max(1, preferred[i]-base[i])
+		growth[i] = max(0, preferred[i]-base[i])
 	}
-	extra := apportion(growth, width-sum)
+	room := width - sum
+	demand := 0
+	for _, v := range growth {
+		demand += v
+	}
+	extra := apportion(growth, min(room, demand))
+	if room > demand {
+		surplus := apportion(preferred, room-demand)
+		for i := range extra {
+			extra[i] += surplus[i]
+		}
+	}
 	for i := range base {
 		base[i] += extra[i]
 	}
@@ -196,7 +156,15 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 		return y
 	}
 	widths := tableWidths(minimum, preferred, w)
-	for _, row := range rows {
+	var grid *collapsedGrid
+	if s.collapse {
+		grid = l.collapseGrid(rows, columns, s)
+		if l.err != nil {
+			return y
+		}
+	}
+	rowY := []int{y}
+	for ri, row := range rows {
 		if !l.tableStep() {
 			return y
 		}
@@ -221,6 +189,13 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 			cs.margin = [4]cssLength{}
 			// Keep a content pixel at narrow sizes; shrink excessive cell padding.
 			padding := resolveEdges(cs.padding, width)
+			if grid != nil {
+				inset := grid.insets(ri, i)
+				for j := range padding {
+					padding[j] += inset[j]
+				}
+				cs.bw = 0
+			}
 			cs.bw = min(cs.bw, max(0, (width-1)/2))
 			room := max(0, width-2*cs.bw-1)
 			if padding[1]+padding[3] > room {
@@ -270,6 +245,10 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 			}
 		}
 		y = bottom
+		rowY = append(rowY, y)
+	}
+	if grid != nil {
+		grid.paint(l, x, widths, rowY)
 	}
 	return y
 }

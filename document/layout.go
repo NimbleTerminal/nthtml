@@ -172,6 +172,10 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		return y
 	}
 
+	tableStyle := s
+	if n.tag == "table" && s.collapse {
+		s.bw = 0
+	}
 	margin, padding := resolveEdges(s.margin, w), resolveEdges(s.padding, w)
 	extra := padding[1] + padding[3] + 2*s.bw
 	available := max(1, w-margin[1]-margin[3])
@@ -214,7 +218,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	cx, cy, cw := x+padding[3]+s.bw, y+padding[0]+s.bw, max(1, w-extra)
 	contentY := cy
 	if n.tag == "table" {
-		cy = l.table(n, cx, cy, cw, height, s)
+		cy = l.table(n, cx, cy, cw, height, tableStyle)
 	} else if n.tag == "ul" || n.tag == "ol" {
 		index := listStart(n)
 		for _, child := range n.children {
