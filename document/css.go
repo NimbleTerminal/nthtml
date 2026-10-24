@@ -13,6 +13,8 @@ type rule struct {
 	specificity int
 }
 type style struct {
+	position                        string
+	inset                           [4]cssLength
 	borderSet                       bool
 	rootSize                        int
 	minWidth, minHeight, maxHeight  cssLength
@@ -58,6 +60,17 @@ func declarations(s string) map[string]string {
 		v, important = importance(strings.TrimSpace(v))
 		if k == "color" || k == "background" || k == "background-color" || k == "border-color" {
 			if _, ok := cssColor(v, color.RGBA{}); !ok {
+				continue
+			}
+		}
+		if k == "position" {
+			v = strings.ToLower(v)
+			if v != "static" && v != "relative" && v != "absolute" {
+				continue
+			}
+		}
+		if k == "top" || k == "right" || k == "bottom" || k == "left" {
+			if _, ok := parseInset(v); !ok {
 				continue
 			}
 		}
@@ -376,6 +389,14 @@ func (d *Document) styled(n *node, parent style) style {
 			s.minHeight, _ = parseLength(v, false, false)
 		case "max-height":
 			s.maxHeight, _ = parseLength(v, false, true)
+		case "position":
+			s.position = v
+		case "top", "right", "bottom", "left":
+			for i, side := range []string{"top", "right", "bottom", "left"} {
+				if k == side {
+					s.inset[i], _ = parseInset(v)
+				}
+			}
 		case "box-sizing":
 			if v == "border-box" {
 				s.borderBox = true
@@ -427,6 +448,18 @@ func (d *Document) styled(n *node, parent style) style {
 				}
 			}
 		}
+	}
+	for i := range s.inset {
+		s.inset[i] = s.inset[i].computed(s.size, s.rootSize)
+	}
+	if n.tag == "document" || n.tag == "html" || n.tag == "li" || n.tag == "caption" || n.tag == "tr" || n.tag == "td" || n.tag == "th" || n.tag == "thead" || n.tag == "tbody" || n.tag == "tfoot" {
+		s.position = "static"
+	}
+	if s.position == "relative" && s.display == "inline" {
+		s.position = "static"
+	}
+	if s.position == "absolute" && s.display != "none" {
+		s.display = "block"
 	}
 	if values["border-style"] == "none" {
 		s.bw = 0

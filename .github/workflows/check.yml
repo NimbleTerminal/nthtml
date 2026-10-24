@@ -16,7 +16,7 @@ jobs:
           node-version: 22
       - run: ./scripts/build-web.sh
       - run: |
-          for demo in overview invoice field-notes status-report guide typography diagrams navigation reports; do
+          for demo in overview invoice field-notes status-report guide typography diagrams navigation reports positioning; do
             node scripts/wasm-smoke.cjs "$demo"
           done
       - run: GOOS=js GOARCH=wasm go test -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./document ./examples/demo ./internal/conformance

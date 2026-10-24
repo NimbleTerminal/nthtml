@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Positioning · Nimble Terminal</title>
+<style>
+body {margin:0;padding:24px;background:#edf1f5;color:#203047;font-family:"IBM Plex Sans",sans-serif}
+article {max-width:720px;margin:0 auto;padding:20px;background:white}
+h1 {margin:0 0 1rem;font-size:28px}
+h2 {margin:1rem 0 .5rem;font-size:22px}
+p {margin:.75rem 0;line-height:1.5}
+.stage {position:relative;height:14rem;border:2px solid steelblue;background:#eef6fb;margin:1rem 0}
+.card {position:absolute;width:40%;padding:12px;border:1px solid #9eb5c7;background:white;line-height:1.5}
+.first {left:1rem;top:1rem}
+.last {right:1rem;bottom:1rem}
+.badge {position:absolute;right:-8px;top:-8px;width:24px;height:24px;background:rebeccapurple;color:white;text-align:center;font-weight:bold}
+.offset {position:relative;left:.5rem;top:.25rem;color:rebeccapurple}
+pre {font-family:"JetBrains Mono",monospace;font-size:13px;margin:1rem 0;padding:12px}
+</style></head><body><article>
+<h1>Place a little emphasis.</h1>
+<p>Positioned blocks add badges, labels, and small overlays to a document. These cards use opposite corners of the same relative container. Resize the pane to change the available width.</p>
+<div class="stage" id="stage">
+ <div class="card first"><div class="badge">1</div><strong>Top-left</strong><div>Relative parent.</div></div>
+ <div class="card last"><div class="badge">2</div><strong>Bottom-right</strong><div><a href="#notes">Read the notes</a></div></div>
+</div>
+<h2 id="notes" class="offset">A small relative offset</h2>
+<p>This heading moves slightly while keeping its original place in normal flow. The absolute cards take no flow space; their container reserves its own height.</p>
+<pre>.stage { position: relative; height: 14rem; }
+.first { position: absolute; left: 1rem; top: 1rem; }
+.last  { position: absolute; right: 1rem; bottom: 1rem; }</pre>
+<p>Switch to TTY to read all content in source order. Links and fragment navigation work in both layouts.</p>
+</article></body></html>

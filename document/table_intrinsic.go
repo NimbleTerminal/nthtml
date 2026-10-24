@@ -19,7 +19,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 		}
 		if n.tag != "" {
 			st = l.d.styled(n, st)
-			if st.display == "none" {
+			if st.display == "none" || st.position == "absolute" {
 				return
 			}
 			if n.tag == "br" {

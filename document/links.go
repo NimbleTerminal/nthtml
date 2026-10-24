@@ -159,6 +159,22 @@ func (d *Document) Links(ctx context.Context) ([]Link, error) {
 }
 func (r *Result) LinkAt(p image.Point) (Link, bool) {
 	if r != nil {
+		if r.Image != nil && !p.In(r.Image.Bounds()) {
+			return Link{}, false
+		}
+		// Positioned subtrees can overlap; hit-test link boxes in paint order.
+		for i := len(r.Boxes) - 1; i >= 0; i-- {
+			box := r.Boxes[i]
+			if box.LinkID == 0 || !p.In(box.Bounds) {
+				continue
+			}
+			for _, link := range r.Links {
+				if link.ID == box.LinkID {
+					link.Regions = append([]image.Rectangle(nil), link.Regions...)
+					return link, true
+				}
+			}
+		}
 		for _, l := range r.Links {
 			for _, b := range l.Regions {
 				if p.In(b) {

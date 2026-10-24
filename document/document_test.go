@@ -141,6 +141,8 @@ func FuzzRender(f *testing.F) {
 	f.Add(`<table><thead><tr><th>Header</th><th>Qty</th></tr></thead><tr><td style="padding:4px;border:1px solid blue"><table><tr><td>Nested</td></tr></table></td><td style="vertical-align:bottom"><a href="https://example.com">2</a></td></tr></table>`)
 	f.Add("<ul><li><a href=\"https://example.com\">linked item</a><pre>\n  code\n\tmore</pre></li></ul>")
 	f.Add(spanExample)
+	f.Add(`<article style="position:relative;left:-2px;width:80%;height:60px"><aside style="position:absolute;right:10%;bottom:0;width:20px;height:10px"><a href='#target'>badge</a></aside></article><p id='target'>after</p>`)
+	f.Add(`<table><tr><td style="vertical-align:bottom;height:100px"><div style="position:relative"><span style="position:absolute;top:50%;left:-1em">nested</span>Cell</div></td></tr></table>`)
 	f.Add(`<article style="margin:10px 0 20px"><div style="margin:30px 0 40px"><section style="height:0;margin:5px 0 50px"></section></div></article><p>after</p>`)
 	f.Add(`<table><tr><td><p style="margin:20px 0">cell</p></td></tr></table><div style="white-space:pre-line;margin:20px 0">\n</div>`)
 	f.Add(`<html style="font-size:1.25rem"><div style="width:2.54cm;min-height:1em;max-height:2in;padding:.5rem;border:rgba(20,30,40,.5) solid .1em;color:rebeccapurple;background:currentColor">units</div></html>`)

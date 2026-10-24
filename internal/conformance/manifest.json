@@ -121,18 +121,18 @@
     },
     {
       "path": "css/CSS2/margin-padding-clear/padding-001.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires absolute positioning and positioned offsets."
+      "expected": "FAIL",
+      "reason": "Known gap: positioning matches the intended boxes, but the reference auto-width table fills its container instead of using intrinsic width."
     },
     {
       "path": "css/CSS2/margin-padding-clear/margin-001.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires absolute positioning and offsets."
+      "expected": "FAIL",
+      "reason": "Known gap: positioning matches the intended boxes, but the reference auto-width table fills its container instead of using intrinsic width."
     },
     {
       "path": "css/css-sizing/box-sizing-border-box-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires floats, absolute positioning, z-index, and XHTML CSS CDATA processing."
+      "reason": "Requires floats and z-index."
     },
     {
       "path": "css/CSS2/borders/border-001.xht",
@@ -141,13 +141,13 @@
     },
     {
       "path": "css/CSS2/tables/border-collapse-offset-001.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires absolute positioning and offsets."
+      "expected": "PASS",
+      "reason": "Constrained absolute positioning and shrink-to-fit boxes; offsets anchor to the nearest positioned padding box."
     },
     {
       "path": "css/CSS2/tables/border-conflict-element-001d.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires Ahem, external image assets, per-side border colors and XHTML CSS CDATA."
+      "reason": "Requires Ahem, external image assets, per-side border colors."
     },
     {
       "path": "css/CSS2/tables/border-collapse-001.xht",
@@ -217,7 +217,7 @@
     {
       "path": "css/CSS2/normal-flow/max-height-025.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires relative positioning, external images, and XHTML CDATA in the reference."
+      "reason": "Reference requires allowlisted external images."
     },
     {
       "path": "css/css-color/rgb-001.html",

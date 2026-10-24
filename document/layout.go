@@ -37,10 +37,13 @@ type Result struct {
 	Links    []Link
 }
 type operation struct {
+	owner  *positionFrame
 	box    Box
 	source image.Image
 }
 type layout struct {
+	frame, rootFrame            *positionFrame
+	absolute                    []absoluteBox
 	diagramCount, diagramPixels int
 	warnings                    []string
 	tableWork                   int
@@ -71,7 +74,7 @@ func (l *layout) add(b Box, src image.Image) {
 		l.err = limitError("paint operations")
 		return
 	}
-	l.ops = append(l.ops, operation{b, src})
+	l.ops = append(l.ops, operation{box: b, source: src, owner: l.frame})
 }
 func (l *layout) rect(r image.Rectangle, c color.RGBA, tag string) {
 	if c.A > 0 && !r.Empty() {
@@ -94,12 +97,18 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	}
 	l := &layout{ctx: ctx, d: d, opts: o, faces: map[faceKey]font.Face{}}
 	l.fonts = map[string]*opentype.Font{}
+	l.rootFrame = &positionFrame{op: -1, initial: image.Rect(0, 0, o.Width, 0)}
+	l.frame = l.rootFrame
 	defer func() {
 		for _, f := range l.faces {
 			f.Close()
 		}
 	}()
 	h := l.block(d.root, 0, 0, o.Width, -1, style{size: 16, line: 22, fg: color.RGBA{30, 36, 46, 255}})
+	if l.err != nil {
+		return nil, l.err
+	}
+	l.position(h)
 	if l.err != nil {
 		return nil, l.err
 	}
@@ -187,6 +196,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		return y
 	}
 
+	basisWidth := w
 	tableStyle := s
 	if n.tag == "table" && s.collapse {
 		s.bw = 0
@@ -229,6 +239,19 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	start := y
 	opStart := len(l.ops)
 	l.add(Box{Tag: n.tag}, nil)
+	if s.position == "relative" || s.position == "absolute" {
+		previous := l.frame
+		frame := &positionFrame{parent: previous, node: n, op: opStart, border: s.bw}
+		if s.position == "relative" {
+			frame.shift = relativeOffset(s, basisWidth, parentHeight)
+		}
+		previous.children = append(previous.children, frame)
+		l.frame = frame
+		if opStart < len(l.ops) {
+			l.ops[opStart].owner = frame
+		}
+		defer func() { l.frame = previous }()
+	}
 	cx, cy, cw := x+padding[3]+s.bw, y+padding[0]+s.bw, max(1, w-extra)
 	contentY := cy
 	if kind, source := diagramSource(n); kind != "" {
@@ -301,6 +324,11 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		for _, c := range n.children {
 			cs := l.d.styled(c, s)
 			if cs.display == "none" {
+				continue
+			}
+			if cs.position == "absolute" {
+				flush()
+				l.queueAbsolute(c, cs, cx, cy)
 				continue
 			}
 			kind, _ := diagramSource(c)
@@ -404,6 +432,16 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		if l.err != nil {
 			return
 		}
+		if n.tag != "" {
+			computed := l.d.styled(n, st)
+			if computed.display == "none" {
+				return
+			}
+			if computed.position == "absolute" {
+				l.queueAbsolute(n, computed, px, y)
+				return
+			}
+		}
 		if n.tag == "br" {
 			prefix += "\n"
 			newline()
@@ -426,6 +464,10 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		}
 		if n.tag != "" {
 			st = l.d.styled(n, st)
+			if st.position == "absolute" {
+				l.queueAbsolute(n, st, px, y)
+				return
+			}
 			if st.display == "none" {
 				return
 			}

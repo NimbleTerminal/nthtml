@@ -201,7 +201,7 @@ specific subset below works; it does not imply browser-compatible behavior.
 | Feature | Status | What works / current boundary |
 | --- | --- | --- |
 | HTML parsing | Partial | Documents and fragments, entities, explicit start/end tags, and tolerant handling of unmatched tags. Bounded token-stack parser; no browser tree repair or implied paragraph/table closures. |
-| Block and inline flow | Partial | Blocks, paragraphs, inline text spans, and `br`. `display: block`, `inline`, and `none`. No inline-block formatting, floats, flexbox, grid, or positioned layout. |
+| Block and inline flow | Partial | Blocks, paragraphs, inline text spans, and `br`. `display: block`, `inline`, and `none`. Constrained relative/absolute positioning for blocks, with signed `top` / `right` / `bottom` / `left` offsets. No inline-block formatting, floats, flexbox, grid, fixed/sticky positioning, or full stacking contexts. |
 | Headings and emphasis | Partial | Built-in styles for `h1`, `h2`, and bold `b` / `strong` / `th`. Other headings behave as ordinary blocks unless styled. `code` uses monospace. `em` / `i` are italic; `small` is inline without automatic smaller type. |
 | Whitespace and line breaks | Partial | `white-space: normal`, `nowrap`, `pre`, `pre-wrap`, `pre-line`, and constrained `break-spaces`; `overflow-wrap: normal`, `break-word`, `anywhere` (`word-wrap` alias). Tabs expand to four cells. Defaults retain emergency long-word wrapping and soft-wrapped `pre` for documents; explicit `nowrap` / `pre` disable wrapping. No full Unicode line-breaking, hyphenation, or ellipsis. |
 | Lists | Partial | Bullets, decimal numbering, nested/hanging indentation, `ol start`, and `li value`. No reversed lists, alternative marker styles, `list-style` properties, or CSS counters. |
@@ -490,7 +490,7 @@ the widget consume keys while `SearchInputActive()` is true.
 
 ### Conformance testing
 
-`task conformance` runs a pinned, offline subset of upstream [Web Platform Tests](https://web-platform-tests.org/) and writes `artifacts/conformance/index.html` plus JSON and failure image comparisons. The audited baseline is **29 PASS, 1 FAIL, 11 UNSUPPORTED** across 41 selected HTML/CSS cases. The color-square cases match; an XHTML RGBA case now exposes a default-foreground mismatch (dark text versus CSS black). Unsupported prerequisites are explicitly recorded rather than counted as passes.
+`task conformance` runs a pinned, offline subset of upstream [Web Platform Tests](https://web-platform-tests.org/) and writes `artifacts/conformance/index.html` plus JSON and failure image comparisons. The audited baseline is **30 PASS, 3 FAIL, 8 UNSUPPORTED** across 41 selected HTML/CSS cases. The remaining failures expose an XHTML default-foreground mismatch and two auto-width table sizing differences in positioning references. Unsupported prerequisites are explicitly recorded rather than counted as passes.
 
 Native and WASM tests enforce the reviewed baseline. Use `task conformance -- -strict` to fail on any rendering failure. This is subset testing, not full browser conformance; see the [harness scope and contribution guide](internal/conformance/README.md).
 
@@ -523,6 +523,16 @@ Try `task demo DEMO=typography` (or **Typography & spacing** in the browser) for
 
 Typeset paragraphs default to `margin:1em 0`; a `body` element defaults to an 8px margin. Documents that need an edge-to-edge background should set `body { margin:0 }`, as the demos do. Fragments retain their existing containing canvas with no implicit body wrapper.
 
-Within the supported block layout, adjoining nonnegative vertical margins use their largest value. For example, a 20px bottom margin followed by a 30px top margin creates a 30px gap. Eligible first/last child margins can sit outside the parent's painted background, and empty blocks can join a chain of margins. Padding, borders, inline lines, definite heights, positive minimum heights, root/table-cell boundaries, and specialized list/media layout constrain which edges can join. Negative margins, floats, clearance, and positioned layout remain unsupported. TTY keeps its text-based paragraph spacing.
+Within the supported block layout, adjoining nonnegative vertical margins use their largest value. For example, a 20px bottom margin followed by a 30px top margin creates a 30px gap. Eligible first/last child margins can sit outside the parent's painted background, and empty blocks can join a chain of margins. Padding, borders, inline lines, definite heights, positive minimum heights, root/table-cell boundaries, and specialized list/media layout constrain which edges can join. Negative margins, floats, and clearance remain unsupported. Absolute boxes form a margin-collapse boundary and take no normal-flow space. TTY keeps its text-based paragraph spacing.
 
 The conformance runner XML-parses `.xht` / `.xhtml` fixtures before rendering, so CSS CDATA, XML character data, and self-closing elements have their intended semantics. Original vendored files and hashes remain unchanged. External DTDs are never fetched; custom entities and unreviewed namespaces are rejected. This adapter belongs to the conformance runner; `document.Parse` continues to accept HTML.
+
+### Constrained positioning
+
+Run `task demo DEMO=positioning`, or choose **Positioned blocks** in the browser gallery. Relative block offsets move the painted subtree while preserving its flow space. Absolute boxes use the nearest positioned block's padding box and contribute visible overflow to the exported image. They support explicit sizes, shrink-to-fit auto width, and stretching with both horizontal or both vertical offsets. Left/top take precedence when an explicit size overconstrains the box; right/bottom anchor its far edge. Supported length units, signed offsets, and percentages are accepted; individual offsets are capped at ±16,384px and the existing output/work limits still apply.
+
+Absolute percentage sizing uses the containing padding box. Relative vertical percentages require a definite parent height. Without a positioned ancestor, the containing width is the requested document width and its height is the normal-flow document height measured before absolute content is placed. The renderer has no browser viewport-height input.
+
+Positioned subtrees paint after their scope's normal content, in source order; nested positioned scopes are grouped. Link hit regions and fragment anchors follow their painted positions. TTY presents the content in source order without offsets or overlap. This subset excludes `z-index`, fixed/sticky positioning, inline relative positioning, and positioning of list items, captions, table rows/cells/groups, or the HTML root. It does not implement the full browser stacking-context model.
+
+![Positioned document blocks](examples/demo/previews/positioning.png)

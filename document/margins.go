@@ -72,7 +72,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 	if s.display == "none" {
 		return blockMargins{through: true}
 	}
-	if marginBoundary(n) {
+	if marginBoundary(n) || s.position == "absolute" {
 		return info
 	}
 	cw := max(1, width-padding[1]-padding[3]-2*s.bw)
@@ -119,7 +119,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 	}
 	for _, child := range n.children {
 		cs := l.d.styled(child, s)
-		if cs.display == "none" {
+		if cs.display == "none" || cs.position == "absolute" {
 			continue
 		}
 		if child.tag == "" || cs.display == "inline" || child.tag == "br" {
@@ -197,7 +197,7 @@ func (l *layout) inlineLine(nodes []*node, parent style) bool {
 			continue
 		}
 		s := l.d.styled(n, parent)
-		if s.display == "none" {
+		if s.display == "none" || s.position == "absolute" {
 			continue
 		}
 		if n.tag == "br" {

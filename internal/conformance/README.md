@@ -15,9 +15,9 @@ Open `artifacts/conformance/index.html` for results and failure images. `report.
 
 | Result | Cases | Meaning |
 |---|---:|---|
-| PASS | 29 | Display-none, typography, selectors, zero/min/max dimensions, named/RGB/RGBA/hex colors, and collapsed paragraph margins. |
-| FAIL | 1 | XHTML RGBA opacity-one test: explicit black differs from the default dark text in its HTML reference. |
-| UNSUPPORTED | 11 | Dependencies outside our reviewed subset; never counted as passes. |
+| PASS | 30 | Display-none, typography, selectors, zero/min/max dimensions, named/RGB/RGBA/hex colors, and collapsed paragraph margins. |
+| FAIL | 3 | One default-foreground mismatch; two positioning cases whose references expose auto-width table sizing differences. |
+| UNSUPPORTED | 8 | Dependencies outside our reviewed subset; never counted as passes. |
 | ERROR | 0 | Harness errors, missing fixtures, or rejected prerequisites. |
 
 The manifest pins revision `ffe56d4420d270941329689aff42d925f615d0b4` and SHA-256 hashes for every vendored file. Original fixture bytes and upstream `LICENSE.md` are retained under `testdata/wpt`. Unsupported cases document gaps in positioning, floats, Ahem fonts, external resources and table prerequisites, including prerequisites in their reference documents.
@@ -43,6 +43,8 @@ Fetching/updating upstream fixtures is a separate, intentional maintenance opera
 
 Selector/cascade combinations, whitespace modes, and merged-table geometry/TTY output also have native and WASM regression tests in `document`. These local tests are not counted as upstream WPT passes.
 
-The current inventory is **41 selected HTML/CSS cases**, not the full HTML/CSS suite. Of 30 runnable reference cases, 29 pass and one fails; 11 others are explicitly unsupported. Some unit tests upstream use JavaScript `getComputedStyle` assertions rather than visual references. They remain unsupported by this runner even when the underlying unit conversion is implemented and covered locally. The four color-square cases now match after paragraph defaults and vertical margin collapse were corrected. Original test/reference files remain unchanged.
+The current inventory is **41 selected HTML/CSS cases**, not the full HTML/CSS suite. Of 33 runnable reference cases, 30 pass and three fail; eight others are explicitly unsupported. Some unit tests upstream use JavaScript `getComputedStyle` assertions rather than visual references. They remain unsupported by this runner even when the underlying unit conversion is implemented and covered locally. The four color-square cases now match after paragraph defaults and vertical margin collapse were corrected. Original test/reference files remain unchanged.
 
 The four formerly CDATA-blocked color cases now run. Three pass; the fourth exposes the renderer's dark default foreground versus explicit CSS black. It remains a visible FAIL in the baseline. Fixture integrity checks continue to use original upstream bytes.
+
+Constrained positioning enables three more cases. `border-collapse-offset-001` passes. The padding/margin cases render the intended positioned boxes, but their original table reference expands to the container width instead of its intrinsic width; both remain FAIL with image diffs. Remaining skips still require additional prerequisites such as floats, z-index, fonts, external images, or JavaScript.
