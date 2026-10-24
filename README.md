@@ -490,7 +490,7 @@ the widget consume keys while `SearchInputActive()` is true.
 
 ### Conformance testing
 
-`task conformance` runs a pinned, offline subset of upstream [Web Platform Tests](https://web-platform-tests.org/) and writes `artifacts/conformance/index.html` plus JSON and failure image comparisons. The audited baseline is **26 PASS, 0 FAIL, 15 UNSUPPORTED** across 41 selected HTML/CSS cases. The color-square cases now match after correcting paragraph defaults and vertical margin collapse. Unsupported prerequisites are explicitly recorded rather than counted as passes.
+`task conformance` runs a pinned, offline subset of upstream [Web Platform Tests](https://web-platform-tests.org/) and writes `artifacts/conformance/index.html` plus JSON and failure image comparisons. The audited baseline is **29 PASS, 1 FAIL, 11 UNSUPPORTED** across 41 selected HTML/CSS cases. The color-square cases match; an XHTML RGBA case now exposes a default-foreground mismatch (dark text versus CSS black). Unsupported prerequisites are explicitly recorded rather than counted as passes.
 
 Native and WASM tests enforce the reviewed baseline. Use `task conformance -- -strict` to fail on any rendering failure. This is subset testing, not full browser conformance; see the [harness scope and contribution guide](internal/conformance/README.md).
 
@@ -524,3 +524,5 @@ Try `task demo DEMO=typography` (or **Typography & spacing** in the browser) for
 Typeset paragraphs default to `margin:1em 0`; a `body` element defaults to an 8px margin. Documents that need an edge-to-edge background should set `body { margin:0 }`, as the demos do. Fragments retain their existing containing canvas with no implicit body wrapper.
 
 Within the supported block layout, adjoining nonnegative vertical margins use their largest value. For example, a 20px bottom margin followed by a 30px top margin creates a 30px gap. Eligible first/last child margins can sit outside the parent's painted background, and empty blocks can join a chain of margins. Padding, borders, inline lines, definite heights, positive minimum heights, root/table-cell boundaries, and specialized list/media layout constrain which edges can join. Negative margins, floats, clearance, and positioned layout remain unsupported. TTY keeps its text-based paragraph spacing.
+
+The conformance runner XML-parses `.xht` / `.xhtml` fixtures before rendering, so CSS CDATA, XML character data, and self-closing elements have their intended semantics. Original vendored files and hashes remain unchanged. External DTDs are never fetched; custom entities and unreviewed namespaces are rejected. This adapter belongs to the conformance runner; `document.Parse` continues to accept HTML.

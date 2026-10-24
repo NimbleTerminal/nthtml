@@ -251,23 +251,23 @@
     },
     {
       "path": "css/css-color/t44-currentcolor-background-b.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires XHTML CSS CDATA processing; the harness uses the HTML tokenizer."
+      "expected": "PASS",
+      "reason": "XML-parsed XHTML CSS CDATA and entities; compared with its original HTML reference."
     },
     {
       "path": "css/css-color/t44-currentcolor-border-b.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires XHTML CSS CDATA processing; the harness uses the HTML tokenizer."
+      "expected": "PASS",
+      "reason": "XML-parsed XHTML CSS CDATA and entities; compared with its original HTML reference."
     },
     {
       "path": "css/css-color/t422-rgba-a1.0-a.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires XHTML CSS CDATA processing; the harness uses the HTML tokenizer."
+      "expected": "FAIL",
+      "reason": "Known gap: explicit black text differs from nthtml default dark foreground in the reference."
     },
     {
       "path": "css/css-color/t421-rgb-hex3-expand-b.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires XHTML CSS CDATA processing; the harness uses the HTML tokenizer."
+      "expected": "PASS",
+      "reason": "XML-parsed XHTML CSS CDATA and entities; compared with its original HTML reference."
     },
     {
       "path": "css/css-values/absolute-length-units-001.html",

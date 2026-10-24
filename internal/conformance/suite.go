@@ -113,6 +113,10 @@ func (s Suite) Verify() error {
 type Reference struct{ Path, Relation string }
 
 func references(name string, data []byte) ([]Reference, error) {
+	data, err := fixtureInput(context.Background(), name, data)
+	if err != nil {
+		return nil, err
+	}
 	z := html.NewTokenizer(bytes.NewReader(data))
 	var refs []Reference
 	for {
@@ -242,7 +246,7 @@ func (s Suite) runCase(ctx context.Context, c Case, o Options) (r Result) {
 	if len(refs) == 0 {
 		return fail(fmt.Errorf("no upstream match/mismatch references"))
 	}
-	img, e := render(ctx, data, s.Manifest.Viewport)
+	img, e := render(ctx, c.Path, data, s.Manifest.Viewport)
 	if e != nil {
 		return fail(e)
 	}
@@ -257,7 +261,7 @@ func (s Suite) runCase(ctx context.Context, c Case, o Options) (r Result) {
 		if _, e = references(ref.Path, data); e != nil {
 			return fail(e)
 		}
-		reference, e := render(ctx, data, s.Manifest.Viewport)
+		reference, e := render(ctx, ref.Path, data, s.Manifest.Viewport)
 		if e != nil {
 			return fail(e)
 		}
@@ -305,7 +309,11 @@ func Satisfies(comparisons []Comparison) bool {
 	}
 	return !hasMatch || matched
 }
-func render(ctx context.Context, data []byte, v Viewport) (*image.RGBA, error) {
+func render(ctx context.Context, name string, data []byte, v Viewport) (*image.RGBA, error) {
+	data, err := fixtureInput(ctx, name, data)
+	if err != nil {
+		return nil, err
+	}
 	r, e := document.Render(ctx, bytes.NewReader(data), document.Options{Width: v.Width})
 	if e != nil {
 		return nil, e
