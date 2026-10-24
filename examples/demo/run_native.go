@@ -42,6 +42,12 @@ func (a app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch v := msg.(type) {
+	case nthtml.CopyMsg:
+		if v.Owner != a.viewer {
+			return a, nil
+		}
+		a.notice = "Copy requested (terminal clipboard support required)"
+		return a, tea.SetClipboard(v.Text)
 	case nthtml.LinkMsg:
 		if v.Owner != a.viewer {
 			return a, nil
@@ -69,7 +75,7 @@ func (a app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyPressMsg:
-		if v.String() == "q" || v.String() == "ctrl+c" {
+		if !a.viewer.SearchInputActive() && (v.String() == "q" || v.String() == "ctrl+c") {
 			a.closing = true
 			return a, tea.Sequence(a.viewer.Close(), tea.Tick(shutdownGrace, func(time.Time) tea.Msg { return shutdownReadyMsg{} }))
 		}
@@ -88,7 +94,16 @@ func (a app) View() tea.View {
 	if link, ok := a.viewer.FocusedLink(); ok {
 		target = "Enter to open: " + link.Href
 	}
-	v := tea.NewView(a.viewer.View() + "\n" + ansi.Truncate(target, max(1, a.cols), "…") + "\n nthtml · " + mode + " · t layout · Tab links · click/Enter open · arrows scroll · +/- zoom · q quit")
+	if query, current, total := a.viewer.SearchStatus(); query != "" {
+		target = fmt.Sprintf("Search %q · %d/%d · n/N next/previous", query, current, total)
+	}
+	if a.viewer.SearchInputActive() {
+		target = "/" + a.viewer.SearchInput() + " · Enter search · Esc cancel"
+	}
+	if text := a.viewer.SelectedText(); text != "" && !a.viewer.SearchInputActive() {
+		target = fmt.Sprintf("%d bytes selected · y copy · Esc clear", len(text))
+	}
+	v := tea.NewView(a.viewer.View() + "\n" + ansi.Truncate(target, max(1, a.cols), "…") + "\n nthtml · " + mode + " · t layout · / search · n/N matches · drag select · y copy · Tab links · q quit")
 	v.AltScreen = true
 	if !a.closing {
 		v.MouseMode = tea.MouseModeCellMotion

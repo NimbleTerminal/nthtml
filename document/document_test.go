@@ -133,6 +133,7 @@ func TestImageBudget(t *testing.T) {
 }
 func FuzzRender(f *testing.F) {
 	f.Add("<p>Hello <b>world</b></p>")
+	f.Add(`<a href="#target">Jump</a><p id="target">Search <b>across</b> inline text</p>`)
 	f.Add("<table><tr><td>x")
 	f.Add(`<svg viewBox="0 0 100 50"><path d="M0 0L100 50" stroke="blue"/></svg>`)
 	f.Add("<pre class=mermaid>flowchart LR\n A --> B</pre>")
@@ -147,7 +148,15 @@ func FuzzRender(f *testing.F) {
 		if err != nil {
 			return
 		}
-		_, _ = d.Render(context.Background(), Options{Width: 200})
-		_, _ = d.TTYLayout(context.Background(), 20)
+		if r, e := d.Render(context.Background(), Options{Width: 200}); e == nil {
+			index := r.TextIndex()
+			_ = index.Search("inline text")
+			_, _ = r.Fragment("#target")
+		}
+		if r, e := d.TTYLayout(context.Background(), 20); e == nil {
+			index := r.TextIndex()
+			_ = r.ANSIHighlights(index.Search("text"))
+			_, _ = r.Fragment("#target")
+		}
 	})
 }

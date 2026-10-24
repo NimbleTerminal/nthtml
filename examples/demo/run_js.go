@@ -30,7 +30,20 @@ func run(initial *document.Result, source string) {
 		}
 		return out
 	}
+	var currentText, currentTTY *document.TextIndex
+	currentResult := initial
+	var currentTTYResult *document.TTYResult
 	paint := func(r *document.Result) {
+		currentResult = r
+		currentText = r.TextIndex()
+		runs := []any{}
+		previous := 0
+		for _, run := range currentText.Runs {
+			b := run.Bounds
+			runs = append(runs, map[string]any{"text": currentText.Text[run.Start:run.End], "before": currentText.Text[previous:run.Start], "x": b.Min.X, "y": b.Min.Y, "width": b.Dx(), "height": b.Dy()})
+			previous = run.End
+		}
+		canvas.Set("nthtmlTextRuns", js.ValueOf(runs))
 		b := r.Image.Bounds()
 		canvas.Set("width", b.Dx())
 		canvas.Set("height", b.Dy())
@@ -52,6 +65,8 @@ func run(initial *document.Result, source string) {
 	}
 	paint(initial)
 	setTTY := func(result *document.TTYResult) {
+		currentTTYResult = result
+		currentTTY = result.TextIndex()
 		tty := d.Call("getElementById", "tty")
 		tty.Set("textContent", result.Text)
 		hrefs := map[int]string{}
@@ -125,6 +140,48 @@ func run(initial *document.Result, source string) {
 	defer reflow.Release()
 	defer closeDemo.Release()
 	api := js.Global().Get("Object").New()
+	indexFor := func(tty bool) *document.TextIndex {
+		if tty {
+			return currentTTY
+		}
+		return currentText
+	}
+	search := js.FuncOf(func(_ js.Value, args []js.Value) any {
+		if len(args) != 2 || args[0].Type() != js.TypeString || args[1].Type() != js.TypeBoolean {
+			return []any{}
+		}
+		out := []any{}
+		for _, m := range indexFor(args[1].Bool()).Search(args[0].String()) {
+			out = append(out, map[string]any{"start": m.Start, "end": m.End})
+		}
+		return out
+	})
+	regions := js.FuncOf(func(_ js.Value, args []js.Value) any {
+		out := []any{}
+		if len(args) != 3 || args[0].Type() != js.TypeNumber || args[1].Type() != js.TypeNumber || args[2].Type() != js.TypeBoolean {
+			return out
+		}
+		for _, r := range indexFor(args[2].Bool()).Regions(args[0].Int(), args[1].Int()) {
+			out = append(out, map[string]any{"x": r.Min.X, "y": r.Min.Y, "width": r.Dx(), "height": r.Dy()})
+		}
+		return out
+	})
+	fragment := js.FuncOf(func(_ js.Value, args []js.Value) any {
+		if len(args) != 2 || args[0].Type() != js.TypeString || args[1].Type() != js.TypeBoolean {
+			return map[string]any{"found": false}
+		}
+		p, ok := currentResult.Fragment(args[0].String())
+		if args[1].Bool() {
+			p, ok = currentTTYResult.Fragment(args[0].String())
+		}
+		return map[string]any{"found": ok, "x": p.X, "y": p.Y}
+	})
+	defer search.Release()
+	defer regions.Release()
+	defer fragment.Release()
+	api.Set("search", search)
+	api.Set("regions", regions)
+	api.Set("fragment", fragment)
 	api.Set("reflow", reflow)
 	api.Set("close", closeDemo)
 	js.Global().Set("nthtmlDemo", api)

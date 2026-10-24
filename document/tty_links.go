@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+func anchorMarker(id int) string { return "\x1b]1337;nthtml-anchor=" + strconv.Itoa(id) + "\x07" }
+
 const linkEnd = "\x1b]8;;\x07"
 
 func linkStart(id int) string { return "\x1b]8;;nthtml:" + strconv.Itoa(id) + "\x07" }
@@ -19,9 +21,10 @@ type TextSpan struct {
 	Bounds             image.Rectangle
 }
 type TTYResult struct {
-	Text  string
-	Links []Link
-	Spans []TextSpan
+	Anchors map[string]image.Point
+	Text    string
+	Links   []Link
+	Spans   []TextSpan
 }
 
 // TTYLayout returns plain text plus link spans, without terminal escape codes.
@@ -38,12 +41,37 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 	for i, l := range links {
 		byID[l.ID] = i
 	}
-	result := &TTYResult{}
+	names := map[int]string{}
+	var collect func(*node)
+	collect = func(n *node) {
+		if name := anchorName(n); name != "" {
+			names[n.id] = name
+		}
+		for _, c := range n.children {
+			collect(c)
+		}
+	}
+	collect(d.root)
+	result := &TTYResult{Anchors: map[string]image.Point{}}
 	var text strings.Builder
 	x, y, current := 0, 0, 0
 	for len(raw) > 0 {
 		if e := ctx.Err(); e != nil {
 			return nil, e
+		}
+		if strings.HasPrefix(raw, "\x1b]1337;nthtml-anchor=") {
+			end := strings.IndexByte(raw, '\x07')
+			if end < 0 {
+				break
+			}
+			id, _ := strconv.Atoi(strings.TrimPrefix(raw[:end], "\x1b]1337;nthtml-anchor="))
+			if name := names[id]; name != "" {
+				if _, ok := result.Anchors[name]; !ok {
+					result.Anchors[name] = image.Pt(x, y)
+				}
+			}
+			raw = raw[end+1:]
+			continue
 		}
 		if strings.HasPrefix(raw, "\x1b]8;;") {
 			end := strings.IndexByte(raw, '\x07')
@@ -159,6 +187,15 @@ func linkedLines(text string) []string {
 				active = seq
 			}
 			line.WriteString(seq)
+			text = text[end+1:]
+			continue
+		}
+		if strings.HasPrefix(text, "\x1b]1337;nthtml-anchor=") {
+			end := strings.IndexByte(text, '\x07')
+			if end < 0 {
+				break
+			}
+			line.WriteString(text[:end+1])
 			text = text[end+1:]
 			continue
 		}

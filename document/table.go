@@ -5,9 +5,10 @@ import (
 )
 
 type tableRow struct {
-	style  style
-	cells  []*node
-	styles []style
+	anchors []string
+	style   style
+	cells   []*node
+	styles  []style
 }
 
 // Table work is cumulative across nested tables, so repeated intrinsic
@@ -114,12 +115,19 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 			}
 			switch child.tag {
 			case "thead", "tbody", "tfoot":
+				first := len(rows)
 				collect(child, cs)
+				if name := anchorName(child); name != "" && first < len(rows) {
+					rows[first].anchors = append(rows[first].anchors, name)
+				}
 			case "tr":
 				if cs.bg.A == 0 {
 					cs.bg = ps.bg
 				}
 				row := tableRow{style: cs}
+				if name := anchorName(child); name != "" {
+					row.anchors = append(row.anchors, name)
+				}
 				for _, cell := range child.children {
 					if cell.tag != "td" && cell.tag != "th" {
 						continue
@@ -167,6 +175,9 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 	for ri, row := range rows {
 		if !l.tableStep() {
 			return y
+		}
+		for _, name := range row.anchors {
+			l.add(Box{Tag: "anchor", Anchor: name, Bounds: image.Rect(x, y, x+1, y+1)}, nil)
 		}
 		rowStart := len(l.ops)
 		l.add(Box{Tag: "tr"}, nil)

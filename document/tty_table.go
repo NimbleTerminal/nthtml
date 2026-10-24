@@ -29,8 +29,12 @@ func (d *Document) ttyTable(ctx context.Context, n *node, parent style, width in
 			}
 			switch child.tag {
 			case "thead", "tbody", "tfoot":
+				first := len(rows)
 				if err := collect(child, cs); err != nil {
 					return err
+				}
+				if anchorName(child) != "" && first < len(rows) && len(rows[first]) > 0 {
+					rows[first][0].text = anchorMarker(child.id) + rows[first][0].text
 				}
 			case "caption":
 				text, err := cellText(child, st)
@@ -55,6 +59,9 @@ func (d *Document) ttyTable(ctx context.Context, n *node, parent style, width in
 					row = append(row, ttyCell{text, s.align, cell.tag == "th"})
 				}
 				if len(row) > 0 {
+					if anchorName(child) != "" {
+						row[0].text = anchorMarker(child.id) + row[0].text
+					}
 					rows = append(rows, row)
 					columns = max(columns, len(row))
 				}

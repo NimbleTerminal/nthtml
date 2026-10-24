@@ -93,8 +93,14 @@ func (m *Model) mouseReady() bool {
 }
 func (m *Model) mousePress(v tea.MouseClickMsg) tea.Cmd {
 	m.pressedLink = 0
+	m.mouseDown, m.dragging = false, false
 	if v.Button != tea.MouseLeft || !m.mouseReady() {
 		return nil
+	}
+	m.pressCell = image.Pt(v.X, v.Y)
+	if hit, ok := m.textIndex().Hit(m.cellArea(m.pressCell)); ok {
+		m.mouseDown = true
+		m.dragStart = hit
 	}
 	if link, ok := m.LinkAtCell(image.Pt(v.X, v.Y)); ok {
 		m.pressedLink = link.ID
@@ -103,6 +109,15 @@ func (m *Model) mousePress(v tea.MouseClickMsg) tea.Cmd {
 	return nil
 }
 func (m *Model) mouseRelease(v tea.MouseReleaseMsg) tea.Cmd {
+	if m.mouseDown {
+		cmd := m.selectMotion(image.Pt(v.X, v.Y))
+		dragged := m.dragging
+		m.mouseDown, m.dragging = false, false
+		if dragged {
+			m.pressedLink = 0
+			return cmd
+		}
+	}
 	pressed := m.pressedLink
 	m.pressedLink = 0
 	if pressed == 0 || (v.Button != tea.MouseLeft && v.Button != tea.MouseNone) || !m.mouseReady() {

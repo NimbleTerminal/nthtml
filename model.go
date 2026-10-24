@@ -24,23 +24,30 @@ const (
 // Model follows ntpicture's pointer-mutating component convention. Forward all
 // messages and run returned commands. The host owns focus and quit handling.
 type Model struct {
-	pic                    *ntpicture.Picture
-	result                 *document.Result
-	mode                   LayoutMode
-	ttyLines               []string
-	ttyResult              *document.TTYResult
-	focusID                int
-	origin, pressCell      image.Point
-	pressedLink            int
-	ttyTop                 int
-	err                    error
-	source                 image.Image
-	initial                tea.Cmd
-	zoom, x, y, cols, rows int
+	index                         *document.TextIndex
+	query, searchInput            string
+	searching                     bool
+	matches                       []document.Match
+	match, selectStart, selectEnd int
+	mouseDown, dragging           bool
+	dragStart                     document.Match
+	pic                           *ntpicture.Picture
+	result                        *document.Result
+	mode                          LayoutMode
+	ttyLines                      []string
+	ttyResult                     *document.TTYResult
+	focusID                       int
+	origin, pressCell             image.Point
+	pressedLink                   int
+	ttyTop                        int
+	err                           error
+	source                        image.Image
+	initial                       tea.Cmd
+	zoom, x, y, cols, rows        int
 }
 
 func New(result *document.Result) *Model {
-	m := &Model{pic: ntpicture.New(ntpicture.Options{AutoMode: true}), cols: 80, rows: 24}
+	m := &Model{pic: ntpicture.New(ntpicture.Options{AutoMode: true}), cols: 80, rows: 24, match: -1}
 	if result != nil {
 		m.result = result
 		m.source = result.Image
@@ -73,13 +80,16 @@ func (m *Model) SetLayoutMode(mode LayoutMode) tea.Cmd {
 	}
 	m.pressedLink = 0
 	m.mode = mode
+	m.index = nil
+	m.clearSelection()
 	if mode == LayoutTTY {
 		m.reflowTTY()
 	}
 	if mode == LayoutTypeset {
+		m.resetTextLayout()
 		return tea.Batch(m.pic.SetVisible(true), m.showLinkFocus())
 	}
-	return m.pic.SetVisible(false)
+	return tea.Batch(m.pic.SetVisible(false), m.refreshHighlights())
 }
 func (m *Model) ToggleLayout() tea.Cmd {
 	if m.mode == LayoutTypeset {
@@ -97,6 +107,7 @@ func (m *Model) reflowTTY() {
 	}
 	m.ttyLines = strings.Split(text, "\n")
 	m.scrollTTY(0)
+	m.resetTextLayout()
 }
 func (m *Model) scrollTTY(delta int) {
 	m.ttyTop = max(0, min(max(0, len(m.ttyLines)-m.rows), m.ttyTop+delta))
@@ -106,20 +117,23 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	m.pressedLink = 0
 	m.cols = max(1, min(cols, 1000))
 	m.rows = max(1, min(rows, 1000))
+	m.clearSelection()
 	if m.mode == LayoutTTY {
 		m.reflowTTY()
 	}
-	return tea.Batch(m.pic.SetSize(m.cols, m.rows), m.viewport())
+	return tea.Batch(m.pic.SetSize(m.cols, m.rows), m.refreshHighlights(), m.viewport())
 }
 func (m *Model) Zoom(delta int) tea.Cmd {
 	m.pressedLink = 0
+	m.clearSelection()
 	if m.mode == LayoutTTY {
 		return nil
 	}
 	m.zoom = max(0, min(6, m.zoom+delta))
-	return m.viewport()
+	return m.refreshHighlights()
 }
 func (m *Model) Pan(dx, dy int) tea.Cmd {
+	m.mouseDown, m.dragging = false, false
 	m.pressedLink = 0
 	if m.mode == LayoutTTY {
 		step := dy / 20
@@ -169,17 +183,51 @@ func (m *Model) cropRect() image.Rectangle {
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch v := msg.(type) {
+	case tea.PasteMsg:
+		if m.searching {
+			for _, r := range v.Content {
+				if r >= 32 && len([]rune(m.searchInput)) < 256 {
+					m.searchInput += string(r)
+				}
+			}
+			return nil
+		}
 	case tea.MouseClickMsg:
 		cmd = m.mousePress(v)
 	case tea.MouseReleaseMsg:
 		cmd = m.mouseRelease(v)
 	case tea.MouseMotionMsg:
+		cmd = m.selectMotion(image.Pt(v.X, v.Y))
 		if image.Pt(v.X, v.Y) != m.pressCell {
 			m.pressedLink = 0
 		}
 	case tea.KeyPressMsg:
+		if m.searching {
+			return m.searchKey(v)
+		}
 		m.pressedLink = 0
 		switch v.String() {
+		case "/":
+			m.searching = true
+			m.searchInput = m.query
+		case "n", "N":
+			cmd = m.NextMatch(v.String() == "N")
+		case "esc":
+			m.query = ""
+			m.matches = nil
+			m.match = -1
+			m.focusID = 0
+			m.clearSelection()
+			cmd = m.refreshHighlights()
+		case "ctrl+a":
+			cmd = m.SelectRange(0, len(m.textIndex().Text))
+		case "v":
+			if m.match >= 0 && m.match < len(m.matches) {
+				hit := m.matches[m.match]
+				cmd = m.SelectRange(hit.Start, hit.End)
+			}
+		case "y":
+			cmd = m.CopySelection()
 		case "tab":
 			cmd = m.NextLink(false)
 		case "shift+tab":

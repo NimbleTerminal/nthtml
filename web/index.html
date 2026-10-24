@@ -27,6 +27,13 @@ button:disabled{opacity:.4;cursor:default}[hidden]{display:none!important}
 #reflow-controls button{font-size:12px;padding:4px 8px}
 #cell-measure{position:absolute;visibility:hidden;white-space:pre;font:16px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
 #canvas-stage{position:relative;width:800px}
+#text-layer{position:absolute;inset:0;color:transparent;white-space:pre;user-select:text;overflow:hidden}
+#text-layer span{position:absolute;display:block;overflow:hidden;white-space:pre;color:transparent;font-family:sans-serif;line-height:1}
+#text-layer ::selection{background:#4b96ff80;color:transparent}
+#search-layer{position:absolute;inset:0;pointer-events:none}
+#search-layer mark{position:absolute;background:#ffd62a60;outline:1px solid #d58c00}
+#search-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 24px 12px}
+#search-query{font:inherit;padding:6px;width:220px}
 #link-layer{position:absolute;inset:0;pointer-events:none}
 #link-layer a{position:absolute;pointer-events:auto;border-radius:2px}
 #link-layer a:hover{background:#438aff26;outline:1px solid #438aff}
@@ -42,22 +49,23 @@ footer{padding:12px 24px;color:#a7b7ce;font-size:12px}
 <span class="brand">nthtml</span>
 <a href="https://github.com/NimbleTerminal/nthtml">GitHub</a>
 <label for="demo">Document</label>
-<select id="demo"><option value="overview">Platform overview</option><option value="invoice">Studio invoice</option><option value="field-notes">Field notes</option><option value="status-report">Delivery status</option><option value="guide">Documentation guide</option><option value="typography">Typography &amp; spacing</option><option value="diagrams">SVG &amp; Mermaid</option></select>
+<select id="demo"><option value="overview">Platform overview</option><option value="invoice">Studio invoice</option><option value="field-notes">Field notes</option><option value="status-report">Delivery status</option><option value="guide">Documentation guide</option><option value="typography">Typography &amp; spacing</option><option value="diagrams">SVG &amp; Mermaid</option><option value="navigation">Document navigation</option></select>
 <div class="controls"><button id="layout" aria-pressed="false">Layout: Typeset</button><button id="out" aria-label="Zoom out">−</button><button id="in" aria-label="Zoom in">+</button><button id="reset">Reset</button><button id="compare" aria-expanded="false" aria-controls="reference-pane">Show browser reference</button></div>
 </header>
+<div id="search-controls"><label for="search-query">Find</label><input id="search-query" type="search" maxlength="256" placeholder="Search document"><button id="search-prev" aria-label="Previous match">Previous</button><button id="search-next" aria-label="Next match">Next</button><span id="search-count" role="status">0 matches</span><button id="select-text">Select all text</button><button id="copy-text">Copy selection</button></div>
 <div id="status" role="status">Loading Go WebAssembly…</div>
 <main id="workspace">
 <section class="pane" aria-labelledby="render-heading">
 <div class="pane-heading"><h2 id="render-heading">nthtml · Go WASM</h2><span id="render-description">Typeset · 800 px document</span></div>
 <div id="reflow-controls"><label for="container-width">Container width</label><input id="container-width" type="number" min="280" max="1600" step="20" value="800" aria-label="Container width in pixels"><span>px</span><button id="fit-container">Fit pane</button><span>Drag the lower-right corner to reflow.</span></div>
-<div id="terminal-container"><div id="viewport" class="viewport"><div id="canvas-stage"><canvas id="document" aria-label="Rendered HTML document preview"></canvas><div id="link-layer" aria-label="Document links"></div></div><pre id="tty" hidden aria-label="Plain text document"></pre></div></div>
+<div id="terminal-container"><div id="viewport" class="viewport"><div id="canvas-stage"><canvas id="document" aria-label="Rendered HTML document preview"></canvas><div id="text-layer" aria-label="Selectable document text"></div><div id="search-layer" aria-hidden="true"></div><div id="link-layer" aria-label="Document links"></div></div><pre id="tty" hidden aria-label="Plain text document"></pre></div></div>
 </section>
 <section id="reference-pane" class="pane" aria-labelledby="reference-heading" hidden>
 <div class="pane-heading"><h2 id="reference-heading">Browser · same HTML</h2><span>800 px viewport</span><button id="close-reference" aria-label="Close browser reference">Close</button></div>
 <div class="viewport"><iframe id="browser-reference" title="Browser rendering of the selected HTML document" sandbox="" referrerpolicy="no-referrer"></iframe></div>
 </section>
 </main>
-<footer>Browser reference uses native browser defaults; differences are expected. Scroll each pane independently; Tab to focus links; press t to switch layout, + / − to zoom, and 0 to reset.</footer>
+<footer>Browser reference uses native browser defaults; differences are expected. Scroll each pane independently; Tab to focus links; / to find, n/N for matches; drag text to select and copy. Press t for layout, + / − to zoom, and 0 to reset.</footer>
 <span id="cell-measure" aria-hidden="true">0000000000</span>
 <script src="wasm_exec.js"></script>
 <script>
@@ -90,18 +98,33 @@ const layoutButton=document.getElementById("layout");
 const canvas=document.getElementById('document');
 const canvasStage=document.getElementById('canvas-stage');
 const linkLayer=document.getElementById('link-layer');
-let previousLinks,previousSegments;
-function safeHref(href){try{const url=new URL(href,document.baseURI);return ['http:','https:','mailto:'].includes(url.protocol)?url.href:null}catch{return null}}
+const textLayer=document.getElementById('text-layer');
+const searchLayer=document.getElementById('search-layer');
+let previousLinks,previousSegments,previousText;
+function safeHref(href){if(href.startsWith('#'))return href;try{const url=new URL(href,document.baseURI);return ['http:','https:','mailto:'].includes(url.protocol)?url.href:null}catch{return null}}
+function bindDocumentLink(a,href){
+ if(href.startsWith('#')){a.removeAttribute('target');a.onclick=event=>{event.preventDefault();jumpFragment(href)}}
+}
 function refreshLinks(){
+ if(previousText!==canvas.nthtmlTextRuns){
+  if(previousText)getSelection().removeAllRanges();previousText=canvas.nthtmlTextRuns;textLayer.replaceChildren();
+  for(const run of canvas.nthtmlTextRuns||[]){
+   if(run.before)textLayer.append(document.createTextNode(run.before));
+   const span=document.createElement('span');span.textContent=run.text;
+   span.style.left=(100*run.x/canvas.width)+'%';span.style.top=(100*run.y/canvas.height)+'%';
+   span.style.width=(100*run.width/canvas.width)+'%';span.style.height=(100*run.height/canvas.height)+'%';
+   span.dataset.height=run.height;span.style.fontSize=(run.height*zoom*.7)+'px';textLayer.append(span);
+  }
+ }
  if(previousLinks!==canvas.nthtmlLinks){
   previousLinks=canvas.nthtmlLinks;linkLayer.replaceChildren();
   for(const link of canvas.nthtmlLinks||[]){const href=safeHref(link.href);if(!href)continue;
-   link.regions.forEach((r,i)=>{const a=document.createElement('a');a.href=href;a.target='_blank';a.rel='noopener noreferrer';a.title=link.href;a.setAttribute('aria-label',link.text);a.style.left=(100*r.x/canvas.width)+'%';a.style.top=(100*r.y/canvas.height)+'%';a.style.width=(100*r.width/canvas.width)+'%';a.style.height=(100*r.height/canvas.height)+'%';if(i>0){a.tabIndex=-1;a.setAttribute('aria-hidden','true')};linkLayer.append(a)});
+   link.regions.forEach((r,i)=>{const a=document.createElement('a');a.href=href;a.target='_blank';a.rel='noopener noreferrer';a.title=link.href;a.setAttribute('aria-label',link.text);a.style.left=(100*r.x/canvas.width)+'%';a.style.top=(100*r.y/canvas.height)+'%';a.style.width=(100*r.width/canvas.width)+'%';a.style.height=(100*r.height/canvas.height)+'%';if(i>0){a.tabIndex=-1;a.setAttribute('aria-hidden','true')};bindDocumentLink(a,link.href);linkLayer.append(a)});
   }
  }
  if(previousSegments!==tty.nthtmlSegments){
   previousSegments=tty.nthtmlSegments;tty.replaceChildren();const seen=new Set();
-  for(const segment of tty.nthtmlSegments||[]){const href=segment.href&&safeHref(segment.href);if(!href){tty.append(document.createTextNode(segment.text));continue};const a=document.createElement('a');a.textContent=segment.text;a.href=href;a.target='_blank';a.rel='noopener noreferrer';a.title=segment.href;if(seen.has(segment.id))a.tabIndex=-1;seen.add(segment.id);tty.append(a)}
+  for(const segment of tty.nthtmlSegments||[]){const href=segment.href&&safeHref(segment.href);if(!href){tty.append(document.createTextNode(segment.text));continue};const a=document.createElement('a');a.textContent=segment.text;a.href=href;a.target='_blank';a.rel='noopener noreferrer';a.title=segment.href;if(seen.has(segment.id))a.tabIndex=-1;seen.add(segment.id);bindDocumentLink(a,segment.href);tty.append(a)}
  }
 }
 const viewport=document.getElementById('viewport');
@@ -119,15 +142,15 @@ function reflow(){
  if(error){document.getElementById('status').textContent=error;return}
  currentWidth=pixels;currentColumns=columns;
  if(document.activeElement!==widthInput)widthInput.value=Math.round(terminalContainer.getBoundingClientRect().width);
- describeLayout();scale();refreshLinks();
- document.getElementById('status').textContent='Rendered by nthtml · Go WebAssembly';
+ describeLayout();scale();refreshLinks();runSearch(false);
+ document.getElementById('status').textContent='Rendered by nthtml · Go WebAssembly'+((canvas.nthtmlWarnings||[]).length?' · '+canvas.nthtmlWarnings.join('; '):'');
 }
 function scheduleReflow(){clearTimeout(reflowTimer);reflowTimer=setTimeout(reflow,100)}
 const observer=new ResizeObserver(scheduleReflow);observer.observe(viewport);
 widthInput.addEventListener('change',()=>{const width=widthInput.valueAsNumber;if(!Number.isFinite(width))return;terminalContainer.style.width=Math.max(280,Math.min(1600,width))+'px';scheduleReflow()});
 document.getElementById('fit-container').onclick=()=>{terminalContainer.style.width='100%';scheduleReflow()};
 setComparison(new URLSearchParams(location.search).get('compare')==='1');
-function scale(){canvasStage.style.width=(canvas.width*zoom)+'px';canvas.style.width='100%'}
+function scale(){canvasStage.style.width=(canvas.width*zoom)+'px';canvas.style.width='100%';for(const span of textLayer.children)span.style.fontSize=(Number(span.dataset.height)*zoom*.7)+'px'}
 function toggleLayout(){
  const previous=ttyMode?"tty":"typeset";positions[previous]=[viewport.scrollLeft,viewport.scrollTop];
  ttyMode=!ttyMode;canvasStage.hidden=ttyMode;tty.hidden=!ttyMode;
@@ -144,6 +167,77 @@ document.getElementById('in').onclick=zoomIn;
 document.getElementById('out').onclick=zoomOut;
 document.getElementById('reset').onclick=reset;
 document.addEventListener('keydown',event=>{if(event.target.closest('select,button,input'))return;if(event.key==='t'){toggleLayout();event.preventDefault()}else if(event.key==='+'||event.key==='='){zoomIn();event.preventDefault()}else if(event.key==='-'){zoomOut();event.preventDefault()}else if(event.key==='0'){reset();event.preventDefault()}});
+
+const searchQuery=document.getElementById('search-query');
+let searchMatches=[],searchCurrent=-1,searchTimer;
+function cellMetrics(){const style=getComputedStyle(tty);return {width:document.getElementById('cell-measure').getBoundingClientRect().width/10,height:parseFloat(style.lineHeight),padding:16}}
+function scrollRegion(r){
+ if(ttyMode){const cell=cellMetrics();viewport.scrollTo(Math.max(0,r.x*cell.width),Math.max(0,r.y*cell.height+cell.padding-24))}
+ else viewport.scrollTo(Math.max(0,r.x*zoom-12),Math.max(0,r.y*zoom-24));
+}
+function jumpFragment(href){
+ const target=window.nthtmlDemo?.fragment(href,ttyMode);
+ if(!target?.found){document.getElementById('status').textContent='Fragment target not found: '+href;return}
+ scrollRegion(target);
+}
+function showSearch(scroll){
+ searchLayer.replaceChildren();
+ document.getElementById('search-count').textContent=searchMatches.length?(searchCurrent+1)+' / '+searchMatches.length:'0 matches';
+ if(searchCurrent<0)return;
+ const hit=searchMatches[searchCurrent],regions=window.nthtmlDemo.regions(hit.start,hit.end,ttyMode);
+ if(!ttyMode)for(const r of regions){const mark=document.createElement('mark');mark.style.left=(100*r.x/canvas.width)+'%';mark.style.top=(100*r.y/canvas.height)+'%';mark.style.width=(100*r.width/canvas.width)+'%';mark.style.height=(100*r.height/canvas.height)+'%';searchLayer.append(mark)}
+ if(ttyMode){
+  // DOM ranges highlight the corresponding UTF-8 offsets in the plain-text view.
+  const encoder=new TextEncoder();let offset=0,startNode,endNode,startOffset=0,endOffset=0;
+  const walker=document.createTreeWalker(tty,NodeFilter.SHOW_TEXT);
+  for(let node=walker.nextNode();node;node=walker.nextNode()){
+   let pos=0;
+   for(const char of node.data){const bytes=encoder.encode(char).length;
+    if(!startNode&&offset>=hit.start){startNode=node;startOffset=pos}
+    if(!endNode&&offset>=hit.end){endNode=node;endOffset=pos}
+    offset+=bytes;pos+=char.length;
+   }
+   if(!startNode&&offset===hit.start){startNode=node;startOffset=pos}
+   if(!endNode&&offset===hit.end){endNode=node;endOffset=pos}
+  }
+  if(startNode&&endNode){const range=document.createRange();range.setStart(startNode,startOffset);range.setEnd(endNode,endOffset);const selection=getSelection();selection.removeAllRanges();selection.addRange(range)}
+ }
+ if(scroll&&regions.length)scrollRegion(regions[0]);
+}
+function runSearch(scroll=true){
+ if(!window.nthtmlDemo)return;
+ searchMatches=window.nthtmlDemo.search(searchQuery.value,ttyMode);
+ searchCurrent=searchMatches.length?Math.max(0,Math.min(searchCurrent,searchMatches.length-1)):-1;
+ showSearch(scroll);
+}
+searchQuery.oninput=()=>{clearTimeout(searchTimer);searchCurrent=-1;searchTimer=setTimeout(()=>runSearch(),120)};
+function nextSearch(backward=false){if(!searchMatches.length)return;searchCurrent=(searchCurrent+(backward?-1:1)+searchMatches.length)%searchMatches.length;showSearch(true)}
+searchQuery.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();nextSearch(event.shiftKey)}};
+document.getElementById('search-next').onclick=()=>nextSearch();
+document.getElementById('search-prev').onclick=()=>nextSearch(true);
+document.getElementById('select-text').onclick=()=>{const range=document.createRange();range.selectNodeContents(ttyMode?tty:textLayer);const selection=getSelection();selection.removeAllRanges();selection.addRange(range)};
+document.addEventListener('copy',event=>{
+ const selection=getSelection();
+ if(!selection.rangeCount||!textLayer.contains(selection.anchorNode)||!textLayer.contains(selection.focusNode))return;
+ const text=selection.getRangeAt(0).cloneContents().textContent;
+ if(new TextEncoder().encode(text).length>1048576)return;
+ event.clipboardData.setData('text/plain',text);event.preventDefault();
+});
+document.getElementById('copy-text').onclick=async()=>{
+ const selection=getSelection();
+ if(!selection.rangeCount||!viewport.contains(selection.anchorNode)||!viewport.contains(selection.focusNode)){document.getElementById('status').textContent='Select document text first.';return}
+ const text=selection.getRangeAt(0).cloneContents().textContent;
+ if(!text){document.getElementById("status").textContent="Select document text first.";return}
+ if(new TextEncoder().encode(text).length>1048576){document.getElementById('status').textContent='Selection exceeds the 1 MiB copy limit.';return}
+ try{await navigator.clipboard.writeText(text);document.getElementById('status').textContent='Selection copied.'}
+ catch{document.getElementById('status').textContent='Clipboard unavailable; use your browser’s Copy command.'}
+};
+document.addEventListener('keydown',event=>{
+ if(event.target.closest('input,select,button'))return;
+ if(event.key==='/'){event.preventDefault();searchQuery.focus();searchQuery.select()}
+ else if(event.key==='n'||event.key==='N'){event.preventDefault();nextSearch(event.key==='N')}
+ else if(event.key==='Escape'){getSelection().removeAllRanges();searchQuery.value='';runSearch(false)}
+});
 const go=new Go();
 go.argv=['nthtml','-demo',selected];
 WebAssembly.instantiateStreaming(fetch('app.wasm'),go.importObject).then(r=>{
@@ -151,7 +245,7 @@ WebAssembly.instantiateStreaming(fetch('app.wasm'),go.importObject).then(r=>{
  reflow();
  return running;
 }).catch(e=>document.getElementById('status').textContent=e.message);
-window.addEventListener('pagehide',event=>{if(!event.persisted){observer.disconnect();clearTimeout(reflowTimer);window.nthtmlDemo?.close()}});
+window.addEventListener('pagehide',event=>{if(!event.persisted){observer.disconnect();clearTimeout(reflowTimer);clearTimeout(searchTimer);window.nthtmlDemo?.close()}});
 if(document.fonts)document.fonts.ready.then(scheduleReflow);
 </script>
 </html>

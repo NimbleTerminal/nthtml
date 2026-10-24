@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"nimbleterminal.dev/nthtml/document"
@@ -80,12 +81,21 @@ func (m *Model) showLinkFocus() tea.Cmd {
 		return nil
 	}
 	link, ok := m.FocusedLink()
-	if !ok {
-		return m.viewport()
+	if !ok && len(m.matches) == 0 && m.selectStart == m.selectEnd {
+		return m.pic.SetImageCropped(m.source, m.cropRect())
 	}
 	b := m.source.Bounds()
 	img := image.NewRGBA(b)
 	draw.Draw(img, b, m.source, b.Min, draw.Src)
+	if m.match >= 0 && m.match < len(m.matches) {
+		hit := m.matches[m.match]
+		for _, r := range m.textIndex().Regions(hit.Start, hit.End) {
+			draw.Draw(img, r, image.NewUniform(color.NRGBA{255, 210, 35, 70}), image.Point{}, draw.Over)
+		}
+	}
+	for _, r := range m.textIndex().Regions(m.selectStart, m.selectEnd) {
+		draw.Draw(img, r, image.NewUniform(color.NRGBA{40, 120, 255, 110}), image.Point{}, draw.Over)
+	}
 	ink := image.NewUniform(color.RGBA{235, 155, 35, 255})
 	for _, r := range link.Regions {
 		r = r.Inset(-1)
@@ -101,6 +111,10 @@ func (m *Model) ActivateLink() tea.Cmd {
 	l, ok := m.FocusedLink()
 	if !ok {
 		return nil
+	}
+	if strings.HasPrefix(l.Href, "#") {
+		cmd, _ := m.NavigateFragment(l.Href)
+		return cmd
 	}
 	return func() tea.Msg { return LinkMsg{Owner: m, Link: l} }
 }

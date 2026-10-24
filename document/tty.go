@@ -82,17 +82,22 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 		if s.display == "none" {
 			return nil
 		}
+		marker := ""
+		if anchorName(n) != "" {
+			marker = anchorMarker(n.id)
+		}
 		if kind, source := diagramSource(n); kind != "" {
 			if kind == "svg" {
-				b.WriteString("[SVG: " + diagramLabel(n) + "]")
+				b.WriteString(marker + "[SVG: " + diagramLabel(n) + "]")
 				return nil
 			}
 			if err := f.flush(); err != nil {
 				return err
 			}
-			return f.append(ansi.Hardwrap(cleanText(source), f.width, true))
+			return f.append(marker + ansi.Hardwrap(cleanText(source), f.width, true))
 		}
 		if n.tag == "a" && s.linkID != 0 {
+			b.WriteString(marker)
 			b.WriteString(linkStart(s.linkID))
 			for _, child := range n.children {
 				if err := walk(child, s, f, inCell); err != nil {
@@ -117,7 +122,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			}
 			text := strings.TrimPrefix(code.pending.String(), "\n")
 			// Preserve whitespace; soft-wrap long lines without collapsing indentation.
-			return f.append(strings.Join(linkedLines(ansi.Hardwrap(text, f.width, true)), "\n"))
+			return f.append(marker + strings.Join(linkedLines(ansi.Hardwrap(text, f.width, true)), "\n"))
 		}
 		if n.tag == "ul" || n.tag == "ol" {
 			if err := f.flush(); err != nil {
@@ -168,14 +173,15 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				}
 				items = append(items, itemText)
 			}
-			return f.append(strings.Join(items, "\n"))
+			return f.append(marker + strings.Join(items, "\n"))
 		}
 		if n.tag == "br" {
+			b.WriteString(marker)
 			b.WriteByte('\n')
 			return nil
 		}
 		if n.tag == "img" {
-			b.WriteString("[image: " + cleanText(n.attrs["alt"]) + "]")
+			b.WriteString(marker + "[image: " + cleanText(n.attrs["alt"]) + "]")
 			return nil
 		}
 		if n.tag == "table" && !inCell {
@@ -196,10 +202,11 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			if err != nil {
 				return err
 			}
-			return f.append(text)
+			return f.append(marker + text)
 		}
 		if n.tag == "tr" {
 			b.WriteByte('\n')
+			b.WriteString(marker)
 			first := true
 			for _, c := range n.children {
 				if c.tag != "td" && c.tag != "th" {
@@ -228,6 +235,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 		if block {
 			b.WriteByte('\n')
 		}
+		b.WriteString(marker)
 		for _, c := range n.children {
 			if err := walk(c, s, f, inCell); err != nil {
 				return err

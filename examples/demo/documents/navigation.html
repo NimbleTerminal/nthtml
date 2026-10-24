@@ -1,0 +1,28 @@
+<style>
+body { padding:24px; background:#edf1f5; color:#233148; }
+article { max-width:720px; margin:0 auto; padding:24px; background:white; }
+h1,h2 { color:#2948a0; }
+nav { padding:16px; background:#e6ecf5; }
+pre { padding:16px; background:#edf1f5; }
+p { line-height:1.5; }
+</style>
+<body><article id="top">
+<h1>A document worth exploring</h1>
+<nav><p>Jump to <a href="#reading">Reading</a>, <a href="#finding">Finding a phrase</a>, or <a href="#copying">Copying text</a>.</p></nav>
+<p>This guide demonstrates local fragment links, search, and selection. All three work with the rendered document. There is no browser engine behind the terminal view.</p>
+<h2 id="reading">Reading</h2>
+<p>Follow a contents link to jump directly to a section. In the terminal, Tab selects a link and Enter follows it. Clicking a local link scrolls this document instead of opening a browser.</p>
+<p>Switch between Typeset and TTY with t. Typeset preserves the document's typography; TTY lays out readable text using terminal cells. Each view has its own text positions, so changing layout or resizing clears an existing selection.</p>
+<p>Long documents are easier to explore when navigation remains local. This paragraph adds a little distance between sections so the contents links have somewhere useful to take you.</p>
+<h2 id="finding">Finding a phrase</h2>
+<p>Search for portable documents. Matching ignores case and repeated whitespace, including line wraps. The next sentence repeats Portable Documents so you can try moving between results.</p>
+<p>In the terminal, press /, enter a query, and press Enter. Use n and N for the next and previous match. Esc clears the search and selection. Searching for café also demonstrates Unicode text.</p>
+<p>In the browser, use the Find field and Previous/Next buttons. Search operates on the same Go text indexes as the native viewer. Resize the container to test a new layout.</p>
+<h2 id="copying">Copying text</h2>
+<p>Drag across text to select it. In the terminal, y asks the host to copy the selection using terminal clipboard support. Press v to select the current search match, or Ctrl+A to select the entire document text.</p>
+<pre><code>Portable documents
+Terminal + browser
+Search, select, copy.</code></pre>
+<p>The browser supports drag selection over both Typeset and TTY content. Use Copy selection or your browser's Copy command. Text inside diagrams is represented by labels or source in TTY mode.</p>
+<p><a href="#top">Back to top</a> · <a href="https://nimbleterminal.dev/">Nimble Terminal</a></p>
+</article></body>

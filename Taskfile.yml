@@ -7,7 +7,7 @@ env:
 
 vars:
   EXE: '{{if eq OS "windows"}}.exe{{end}}'
-  DEMOS: [overview, invoice, field-notes, status-report, guide, typography, diagrams]
+  DEMOS: [overview, invoice, field-notes, status-report, guide, typography, diagrams, navigation]
 
 tasks:
   default:
@@ -28,7 +28,7 @@ tasks:
       - go build -mod=readonly -o bin/demo{{.EXE}} ./examples/demo
 
   demo:
-    desc: 'Run a terminal demo (DEMO=overview|invoice|field-notes|status-report|guide|typography|diagrams; t toggles layout)'
+    desc: 'Run a terminal demo (DEMO=overview|invoice|field-notes|status-report|guide|typography|diagrams|navigation; t toggles layout)'
     aliases: [run]
     interactive: true
     vars:
@@ -72,7 +72,7 @@ tasks:
   previews:
     desc: Regenerate the checked-in demo PNG previews
     cmds:
-      - for: [invoice, field-notes, status-report, guide, typography, diagrams]
+      - for: [invoice, field-notes, status-report, guide, typography, diagrams, navigation]
         task: render
         vars:
           INPUT: 'examples/demo/documents/{{.ITEM}}.html'

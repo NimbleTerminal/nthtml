@@ -19,6 +19,7 @@ import (
 type Box struct {
 	Bounds                    image.Rectangle
 	Tag, Text                 string
+	Anchor, TextPrefix        string
 	FontSize                  int
 	Bold                      bool
 	FontFamily                string
@@ -30,6 +31,7 @@ type Box struct {
 type Result struct {
 	// Warnings describe diagrams replaced by readable fallbacks.
 	Warnings []string
+	Anchors  map[string]image.Point
 	document *Document
 	Image    *image.RGBA
 	Boxes    []Box
@@ -107,7 +109,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	}
 	img := image.NewRGBA(image.Rect(0, 0, o.Width, h))
 	draw.Draw(img, img.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
-	result := &Result{Warnings: l.warnings, document: d, Image: img, Boxes: make([]Box, 0, len(l.ops))}
+	result := &Result{Anchors: map[string]image.Point{}, Warnings: l.warnings, document: d, Image: img, Boxes: make([]Box, 0, len(l.ops))}
 	links, err := d.Links(ctx)
 	if err != nil {
 		return nil, err
@@ -122,6 +124,11 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		}
 		b := op.box
 		result.Boxes = append(result.Boxes, b)
+		if b.Anchor != "" {
+			if _, exists := result.Anchors[b.Anchor]; !exists {
+				result.Anchors[b.Anchor] = b.Bounds.Min
+			}
+		}
 		if i, ok := linkIndex[b.LinkID]; ok && b.LinkID != 0 {
 			region := b.Bounds.Intersect(img.Bounds())
 			if !region.Empty() {
@@ -304,7 +311,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		return cy
 	}
 	if opStart < len(l.ops) {
-		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Color: s.bg}
+		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchorName(n), Color: s.bg}
 	}
 	if s.bw > 0 {
 		r := image.Rect(x, start, x+w, cy)
@@ -331,6 +338,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 	pendingSpace := false
 	preStart := true
 	preColumn := 0
+	prefix := "\n"
 	newline := func() {
 		used := px - x
 		shift := 0
@@ -343,6 +351,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(image.Pt(shift, 0))
 		}
 		y += lineHeight
+		if y > l.d.limits.Height {
+			l.err = limitError("height")
+		}
 		px = x
 		lineHeight = s.line
 		lineStart = len(l.ops)
@@ -354,6 +365,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			return
 		}
 		if n.tag == "br" {
+			prefix += "\n"
 			newline()
 			return
 		}
@@ -377,6 +389,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			if st.display == "none" {
 				return
 			}
+			if name := anchorName(n); name != "" {
+				l.add(Box{Tag: "anchor", Anchor: name, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
+			}
 			for _, c := range n.children {
 				visit(c, st)
 			}
@@ -391,11 +406,15 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				preStart = false
 			}
 			for _, r := range text {
+				if l.err != nil {
+					return
+				}
 				if e := l.ctx.Err(); e != nil {
 					l.err = e
 					return
 				}
 				if r == '\n' {
+					prefix += "\n"
 					newline()
 					continue
 				}
@@ -404,7 +423,8 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				if px > x && px+adv > x+w {
 					newline()
 				}
-				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
+				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), TextPrefix: prefix, FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
+				prefix = ""
 				px += adv
 				hasText = true
 				lineHeight = max(lineHeight, st.line)
@@ -424,6 +444,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				word = text[:i]
 			}
 			if word != "" {
+				if pendingSpace && prefix == "" {
+					prefix = " "
+				}
 				space := 0
 				if pendingSpace && px > x {
 					space = font.MeasureString(f, " ").Ceil()
@@ -438,8 +461,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				runX := px
 				emit := func() {
 					if run.Len() > 0 {
-						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Color: st.fg, Monospace: st.mono, LinkID: st.linkID}, nil)
+						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), TextPrefix: prefix, FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Color: st.fg, Monospace: st.mono, LinkID: st.linkID}, nil)
 						run.Reset()
+						prefix = ""
 						hasText = true
 					}
 				}

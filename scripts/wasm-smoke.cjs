@@ -64,10 +64,21 @@ globalThis.document = { getElementById(id) { return id === 'document' ? canvas :
       assert.ok(link.regions.every(r => r.width > 0 && r.height > 0 && r.x >= 0 && r.x+r.width <= canvas.width));
     }
   }
+  if(demo==='navigation'){
+    for(const ttyMode of [false,true]){
+      const target=nthtmlDemo.fragment('#finding',ttyMode);
+      assert.equal(target.found,true);assert.ok(target.y>0);
+      assert.equal(nthtmlDemo.fragment('#missing',ttyMode).found,false);
+      const matches=nthtmlDemo.search('PORTABLE DOCUMENTS',ttyMode);
+      assert.ok(matches.length>=2);
+      assert.ok(nthtmlDemo.regions(matches[0].start,matches[0].end,ttyMode).length>0);
+    }
+  }
   const initialHeight = canvas.height;
   const initialLines = tty.textContent.split('\n').length;
   assert.equal(nthtmlDemo.reflow(400,40),'');
   assert.equal(canvas.width,400);
+  if(demo==='navigation')assert.ok(nthtmlDemo.fragment('#finding',false).y>0);
   assert.deepEqual(canvas.nthtmlLinks.map(l => l.id),linkIDs);
   assert.equal(tty.nthtmlSegments.map(s => s.text).join(''),tty.textContent);
   assert.deepEqual(canvas.nthtmlWarnings,[]);

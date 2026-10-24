@@ -149,7 +149,7 @@ without rasterizing.
 
 In the component, **Tab / Shift-Tab** select the next/previous link and scroll it
 into view. **Left-click** activates links in Typeset and TTY modes; **Enter**
-activates the keyboard selection. Both emit `nthtml.LinkMsg{Owner, Link}`. The component never opens
+activates the keyboard selection. External/relative destinations emit `nthtml.LinkMsg{Owner, Link}`; local `#fragment` links scroll inside the widget. The component never opens
 URLs itself. Handle that message in the parent to choose an opener or custom
 navigation. The terminal demo opens absolute HTTP(S)/mailto destinations using
 `open` on macOS or `xdg-open` on Linux; other targets report the URL. Mouse hit testing accounts for the widget origin, TTY scroll offset, raster
@@ -166,7 +166,8 @@ terminals still show readable text. `TTY()` remains escape-free. ANSI generation
 falls back to plain text if escape expansion would exceed its 4 MiB budget.
 
 The browser demo uses real, keyboard-focusable anchors over the canvas hit
-regions and around TTY spans. Clicking or pressing Enter opens a new tab. The
+regions and around TTY spans. External links open a new tab; local fragment links
+scroll within the document. The
 links are rebuilt when the document reflows; source HTML is never inserted into
 the main page.
 
@@ -175,8 +176,8 @@ backslashes, embedded whitespace, URLs longer than 2,048 bytes, and schemes such
 as `javascript:`, `data:`, and `file:` are rejected; their visible text still
 renders. Relative references are retained for the host: use
 `document.ResolveURL(base, href)` before external activation. The browser demo
-resolves them against its own page URL. Internal fragment scrolling is not yet
-implemented, and no resources are fetched while laying out links.
+resolves them against its own page URL. Local fragments target visible IDs and named anchors; no resources are fetched
+while laying out links.
 
 `ul` / `ol` / `li` produce bullets or decimal numbering with hanging indentation,
 including nested lists. Ordered lists honor `start` and item `value`. Reversed
@@ -216,7 +217,7 @@ specific subset below works; it does not imply browser-compatible behavior.
 | Embedded SVG | Partial | Inline `<svg>` fragments rasterize through ntsvg; shapes, paths, text, basic gradients, and markers in a bounded SVG subset. Aspect ratio is preserved; width/height attributes and CSS sizing are supported. TTY uses aria-label/title/desc. No external resources, use/references inside definitions, SVG stylesheets, scripts, foreignObject, or SVG-internal link navigation. |
 | Mermaid | Partial | `pre.mermaid`, `div.mermaid`, or `pre > code.language-mermaid`; flowchart/graph, sequenceDiagram, stateDiagram-v2, classDiagram, and pie via pure-Go go-mermaid → ntsvg. TTY retains source. Not full Mermaid compatibility; directives and other diagram families are unsupported. |
 | Other embedded media | Not supported | No video/audio playback, embedded browser frames, or canvas execution in the document engine. |
-| Hyperlinks | Partial | Safe destinations, raster hit regions, TTY spans/OSC 8, Tab/Enter widget navigation, and browser anchors. Hosts own activation; no built-in fragment navigation. Terminal mouse clicks account for crop, zoom, and cell geometry. |
+| Hyperlinks | Partial | Safe destinations, raster hit regions, TTY spans/OSC 8, Tab/Enter widget navigation, and browser anchors. Hosts own external activation; local fragments navigate within the document. Terminal mouse clicks account for crop, zoom, and cell geometry. |
 | Forms | Not supported | No editable controls, form state, or submission. |
 | JavaScript and dynamic CSS | Not supported | No script execution, DOM/event system, animations, transitions, transforms, filters, or CSS variables. |
 
@@ -431,3 +432,51 @@ mid-call. No subprocesses, browser runtime, CGO, font downloads, or external
 resource fetching are used.
 
 See [diagram dependency notices](licenses/diagrams/README.md).
+
+### Document navigation, search, and copy
+
+Try `task demo DEMO=navigation`, or select **Document navigation** in the browser
+gallery. Fragment links such as `<a href="#section">Section</a>` scroll to visible
+`id="section"` elements (or legacy `a name="section"` anchors). Percent-encoded
+fragments are decoded; `#` goes to the top. The first visible duplicate target
+wins. Missing targets do not open a browser.
+
+| Action | Terminal viewer | Browser demo |
+|---|---|---|
+| Find | `/`, type query, Enter | Find field or `/` |
+| Next / previous match | `n` / `N` | Next / Previous or `n` / `N` |
+| Select text | Left-button drag | Drag over Typeset or TTY text |
+| Select current match | `v` | TTY search selects the current match |
+| Select all document text | Ctrl+A | Select all text button |
+| Copy | `y` | Copy selection or browser Copy |
+| Clear search / selection | Esc | Esc outside inputs |
+| Follow local link | Click, or Tab then Enter | Click or keyboard activation |
+
+Terminal Typeset selection snaps to painted text runs; TTY selection uses
+terminal cells and UTF-8 rune boundaries. Selection is limited to the visible
+viewport while dragging; there is no drag autoscroll. Resizing or switching
+layouts clears stale selections and recomputes search positions. Search is
+literal, Unicode simple-case-insensitive, and treats repeated whitespace as a
+single space. It supports phrases across normal word wraps, but does not provide
+regex, Unicode normalization, or browser text-fragment directives. Queries are
+limited to 256 runes and results to 1,000 matches.
+
+Typeset text comes from painted text runs, with logical spaces retained across
+soft wraps; table cells follow layout order and list markers are omitted.
+It does not perform OCR on SVG, Mermaid, or images. TTY copies its visible
+plain-text representation, including table borders, diagram labels/source,
+and line wrapping.
+
+The widget emits `CopyMsg{Owner, Text}`; the host owns clipboard policy. The
+terminal demo uses Bubble Tea's OSC 52 clipboard command, which requires
+terminal support and permission. A copy request is limited to 1 MiB. Browser
+copy uses the Clipboard API when available, with the browser's Copy command
+as fallback. No clipboard reads occur.
+
+Lower-level consumers can use `Result.Anchors`, `TTYResult.Anchors`, and
+`Fragment(href)` for target coordinates. `TextIndex()` exposes layout-specific
+UTF-8 text offsets and rectangles, with `Search`, `Regions`, `Hit`, and
+`Selected` helpers. Offsets must not be reused after reflow. Widget hosts can
+call `NavigateFragment`, `Search`, `NextMatch`, `SearchStatus`, `SelectRange`,
+`SelectedText`, and `CopySelection`. Hosts that reserve quit keys must let
+the widget consume keys while `SearchInputActive()` is true.
