@@ -22,6 +22,23 @@ const canvas = { getContext() { return {
 globalThis.document = { getElementById(id) { return id === 'document' ? canvas : id === 'tty' ? tty : id === 'browser-reference' ? reference : status; } };
 (async () => {
   const go = new Go();
+  // A standalone Node host owns timer cleanup after the Go runtime exits.
+  const scheduled = new Set();
+  const hostSetTimeout = globalThis.setTimeout;
+  const hostClearTimeout = globalThis.clearTimeout;
+  globalThis.setTimeout = (fn, delay, ...args) => {
+    const id = hostSetTimeout(() => { scheduled.delete(id); fn(...args); }, delay);
+    scheduled.add(id);
+    return id;
+  };
+  globalThis.clearTimeout = id => { scheduled.delete(id); hostClearTimeout(id); };
+  go.exit = code => {
+    for (const id of scheduled) hostClearTimeout(id);
+    scheduled.clear();
+    globalThis.setTimeout = hostSetTimeout;
+    globalThis.clearTimeout = hostClearTimeout;
+    if (code !== 0) process.exitCode = code;
+  };
   go.argv = ['nthtml', '-demo', process.argv[2] || 'overview'];
   const result = await WebAssembly.instantiate(fs.readFileSync('web/app.wasm'), go.importObject);
   const running = go.run(result.instance);

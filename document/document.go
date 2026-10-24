@@ -21,6 +21,8 @@ var DefaultLimits = Limits{1 << 20, 10000, 64, 256, 16 << 20, 16384}
 var ErrLimit = errors.New("nthtml: resource limit exceeded")
 
 type Options struct {
+	// Fonts defaults to ntfonts.Embedded; missing families fall back to Go fonts.
+	Fonts  FaceSource
 	Width  int
 	Limits Limits
 	// Images is an explicit allowlist of already decoded images, keyed by src.

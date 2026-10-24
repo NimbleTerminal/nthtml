@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	golang.org/x/image v0.47.0
 	golang.org/x/net v0.61.0
+	nimbleterminal.dev/ntfonts v0.1.0
 	nimbleterminal.dev/ntpicture v0.1.1
 )
 

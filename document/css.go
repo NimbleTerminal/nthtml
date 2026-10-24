@@ -13,13 +13,17 @@ type rule struct {
 	specificity int
 }
 type style struct {
-	size, line                         int
-	fg, bg, border                     color.RGBA
-	margin, padding, bw, width, height int
-	display, align                     string
-	bold                               bool
-	mono, pre                          bool
-	linkID                             int
+	size, line                      int
+	fg, bg, border                  color.RGBA
+	margin, padding                 [4]cssLength // top, right, bottom, left
+	bw                              int
+	width, height, maxWidth         cssLength
+	borderBox                       bool
+	display, align, family          string
+	bold, italic, underline, strike bool
+	mono, pre                       bool
+	linkID                          int
+	lineMultiplier                  float64
 }
 
 func declarations(s string) map[string]string {
@@ -29,8 +33,61 @@ func declarations(s string) map[string]string {
 			break
 		}
 		k, v, ok := strings.Cut(p, ":")
-		if ok {
-			m[strings.ToLower(strings.TrimSpace(k))] = strings.TrimSpace(v)
+		if !ok {
+			continue
+		}
+		k = strings.ToLower(strings.TrimSpace(k))
+		v = strings.TrimSpace(v)
+		switch k {
+		case "margin", "padding":
+			parts := strings.Fields(v)
+			if len(parts) < 1 || len(parts) > 4 {
+				continue
+			}
+			valid := true
+			for _, part := range parts {
+				if _, ok := parseLength(part, k == "margin", false); !ok {
+					valid = false
+				}
+			}
+			if !valid {
+				continue
+			}
+			sides := [4]string{parts[0], parts[0], parts[0], parts[0]}
+			if len(parts) > 1 {
+				sides[1] = parts[1]
+				sides[3] = parts[1]
+			}
+			if len(parts) > 2 {
+				sides[2] = parts[2]
+			}
+			if len(parts) > 3 {
+				sides[3] = parts[3]
+			}
+			for j, side := range []string{"top", "right", "bottom", "left"} {
+				m[k+"-"+side] = sides[j]
+			}
+		case "border":
+			parts := strings.Fields(v)
+			if len(parts) > 0 {
+				if _, ok := parseLength(parts[0], false, false); ok {
+					m["border-width"] = parts[0]
+				}
+			}
+			if len(parts) > 2 {
+				m["border-color"] = parts[2]
+			}
+		case "background":
+			m["background-color"] = v
+		case "text-decoration":
+			m["text-decoration-line"] = v
+		default:
+			if strings.HasPrefix(k, "margin-") || strings.HasPrefix(k, "padding-") || k == "width" || k == "height" || k == "max-width" {
+				if _, ok := parseLength(v, strings.HasPrefix(k, "margin-") || k == "width" || k == "height", k == "max-width"); !ok {
+					continue
+				}
+			}
+			m[k] = v
 		}
 	}
 	return m
@@ -115,11 +172,11 @@ func matches(n *node, s string) bool {
 	return n.tag == s
 }
 func number(s string) int {
-	v, e := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(s), "px"), 64)
-	if e != nil || v < 0 || v > 16384 {
+	l, ok := parseLength(s, false, false)
+	if !ok || l.unit != lengthPX {
 		return 0
 	}
-	return int(v)
+	return l.resolve(0, 16384)
 }
 func paint(s string) color.RGBA {
 	names := map[string]string{"black": "#000000", "white": "#ffffff", "red": "#ff0000", "green": "#008000", "blue": "#0000ff", "gray": "#808080", "transparent": ""}
@@ -139,39 +196,53 @@ func paint(s string) color.RGBA {
 	return color.RGBA{}
 }
 func (d *Document) styled(n *node, parent style) style {
-	s := style{mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
+	s := style{family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
 	switch n.tag {
-	case "span", "a", "em", "strong", "b", "i", "code", "small":
+	case "span", "a", "em", "strong", "b", "i", "code", "small", "u", "s", "del":
 		s.display = "inline"
 	case "script", "style", "head", "meta", "link", "title", "template":
 		s.display = "none"
 	case "h1":
 		s.size = 32
 		s.line = 40
+		s.lineMultiplier = 0
 		s.bold = true
-		s.margin = 12
+		s.margin = uniform(12)
 	case "h2":
 		s.size = 24
 		s.line = 32
+		s.lineMultiplier = 0
 		s.bold = true
-		s.margin = 10
+		s.margin = uniform(10)
 	case "p", "ul", "ol":
-		s.margin = 8
+		s.margin = uniform(8)
+	}
+	if n.tag == "em" || n.tag == "i" {
+		s.italic = true
+	}
+	if n.tag == "u" {
+		s.underline = true
+	}
+	if n.tag == "s" || n.tag == "del" {
+		s.strike = true
 	}
 	if n.tag == "pre" {
+		s.family = "Go Mono"
 		s.mono = true
 		s.pre = true
-		s.padding = 12
-		s.margin = 8
+		s.padding = uniform(12)
+		s.margin = uniform(8)
 		s.bg = color.RGBA{238, 241, 246, 255}
 	}
 	if n.tag == "code" {
+		s.family = "Go Mono"
 		s.mono = true
 	}
 	if n.tag == "a" {
 		s.linkID = 0
 		if SafeURL(n.attrs["href"]) != "" {
 			s.linkID = n.id
+			s.underline = true
 			s.fg = color.RGBA{40, 92, 186, 255}
 		}
 	}
@@ -202,47 +273,106 @@ func (d *Document) styled(n *node, parent style) style {
 		v := values[k]
 		switch k {
 		case "font-size":
-			if z := number(v); z > 0 {
-				s.size = min(z, 128)
+			if value, ok := parseLength(v, false, false); ok {
+				if size := value.resolve(parent.size, 128); size > 0 {
+					s.size = size
+				}
+			}
+		case "font-family":
+			s.family = v
+			s.mono = false
+		case "font-style":
+			switch strings.ToLower(v) {
+			case "italic", "oblique":
+				s.italic = true
+			case "normal":
+				s.italic = false
+			}
+		case "font-weight":
+			if v == "bold" {
+				s.bold = true
+			} else if v == "normal" {
+				s.bold = false
+			} else if weight, e := strconv.Atoi(v); e == nil && weight >= 100 && weight <= 900 {
+				s.bold = weight >= 600
 			}
 		case "line-height":
-			if z := number(v); z > 0 {
-				s.line = min(z, 256)
+			if v == "normal" {
+				s.lineMultiplier = 1.375
+			} else if !strings.HasSuffix(v, "px") && !strings.HasSuffix(v, "%") {
+				if l, ok := parseLength(v, false, false); ok && l.value > 0 {
+					s.lineMultiplier = min(l.value, 16)
+				}
+			} else if l, ok := parseLength(v, false, false); ok {
+				if line := l.resolve(s.size, 256); line > 0 {
+					s.line = line
+					s.lineMultiplier = 0
+				}
+			}
+		case "text-decoration-line":
+			underline, strike, valid := false, false, true
+			tokens := strings.Fields(v)
+			if len(tokens) == 0 {
+				valid = false
+			}
+			for _, token := range tokens {
+				switch token {
+				case "underline":
+					underline = true
+				case "line-through":
+					strike = true
+				case "none":
+					if len(tokens) != 1 {
+						valid = false
+					}
+				default:
+					valid = false
+				}
+			}
+			if valid {
+				s.underline, s.strike = underline, strike
 			}
 		case "color":
 			s.fg = paint(v)
-		case "background", "background-color":
+		case "background-color":
 			s.bg = paint(v)
 		case "border-color":
 			s.border = paint(v)
 		case "border-width":
 			s.bw = min(number(v), 32)
-		case "border":
-			p := strings.Fields(v)
-			if len(p) > 0 {
-				s.bw = min(number(p[0]), 32)
-			}
-			if len(p) > 2 {
-				s.border = paint(p[2])
-			}
-		case "margin":
-			s.margin = min(number(v), 256)
-		case "padding":
-			s.padding = min(number(v), 256)
 		case "width":
-			s.width = number(v)
+			s.width, _ = parseLength(v, true, false)
 		case "height":
-			s.height = number(v)
+			s.height, _ = parseLength(v, true, false)
+		case "max-width":
+			s.maxWidth, _ = parseLength(v, false, true)
+		case "box-sizing":
+			if v == "border-box" {
+				s.borderBox = true
+			} else if v == "content-box" {
+				s.borderBox = false
+			}
 		case "display":
 			if v == "none" || v == "block" || v == "inline" {
 				s.display = v
 			}
 		case "text-align":
 			s.align = v
-		case "font-weight":
-			s.bold = v == "bold" || v == "700"
+		default:
+			for i, side := range []string{"top", "right", "bottom", "left"} {
+				if k == "margin-"+side {
+					s.margin[i], _ = parseLength(v, true, false)
+				}
+				if k == "padding-"+side {
+					s.padding[i], _ = parseLength(v, false, false)
+				}
+			}
 		}
 	}
+	if s.lineMultiplier > 0 {
+		s.line = min(256, int(float64(s.size)*s.lineMultiplier))
+	}
+
 	s.line = max(s.line, s.size+2)
 	return s
 }

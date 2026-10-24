@@ -206,9 +206,9 @@ specific subset below works; it does not imply browser-compatible behavior.
 | Lists | Partial | Bullets, decimal numbering, nested/hanging indentation, `ol start`, and `li value`. No reversed lists, alternative marker styles, `list-style` properties, or CSS counters. |
 | Stylesheet sources | Partial | Embedded `<style>` and inline `style` attributes. No external stylesheets, imports, or media-query evaluation. |
 | Selectors and cascade | Partial | Single tag, `.class`, `#id`, `*`, and comma-separated selectors; specificity and source order for the same property; inline declarations override stylesheets. No compound selectors, combinators, attribute selectors, pseudo-classes/elements, `!important`, or full shorthand cascade rules. |
-| Box spacing and sizing | Partial | Single-value `margin` / `padding`, `width`, and `height` (minimum content height). Nonnegative pixels; unitless lengths also mean pixels, not multipliers. Available width constrains boxes. No percentages, `em` / `rem`, viewport units, `calc()`, per-side spacing, margin collapse, or min/max sizing properties. |
+| Box spacing and sizing | Partial | One-to-four-value `margin` / `padding`, per-side overrides, `width`, `max-width`, and `height` (minimum content height); `box-sizing`. Nonnegative pixels and percentages; unitless lengths mean pixels. Horizontal auto margins center or align constrained boxes. Percentage heights require a definite parent height. Available width constrains boxes; spacing is capped at 256px per side. No negative margins, margin collapse, `min-width`, `min-height`, `max-height`, `em` / `rem`, viewport units, or `calc()`. |
 | Borders and backgrounds | Partial | Uniform solid borders using `border`, `border-width`, and `border-color`; solid `background` / `background-color`. No individual sides, dashed/dotted styles, radius, shadows, gradients, or background images. |
-| Typography | Partial | Bundled Go regular/bold and monospace faces; `font-size`, `font-weight` (`bold` / `700` or regular), pixel `line-height`, and left/center/right `text-align`. No `font-family` selection, ntfonts provider, italic face, text decoration, justification, or letter/word spacing. |
+| Typography | Partial | Go defaults plus seven embedded ntfonts families; `font-family` fallback lists and generic serif/sans-serif/monospace; regular, bold, italic, and bold italic faces. `font-size` in pixels or percent; numeric `font-weight` maps to regular/bold; `font-style`; pixel, percentage, or unitless-multiplier `line-height`; underline/line-through via `text-decoration` or `text-decoration-line`; left/center/right `text-align`. No justification, letter/word spacing, or external font downloads. |
 | Unicode text | Partial | Text is drawn from the bundled fonts; TTY wrapping measures terminal cells. No full complex-script shaping, bidi layout, font fallback, or guaranteed emoji coverage. |
 | Colors | Partial | `#rgb`, `#rrggbb`, `black`, `white`, `red`, `green`, `blue`, `gray`, and `transparent`. No alpha hex, `rgb()` / `hsl()`, `currentColor`, or full named-color set. |
 | Tables | Partial | Explicit rows/cells with nested content. Typeset uses equal-width columns per row; TTY uses content-based column widths and wrapping. No colspan/rowspan, shared intrinsic column sizing in Typeset, border collapse, or full CSS table layout. |
@@ -250,7 +250,8 @@ raster view; it does **not** currently use the separate nttypeset engine.
 | Bubble Tea v2 component | Supported: mode toggle, zoom, pan, keyboard/mouse-wheel scrolling, and cleanup. Parent owns focus and quitting. |
 | Multiple positioned Kitty widgets | Not exposed by the current nthtml wrapper |
 | PNG export | Supported by `cmd/nthtml`; other image consumers can use `Result.Image` |
-| Direct nttypeset / ntfonts / ntsvg integration | Not implemented; image and text-box outputs are available to host adapters |
+| ntfonts integration | Embedded fonts by default; custom `document.Options.Fonts` sources supported |
+| Direct nttypeset / ntsvg integration | Not implemented; image and text-box outputs are available to host adapters |
 | TinyGo / embedded devices | Unverified architectural goal; not a supported target yet |
 | Full browser rendering | Only the demo's optional reference iframe, rendered by the host browser; not an nthtml capability |
 
@@ -315,3 +316,26 @@ replace charm.land/bubbletea/v2 => github.com/neomantra/bubbletea/v2 v2.0.0-2026
 ```
 
 Consumers importing only `document` do not need this replacement.
+
+### Typography and responsive spacing demo
+
+Run `task demo DEMO=typography`, or select **Typography & spacing** in the
+browser gallery. Close the reference pane and resize the container to exercise
+percentage widths, centered max-width boxes, and asymmetric padding.
+
+Explicit font families come from ntfonts: Literata, Newsreader, IBM Plex Sans,
+Source Serif 4, Iosevka, IBM Plex Mono, and JetBrains Mono. Generic `serif`,
+`sans-serif`, and `monospace` select Literata, IBM Plex Sans, and IBM Plex Mono.
+Unknown families fall through the comma-separated list and finally to Go.
+This is family fallback, not per-glyph fallback. TTY mode uses the terminal's
+font and omits these visual styles.
+
+Hosts can supply `document.Options{Fonts: source}`, where source implements
+`Face(family, variant string) ([]byte, error)`. Variants are Regular, Bold,
+Italic, and BoldItalic. Sources must bound their own work. Each render allows
+64 family/variant lookups, 128 sized faces, 4 MiB per font, and 16 MiB total font
+bytes; exceeding these ceilings returns `document.ErrLimit`.
+
+The embedded ntfonts faces use the SIL Open Font License; see
+[font notices](licenses/fonts/THIRD_PARTY_NOTICES.md) and the accompanying license
+texts. The library itself remains MIT licensed.

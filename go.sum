@@ -40,5 +40,7 @@ golang.org/x/sys v0.49.0 h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=
 golang.org/x/sys v0.49.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
 golang.org/x/text v0.43.0 h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=
 golang.org/x/text v0.43.0/go.mod h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=
+nimbleterminal.dev/ntfonts v0.1.0 h1:D8PxpASojALkYPV381GQBidooRJarueUfKQoC4srgYk=
+nimbleterminal.dev/ntfonts v0.1.0/go.mod h1:G8a7vDkY3uYxrydtdTlJ7KbZpxtL4MTimyMhkwdPr2Q=
 nimbleterminal.dev/ntpicture v0.1.1 h1:OxR7AHgYy60HKOATocQolLlJwe2s/ZDhGQh5QOW9HaU=
 nimbleterminal.dev/ntpicture v0.1.1/go.mod h1:87798EJw9zvJoD1sdT6wzbGBpY+Vwco9U4NVf5Cv0tw=

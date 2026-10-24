@@ -10,10 +10,6 @@ import (
 
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/gofont/gobold"
-	"golang.org/x/image/font/gofont/gomono"
-	"golang.org/x/image/font/gofont/gomonobold"
-	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 )
@@ -21,13 +17,15 @@ import (
 // Box describes a painted rectangle or text run in document pixel coordinates.
 // Text and bounds can also be consumed by a host's text renderer (e.g. nttypeset).
 type Box struct {
-	Bounds    image.Rectangle
-	Tag, Text string
-	FontSize  int
-	Bold      bool
-	Monospace bool
-	LinkID    int
-	Color     color.RGBA
+	Bounds                    image.Rectangle
+	Tag, Text                 string
+	FontSize                  int
+	Bold                      bool
+	FontFamily                string
+	Italic, Underline, Strike bool
+	Monospace                 bool
+	LinkID                    int
+	Color                     color.RGBA
 }
 type Result struct {
 	document *Document
@@ -39,45 +37,17 @@ type operation struct {
 	box    Box
 	source image.Image
 }
-type faceKey struct {
-	size int
-	bold bool
-	mono bool
-}
 type layout struct {
-	ctx            context.Context
-	d              *Document
-	opts           Options
-	ops            []operation
-	faces          map[faceKey]font.Face
-	regular, bold  *opentype.Font
-	mono, monoBold *opentype.Font
-	err            error
+	ctx       context.Context
+	d         *Document
+	opts      Options
+	ops       []operation
+	faces     map[faceKey]font.Face
+	fonts     map[string]*opentype.Font
+	fontBytes int
+	err       error
 }
 
-func (l *layout) face(s style) font.Face {
-	k := faceKey{s.size, s.bold, s.mono}
-	if f := l.faces[k]; f != nil {
-		return f
-	}
-	t := l.regular
-	if s.bold {
-		t = l.bold
-	}
-	if s.mono {
-		t = l.mono
-		if s.bold {
-			t = l.monoBold
-		}
-	}
-	f, e := opentype.NewFace(t, &opentype.FaceOptions{Size: float64(s.size), DPI: 72, Hinting: font.HintingFull})
-	if e != nil {
-		l.err = e
-		return nil
-	}
-	l.faces[k] = f
-	return f
-}
 func (l *layout) add(b Box, src image.Image) {
 	if l.err != nil {
 		return
@@ -116,16 +86,13 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		return nil, limitError("width")
 	}
 	l := &layout{ctx: ctx, d: d, opts: o, faces: map[faceKey]font.Face{}}
-	l.regular, _ = opentype.Parse(goregular.TTF)
-	l.bold, _ = opentype.Parse(gobold.TTF)
-	l.mono, _ = opentype.Parse(gomono.TTF)
-	l.monoBold, _ = opentype.Parse(gomonobold.TTF)
+	l.fonts = map[string]*opentype.Font{}
 	defer func() {
 		for _, f := range l.faces {
 			f.Close()
 		}
 	}()
-	h := l.block(d.root, 0, 0, o.Width, style{size: 16, line: 22, fg: color.RGBA{30, 36, 46, 255}})
+	h := l.block(d.root, 0, 0, o.Width, -1, style{size: 16, line: 22, fg: color.RGBA{30, 36, 46, 255}})
 	if l.err != nil {
 		return nil, l.err
 	}
@@ -159,10 +126,14 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		if op.source != nil {
 			xdraw.ApproxBiLinear.Scale(img, b.Bounds, op.source, op.source.Bounds(), draw.Over, nil)
 		} else if b.Text != "" {
-			f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace})
+			f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
 			dr := font.Drawer{Dst: img, Src: image.NewUniform(b.Color), Face: f, Dot: fixed.P(b.Bounds.Min.X, b.Bounds.Min.Y+f.Metrics().Ascent.Ceil())}
 			dr.DrawString(b.Text)
-			if b.LinkID != 0 {
+			if b.Strike {
+				yy := b.Bounds.Min.Y + f.Metrics().Ascent.Ceil()*2/3
+				draw.Draw(img, image.Rect(b.Bounds.Min.X, yy, b.Bounds.Max.X, yy+1), image.NewUniform(b.Color), image.Point{}, draw.Over)
+			}
+			if b.Underline {
 				under := image.Rect(b.Bounds.Min.X, b.Bounds.Min.Y+f.Metrics().Ascent.Ceil()+1, b.Bounds.Max.X, b.Bounds.Min.Y+f.Metrics().Ascent.Ceil()+2)
 				draw.Draw(img, under, image.NewUniform(b.Color), image.Point{}, draw.Over)
 			}
@@ -175,10 +146,13 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 			result.Links = append(result.Links, link)
 		}
 	}
+	if l.err != nil {
+		return nil, l.err
+	}
 	return result, nil
 }
 
-func (l *layout) block(n *node, x, y, w int, parent style) int {
+func (l *layout) block(n *node, x, y, w, parentHeight int, parent style) int {
 	if l.err != nil {
 		return y
 	}
@@ -190,17 +164,48 @@ func (l *layout) block(n *node, x, y, w int, parent style) int {
 	if s.display == "none" {
 		return y
 	}
-	x += s.margin
-	y += s.margin
-	w = max(1, w-2*s.margin)
-	if s.width > 0 {
-		w = min(w, s.width+2*(s.padding+s.bw))
+
+	margin, padding := resolveEdges(s.margin, w), resolveEdges(s.padding, w)
+	extra := padding[1] + padding[3] + 2*s.bw
+	available := max(1, w-margin[1]-margin[3])
+	target := available
+	if s.width.definite(w) {
+		target = s.width.resolve(w, 16384)
+		if !s.borderBox {
+			target += extra
+		}
+	}
+	if s.maxWidth.definite(w) {
+		cap := s.maxWidth.resolve(w, 16384)
+		if !s.borderBox {
+			cap += extra
+		}
+		target = min(target, cap)
+	}
+	target = max(1, min(available, target))
+	spare := max(0, available-target)
+	if s.margin[3].unit == lengthAuto {
+		if s.margin[1].unit == lengthAuto {
+			margin[3] = spare / 2
+		} else {
+			margin[3] = spare
+		}
+	}
+	x += margin[3]
+	y += margin[0]
+	w = target
+	height := -1
+	if s.height.definite(parentHeight) {
+		height = s.height.resolve(parentHeight, l.d.limits.Height)
+		if s.borderBox {
+			height = max(0, height-padding[0]-padding[2]-2*s.bw)
+		}
 	}
 	start := y
 	opStart := len(l.ops)
-	l.add(Box{Tag: n.tag}, nil) // reserve background below descendants
-	inset := s.padding + s.bw
-	cx, cy, cw := x+inset, y+inset, max(1, w-2*inset)
+	l.add(Box{Tag: n.tag}, nil)
+	cx, cy, cw := x+padding[3]+s.bw, y+padding[0]+s.bw, max(1, w-extra)
+	contentY := cy
 	if n.tag == "ul" || n.tag == "ol" {
 		index := listStart(n)
 		for _, child := range n.children {
@@ -218,20 +223,20 @@ func (l *layout) block(n *node, x, y, w int, parent style) int {
 			indent := min(max(0, cw-1), max(24, font.MeasureString(l.face(s), marker+" ").Ceil()))
 			markerY := cy
 			firstOp := len(l.ops)
-			cy = l.block(child, cx+indent, cy, max(1, cw-indent), s)
+			cy = l.block(child, cx+indent, cy, max(1, cw-indent), height, s)
 			for _, op := range l.ops[firstOp:] {
 				if op.box.Tag == "text" {
 					markerY = op.box.Bounds.Min.Y
 					break
 				}
 			}
-			l.add(Box{Bounds: image.Rect(cx, markerY, cx+indent, markerY+s.line), Tag: "marker", Text: marker, FontSize: s.size, Bold: s.bold, Color: s.fg}, nil)
+			l.add(Box{Bounds: image.Rect(cx, markerY, cx+indent, markerY+s.line), Tag: "marker", Text: marker, FontSize: s.size, Bold: s.bold, FontFamily: s.family, Italic: s.italic, Color: s.fg}, nil)
 			cy = max(cy, markerY+s.line)
 		}
 	} else if n.tag == "img" {
 		src := l.opts.Images[n.attrs["src"]]
 		if src != nil && !src.Bounds().Empty() {
-			h := s.height
+			h := max(0, height)
 			if h == 0 {
 				h = int(float64(cw) * float64(src.Bounds().Dy()) / float64(src.Bounds().Dx()))
 			}
@@ -251,7 +256,7 @@ func (l *layout) block(n *node, x, y, w int, parent style) int {
 		for i, c := range cells {
 			left := cw * i / len(cells)
 			right := cw * (i + 1) / len(cells)
-			cy = max(cy, l.block(c, cx+left, y+inset, max(1, right-left), s))
+			cy = max(cy, l.block(c, cx+left, contentY, max(1, right-left), height, s))
 		}
 	} else {
 		var inline []*node
@@ -267,12 +272,12 @@ func (l *layout) block(n *node, x, y, w int, parent style) int {
 				inline = append(inline, c)
 			} else {
 				flush()
-				cy = l.block(c, cx, cy, cw, s)
+				cy = l.block(c, cx, cy, cw, height, s)
 			}
 		}
 		flush()
 	}
-	cy = max(cy, y+inset+s.height) + inset
+	cy = max(cy, contentY+max(0, height)) + padding[2] + s.bw
 	if l.err != nil {
 		return cy
 	}
@@ -291,10 +296,10 @@ func (l *layout) block(n *node, x, y, w int, parent style) int {
 		l.rect(image.Rect(r.Min.X, r.Min.Y, r.Min.X+b, r.Max.Y), c, "border")
 		l.rect(image.Rect(r.Max.X-b, r.Min.Y, r.Max.X, r.Max.Y), c, "border")
 	}
-	if cy+s.margin > l.d.limits.Height {
+	if cy+margin[2] > l.d.limits.Height {
 		l.err = limitError("height")
 	}
-	return cy + s.margin
+	return cy + margin[2]
 }
 func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 	px := x
@@ -362,7 +367,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				if px > x && px+adv > x+w {
 					newline()
 				}
-				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), FontSize: st.size, Bold: st.bold, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
+				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
 				px += adv
 				hasText = true
 				lineHeight = max(lineHeight, st.line)
@@ -396,7 +401,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				runX := px
 				emit := func() {
 					if run.Len() > 0 {
-						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), FontSize: st.size, Bold: st.bold, Color: st.fg, Monospace: st.mono, LinkID: st.linkID}, nil)
+						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Color: st.fg, Monospace: st.mono, LinkID: st.linkID}, nil)
 						run.Reset()
 						hasText = true
 					}
