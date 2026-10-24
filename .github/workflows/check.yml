@@ -1,0 +1,26 @@
+name: check
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: CGO_ENABLED=0 go test ./...
+      - run: go vet ./...
+      - run: GOOS=js GOARCH=wasm go build ./...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: ./scripts/build-web.sh
+      - run: |
+          for demo in overview invoice field-notes status-report; do
+            node scripts/wasm-smoke.cjs "$demo"
+          done
+      - run: GOOS=js GOARCH=wasm go test -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./document
+      - uses: actions/upload-artifact@v4
+        with:
+          name: browser-demo
+          path: web/

@@ -1,0 +1,24 @@
+<style>
+body { padding: 28px; background: #111b2b; color: #dce6f3; }
+h1 { font-size: 32px; color: #ffffff; }
+h2 { font-size: 22px; color: #86c8ff; }
+.muted { color: #9aafc7; font-size: 14px; }
+.panel { padding: 18px; margin: 10px; background: #1b2b40; border: 1px solid #30445e; }
+.metric { font-size: 28px; line-height: 36px; font-weight: bold; color: #7ee0ba; text-align: center; }
+.center { text-align: center; }
+th { padding: 12px; background: #29415e; }
+td { padding: 12px; border: 1px solid #30445e; }
+.good { color: #7ee0ba; }
+.warn { color: #ffd28a; }
+</style>
+<body>
+<p class="muted">NIMBLE TERMINAL / OPERATIONS / FICTIONAL SAMPLE DATA</p>
+<h1>Delivery status</h1>
+<p>Release window 024 · Snapshot at 14:30 UTC</p>
+<table><tr><td><p class="metric">99.98%</p><p class="center">Availability</p></td><td><p class="metric">42 ms</p><p class="center">Median latency</p></td><td><p class="metric">3 / 3</p><p class="center">Regions ready</p></td></tr></table>
+<div class="panel"><h2>Ready for the next build</h2><p>All rendering workers are healthy. The release queue is clear, and document export is operating within its configured limits.</p></div>
+<h2>Service overview</h2>
+<table><tr><th>Service</th><th>Status</th><th>Last check</th></tr><tr><td>Document parser</td><td class="good">Healthy</td><td>14:30:02 UTC</td></tr><tr><td>Raster workers</td><td class="good">Healthy</td><td>14:30:04 UTC</td></tr><tr><td>Artifact storage</td><td class="good">Healthy</td><td>14:30:06 UTC</td></tr><tr><td>Preview cache</td><td class="warn">Warming</td><td>14:30:08 UTC</td></tr></table>
+<div class="panel"><h2>Operator notes</h2><p><strong>14:22</strong> — Browser artifacts published to the staging bucket.</p><p><strong>14:26</strong> — Terminal smoke checks completed.</p><p><strong>14:30</strong> — Preview cache warming after the scheduled rotation. No customer impact expected.</p></div>
+<p class="muted">Static HTML report · No scripts, network calls, or live telemetry.</p>
+</body>

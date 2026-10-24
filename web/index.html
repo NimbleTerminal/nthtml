@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>nthtml demos · Nimble Terminal</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101827;color:#e2e8f0;font:16px system-ui}header{padding:20px 24px;display:flex;flex-wrap:wrap;gap:16px;align-items:center}a{color:#9ebeff}.brand{font-size:22px;font-weight:700}label{font-size:14px}select,button{font:inherit;color:inherit;background:#22314b;border:1px solid #536883;border-radius:6px;padding:8px 12px}button{cursor:pointer}button:focus-visible,select:focus-visible{outline:2px solid #9ebeff;outline-offset:3px}.controls{display:flex;gap:8px}#status{padding:0 24px 16px;color:#a7b7ce;font-size:14px}main{overflow:auto;height:calc(100vh - 140px);padding:0 24px 24px}canvas{display:block;transform-origin:top left;box-shadow:0 12px 40px #0005}footer{padding:8px 24px;color:#a7b7ce;font-size:12px}@media(max-width:600px){header{padding:16px;gap:12px}main{padding:0 16px 16px;height:calc(100vh - 190px)}}
+</style>
+<header>
+<span class="brand">nthtml</span>
+<a href="https://github.com/NimbleTerminal/nthtml">GitHub</a>
+<label for="demo">Document</label>
+<select id="demo"><option value="overview">Platform overview</option><option value="invoice">Studio invoice</option><option value="field-notes">Field notes</option><option value="status-report">Delivery status</option></select>
+<div class="controls"><button id="out" aria-label="Zoom out">−</button><button id="in" aria-label="Zoom in">+</button><button id="reset">Reset</button></div>
+</header>
+<div id="status" role="status">Loading Go WebAssembly…</div>
+<main id="viewport"><canvas id="document" aria-label="Rendered HTML document preview"></canvas></main>
+<footer>Constrained HTML/CSS, rendered in Go. Scroll to explore; use + / − to zoom and 0 to reset.</footer>
+<script src="wasm_exec.js"></script>
+<script>
+const picker=document.getElementById('demo');
+const requested=new URLSearchParams(location.search).get('demo') || 'overview';
+const selected=Array.from(picker.options).some(o=>o.value===requested)?requested:'overview';
+picker.value=selected;
+picker.onchange=()=>{const url=new URL(location.href);url.searchParams.set('demo',picker.value);location.assign(url)};
+let zoom=1;
+const canvas=document.getElementById('document');
+const viewport=document.getElementById('viewport');
+function scale(){canvas.style.width=(canvas.width*zoom)+'px'}
+function zoomIn(){zoom=Math.min(4,zoom*1.25);scale()}
+function zoomOut(){zoom=Math.max(.25,zoom/1.25);scale()}
+function reset(){zoom=1;scale();viewport.scrollTo(0,0)}
+document.getElementById('in').onclick=zoomIn;
+document.getElementById('out').onclick=zoomOut;
+document.getElementById('reset').onclick=reset;
+document.addEventListener('keydown',event=>{if(event.target.closest('select,button,input'))return;if(event.key==='+'||event.key==='='){zoomIn();event.preventDefault()}else if(event.key==='-'){zoomOut();event.preventDefault()}else if(event.key==='0'){reset();event.preventDefault()}});
+const go=new Go();
+go.argv=['nthtml','-demo',selected];
+WebAssembly.instantiateStreaming(fetch('app.wasm'),go.importObject).then(r=>go.run(r.instance)).catch(e=>document.getElementById('status').textContent=e.message);
+</script>
+</html>
