@@ -480,3 +480,9 @@ UTF-8 text offsets and rectangles, with `Search`, `Regions`, `Hit`, and
 call `NavigateFragment`, `Search`, `NextMatch`, `SearchStatus`, `SelectRange`,
 `SelectedText`, and `CopySelection`. Hosts that reserve quit keys must let
 the widget consume keys while `SearchInputActive()` is true.
+
+### Conformance testing
+
+`task conformance` runs a pinned, offline subset of upstream [Web Platform Tests](https://web-platform-tests.org/) and writes `artifacts/conformance/index.html` plus JSON and failure image comparisons. The initial audited baseline is **8 PASS, 1 FAIL, 7 UNSUPPORTED**. The known failure concerns zero-height background painting; unsupported prerequisites are explicitly recorded rather than counted as passes.
+
+Native and WASM tests enforce the reviewed baseline. Use `task conformance -- -strict` to fail on any rendering failure. This is subset testing, not full browser conformance; see the [harness scope and contribution guide](internal/conformance/README.md).

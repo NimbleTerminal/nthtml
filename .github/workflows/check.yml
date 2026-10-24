@@ -19,8 +19,14 @@ jobs:
           for demo in overview invoice field-notes status-report guide typography diagrams navigation; do
             node scripts/wasm-smoke.cjs "$demo"
           done
-      - run: GOOS=js GOARCH=wasm go test -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./document
+      - run: GOOS=js GOARCH=wasm go test -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./document ./examples/demo ./internal/conformance
       - uses: actions/upload-artifact@v4
         with:
           name: browser-demo
           path: web/
+      - run: CGO_ENABLED=0 go run ./cmd/nthtml-conformance
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conformance
+          path: artifacts/conformance/

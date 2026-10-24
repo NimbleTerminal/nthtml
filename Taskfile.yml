@@ -146,7 +146,7 @@ tasks:
       GOARCH: wasm
     cmds:
       - go build -mod=readonly ./...
-      - go test -mod=readonly -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" {{.CLI_ARGS}} ./document ./examples/demo
+      - go test -mod=readonly -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" {{.CLI_ARGS}} ./document ./examples/demo ./internal/conformance
 
   test-web:
     desc: Build and smoke-test all browser demos under Node
@@ -155,6 +155,11 @@ tasks:
       - for: {var: DEMOS}
         cmd: node scripts/wasm-smoke.cjs {{.ITEM}}
 
+  conformance:
+    desc: Run the pinned WPT subset and write an HTML/JSON report
+    cmds:
+      - go run ./cmd/nthtml-conformance {{.CLI_ARGS}}
+
   ci:
     desc: Run native checks, builds, WASM tests, and browser smoke checks
     cmds:
@@ -162,3 +167,4 @@ tasks:
       - task: build
       - task: test-wasm
       - task: test-web
+      - task: conformance

@@ -1,0 +1,119 @@
+{
+  "repository": "https://github.com/web-platform-tests/wpt",
+  "revision": "ffe56d4420d270941329689aff42d925f615d0b4",
+  "viewport": {
+    "width": 800,
+    "height": 600
+  },
+  "files": {
+    "LICENSE.md": "5fac07febb0e2a97fb0d7b0def149ec08b642e1ba4b9c345283ab1cbd2af6570",
+    "css/CSS2/box-display/display-none-001.xht": "e47736045305927d8dacb3b8d4bac7b4d4a1a98a9deb6bb83ba2c4ae82408092",
+    "css/CSS2/reference/ref-if-there-is-no-red.xht": "ceb49218754d1072a8f989d0566cc63eb0e048660c658f632d821780940cf655",
+    "css/CSS2/box-display/display-none-002.xht": "efb7b3bc48aa107c5a84c247918dd08fa59a7eee8bec2d3df1cf13ce18baf34c",
+    "css/CSS2/box-display/display-none-003.xht": "de7c05c5696ca7cbf5650a93619d98cc3379844df441ac9013141ca581976bbb",
+    "css/CSS2/fonts/font-style-applies-to-001.xht": "b5bc85a76619eed49eca582587a079c0010fd3967e33eb2ea49f27c8bb505d80",
+    "css/CSS2/fonts/font-style-applies-to-001-ref.html": "63a3f758fd7d558c78c1296e55716e4b212f931d5625ed32bfddaca5693e6060",
+    "css/CSS2/fonts/font-style-applies-to-002.xht": "940385de30c8240041c76b5830b112b52b922623a7332bd4661adba20357e2ce",
+    "css/CSS2/fonts/font-weight-applies-to-001.xht": "5da00fd62a181d5b04e7859007051e5383929fa64815b818bea3498fb0d60ae8",
+    "css/CSS2/fonts/font-weight-bold-ref.html": "970eaa50397fa7506f5dbb080cc7119055a9a0c779a8bf9626e2bd4c4cbfd9ff",
+    "css/CSS2/fonts/font-weight-applies-to-002.xht": "570150b72d994f7316d4ea7a030bcab74e86651f581d62ce3a59b8425fb5dc89",
+    "css/CSS2/fonts/font-weight-rule-001.xht": "aefe1a51aa36cfb2c4615e77b356b2250956c6be9007c0b2706f941664c03223",
+    "css/CSS2/fonts/font-weight-normal-ref.html": "32e2ae7e0cc504da8998fe1b963a23c310b8e7b03e62aed132b271e87e77f1e3",
+    "css/CSS2/normal-flow/height-001.xht": "2f962cf046d80ccfbc14cad7b1e1f0212f6fd8d476e2b9aa1e2e7285849b01ad",
+    "css/CSS2/normal-flow/height-001-ref.xht": "9e71e7f72972afa93fd4bb9a9d9b08477d3c54eba35016956f81f9bc6bb922b0",
+    "css/CSS2/margin-padding-clear/padding-001.xht": "c0266a2fde6bba214758ef108b7707dbed9499d35ab39287a6b97c03e6f8a96e",
+    "css/CSS2/margin-padding-clear/margin-001-ref.xht": "96f2cdeea6ad5902b1f1c0bd28b80ef1d13975e31880f539c5a978455db92b6f",
+    "css/CSS2/margin-padding-clear/margin-001.xht": "5d7a4c3e10f254e45c1ae0fcd91e2c8506b92f8862b01bca669f1e444e0c21ab",
+    "css/css-sizing/box-sizing-border-box-001.xht": "e8e2e59968b7054330d9c3379757de4fca9356faca8a5c5b848a6cd5e00d0f59",
+    "css/css-sizing/box-sizing-border-box-001-ref.xht": "3759892a807c6d9f0c9dfab168f3a6f75a23dc0bb091d42e6d00c7bf0421a536",
+    "css/CSS2/borders/border-001.xht": "5ccad2404b15248363a526f8ef93f5a32d4e74f20a784984213c8c4250bd0d6a",
+    "css/CSS2/borders/border-001-ref.xht": "6ef049287f959437e9af18d77c2a116facce7b5bfb7779a61d445ac8a48616f7",
+    "css/CSS2/tables/border-collapse-offset-001.xht": "c296f066c41f168d35e63acb3175d3efaf5d3f9ca73c03d494cd503ec20e6ab1",
+    "css/CSS2/tables/border-collapse-offset-001-ref.xht": "a50ef5eb9e3739768078e57a181660184e6c684e7bec85bf2719f515d3305731",
+    "css/CSS2/tables/border-conflict-element-001d.xht": "217226caba0c452831eeb9692d8f939946811d3a4404719ca2e3e4fb67db60fc",
+    "css/CSS2/tables/border-conflict-element-001d-ref.xht": "adcb809fde777c1cdb97449faef3e8fe634b034d03bfadcd2dc81e616c32bca1",
+    "css/CSS2/tables/border-collapse-001.xht": "2378a0025e0f64ad669937db8c8d303cc6d98f2d12c90dab908d959ab071ca36"
+  },
+  "cases": [
+    {
+      "path": "css/CSS2/box-display/display-none-001.xht",
+      "expected": "PASS",
+      "reason": "display:none suppresses the entire box; positioning/float on that hidden box is intentionally irrelevant."
+    },
+    {
+      "path": "css/CSS2/box-display/display-none-002.xht",
+      "expected": "PASS",
+      "reason": "display:none suppresses the entire box; positioning/float on that hidden box is intentionally irrelevant."
+    },
+    {
+      "path": "css/CSS2/box-display/display-none-003.xht",
+      "expected": "PASS",
+      "reason": "display:none suppresses the entire box; positioning/float on that hidden box is intentionally irrelevant."
+    },
+    {
+      "path": "css/CSS2/fonts/font-style-applies-to-001.xht",
+      "expected": "PASS",
+      "reason": "Italic styling on inline/block elements; reference uses the HTML italic element."
+    },
+    {
+      "path": "css/CSS2/fonts/font-style-applies-to-002.xht",
+      "expected": "PASS",
+      "reason": "Italic styling on inline/block elements; reference uses the HTML italic element."
+    },
+    {
+      "path": "css/CSS2/fonts/font-weight-applies-to-001.xht",
+      "expected": "PASS",
+      "reason": "Bold font weight on inline/block elements; no external fonts required."
+    },
+    {
+      "path": "css/CSS2/fonts/font-weight-applies-to-002.xht",
+      "expected": "PASS",
+      "reason": "Bold font weight on inline/block elements; no external fonts required."
+    },
+    {
+      "path": "css/CSS2/fonts/font-weight-rule-001.xht",
+      "expected": "PASS",
+      "reason": "Normal font weight and numeric 400 should be identical."
+    },
+    {
+      "path": "css/CSS2/normal-flow/height-001.xht",
+      "expected": "FAIL",
+      "reason": "Known gap: height is a minimum in nthtml; height:0 still paints a background behind overflowing text."
+    },
+    {
+      "path": "css/CSS2/margin-padding-clear/padding-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires absolute positioning and positioned offsets."
+    },
+    {
+      "path": "css/CSS2/margin-padding-clear/margin-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires absolute positioning plus physical cm/in length units."
+    },
+    {
+      "path": "css/css-sizing/box-sizing-border-box-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires floats, absolute positioning, z-index, and XHTML CSS CDATA processing."
+    },
+    {
+      "path": "css/CSS2/borders/border-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires external Ahem stylesheet/font, em units, compound selectors, and word-spacing."
+    },
+    {
+      "path": "css/CSS2/tables/border-collapse-offset-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires absolute positioning, additional named colors, and unrestricted border shorthand order."
+    },
+    {
+      "path": "css/CSS2/tables/border-conflict-element-001d.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires Ahem, external image assets, per-side border colors, em units, compound/descendant selectors, and XHTML CSS CDATA."
+    },
+    {
+      "path": "css/CSS2/tables/border-collapse-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Manual test with no upstream match/mismatch reference; border-spacing is not supported."
+    }
+  ]
+}
