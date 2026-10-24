@@ -15,8 +15,8 @@ Open `artifacts/conformance/index.html` for results and failure images. `report.
 
 | Result | Cases | Meaning |
 |---|---:|---|
-| PASS | 22 | Display-none, typography, selectors, zero/min/max dimensions, and named color with em sizing. |
-| FAIL | 4 | RGB/RGBA/hex square tests expose paragraph default margins and absent margin collapse. |
+| PASS | 26 | Display-none, typography, selectors, zero/min/max dimensions, named/RGB/RGBA/hex colors, and collapsed paragraph margins. |
+| FAIL | 0 | No failures in the runnable subset. |
 | UNSUPPORTED | 15 | Dependencies outside our reviewed subset; never counted as passes. |
 | ERROR | 0 | Harness errors, missing fixtures, or rejected prerequisites. |
 
@@ -43,4 +43,4 @@ Fetching/updating upstream fixtures is a separate, intentional maintenance opera
 
 Selector/cascade combinations, whitespace modes, and merged-table geometry/TTY output also have native and WASM regression tests in `document`. These local tests are not counted as upstream WPT passes.
 
-The current inventory is **41 selected HTML/CSS cases**, not the full HTML/CSS suite. Of 26 runnable reference cases, 22 pass (84.6%); 15 others are explicitly unsupported. Some unit tests upstream use JavaScript `getComputedStyle` assertions rather than visual references. They remain unsupported by this runner even when the underlying unit conversion is implemented and covered locally. The four color-square failures are retained, with original test/reference files unchanged; both images have the expected color and size but differ in placement.
+The current inventory is **41 selected HTML/CSS cases**, not the full HTML/CSS suite. All 26 runnable reference cases pass; 15 others are explicitly unsupported. Some unit tests upstream use JavaScript `getComputedStyle` assertions rather than visual references. They remain unsupported by this runner even when the underlying unit conversion is implemented and covered locally. The four color-square cases now match after paragraph defaults and vertical margin collapse were corrected. Original test/reference files remain unchanged.

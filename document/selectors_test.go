@@ -26,7 +26,7 @@ func TestSelectorCascade(t *testing.T) {
 		}
 	}
 	r := renderCSS(t, `<style>p{padding:3px!important;padding-left:9px} p.note{padding-left:7px!important}</style><p class="note" style="padding:1px">Hello</p>`)
-	if got := tagged(r, "text").Bounds.Min.X; got != 15 {
+	if got := tagged(r, "text").Bounds.Min.X; got != 7 {
 		t.Fatalf("important shorthand: x=%d", got)
 	}
 }

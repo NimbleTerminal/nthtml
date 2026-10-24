@@ -230,7 +230,11 @@ func (d *Document) styled(n *node, parent style) style {
 		s.lineMultiplier = 0
 		s.bold = true
 		s.margin = uniform(10)
-	case "p", "ul", "ol":
+	case "body":
+		s.margin = uniform(8)
+	case "p":
+		s.margin = [4]cssLength{{value: 1, unit: lengthEM}, {}, {value: 1, unit: lengthEM}, {}}
+	case "ul", "ol":
 		s.margin = uniform(8)
 	}
 	if n.tag == "em" || n.tag == "i" {

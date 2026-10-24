@@ -22,7 +22,7 @@ func TestCSSLengthUnits(t *testing.T) {
 	}
 }
 func TestRelativeLengthsAndRootFont(t *testing.T) {
-	r := renderCSS(t, `<html style="font-size:20px"><body style="font-size:10px"><article style="font-size:2em;width:10em;padding:.5em;border:solid .1em blue"><section style="font-size:.5em;width:10rem;height:2em"></section></article></body></html>`)
+	r := renderCSS(t, `<html style="font-size:20px"><body style="font-size:10px;margin:0"><article style="font-size:2em;width:10em;padding:.5em;border:solid .1em blue"><section style="font-size:.5em;width:10rem;height:2em"></section></article></body></html>`)
 	a, b := tagged(r, "article"), tagged(r, "section")
 	if a.Bounds.Dx() != 224 || b.Bounds.Dx() != 200 || b.Bounds.Dy() != 20 || b.Bounds.Min.X != 12 {
 		t.Fatal(a.Bounds, b.Bounds)

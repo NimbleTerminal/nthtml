@@ -44,6 +44,7 @@ type layout struct {
 	diagramCount, diagramPixels int
 	warnings                    []string
 	tableWork                   int
+	marginWork                  int
 	ctx                         context.Context
 	d                           *Document
 	opts                        Options
@@ -190,39 +191,10 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	if n.tag == "table" && s.collapse {
 		s.bw = 0
 	}
-	margin, padding := resolveEdges(s.margin, w), resolveEdges(s.padding, w)
+	profile := l.margins(n, s, w, parentHeight)
+	margin, padding, target := boxWidth(s, w)
+	margin[0], margin[2] = profile.before, profile.after
 	extra := padding[1] + padding[3] + 2*s.bw
-	available := max(1, w-margin[1]-margin[3])
-	target := available
-	if s.width.definite(w) {
-		target = s.width.resolve(w, 16384)
-		if !s.borderBox {
-			target += extra
-		}
-	}
-	if s.maxWidth.definite(w) {
-		cap := s.maxWidth.resolve(w, 16384)
-		if !s.borderBox {
-			cap += extra
-		}
-		target = min(target, cap)
-	}
-	if s.minWidth.definite(w) {
-		floor := s.minWidth.resolve(w, 16384)
-		if !s.borderBox {
-			floor += extra
-		}
-		target = max(target, floor)
-	}
-	target = max(0, min(available, target))
-	spare := max(0, available-target)
-	if s.margin[3].unit == lengthAuto {
-		if s.margin[1].unit == lengthAuto {
-			margin[3] = spare / 2
-		} else {
-			margin[3] = spare
-		}
-	}
 	x += margin[3]
 	y += margin[0]
 	w = target
@@ -314,25 +286,50 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		}
 	} else {
 		var inline []*node
+		pending, atTop := 0, true
 		flush := func() {
 			if len(inline) > 0 {
+				before := cy
 				cy = l.flow(inline, cx, cy, cw, s)
+				if cy != before {
+					pending = 0
+					atTop = false
+				}
 				inline = nil
 			}
 		}
 		for _, c := range n.children {
 			cs := l.d.styled(c, s)
-			if kind, _ := diagramSource(c); kind != "" {
-				flush()
-				cy = l.block(c, cx, cy, cw, height, s)
-			} else if c.tag == "" || cs.display == "inline" || c.tag == "br" {
+			if cs.display == "none" {
+				continue
+			}
+			kind, _ := diagramSource(c)
+			if kind == "" && (c.tag == "" || cs.display == "inline" || c.tag == "br") {
 				inline = append(inline, c)
+				continue
+			}
+			flush()
+			childMargins := l.margins(c, cs, cw, height)
+			input := cy - min(pending, childMargins.before)
+			if atTop && profile.top {
+				input = cy - childMargins.before
+			}
+			cy = l.blockStyled(c, cx, input, cw, height, cs)
+			if atTop && profile.top && childMargins.through {
+				pending = 0
+				continue
+			}
+			if childMargins.through {
+				pending = max(pending, childMargins.after)
 			} else {
-				flush()
-				cy = l.block(c, cx, cy, cw, height, s)
+				pending = childMargins.after
+				atTop = false
 			}
 		}
 		flush()
+		if profile.bottom {
+			cy -= pending
+		}
 	}
 	// Definite block heights size the box even when content overflows.
 	// Tables/cells retain their minimum-height rules; replaced content keeps
@@ -367,6 +364,9 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	}
 	if cy+margin[2] > l.d.limits.Height {
 		l.err = limitError("height")
+	}
+	if profile.through {
+		return cy
 	}
 	return cy + margin[2]
 }

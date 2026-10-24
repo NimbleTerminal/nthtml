@@ -221,23 +221,23 @@
     },
     {
       "path": "css/css-color/rgb-001.html",
-      "expected": "FAIL",
-      "reason": "Known gap: paragraph default margins and absent margin collapse shift the two half-squares relative to the div reference; color and em sizing are implemented."
+      "expected": "PASS",
+      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed."
     },
     {
       "path": "css/css-color/rgb-002.html",
-      "expected": "FAIL",
-      "reason": "Known gap: paragraph default margins and absent margin collapse shift the two half-squares relative to the div reference; color and em sizing are implemented."
+      "expected": "PASS",
+      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed."
     },
     {
       "path": "css/css-color/rgba-001.html",
-      "expected": "FAIL",
-      "reason": "Known gap: paragraph default margins and absent margin collapse shift the two half-squares relative to the div reference; color and em sizing are implemented."
+      "expected": "PASS",
+      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed."
     },
     {
       "path": "css/css-color/hex-003.html",
-      "expected": "FAIL",
-      "reason": "Known gap: paragraph default margins and absent margin collapse shift the two half-squares relative to the div reference; color and em sizing are implemented."
+      "expected": "PASS",
+      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed."
     },
     {
       "path": "css/css-color/named-001.html",
