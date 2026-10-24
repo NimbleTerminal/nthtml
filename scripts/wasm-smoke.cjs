@@ -45,6 +45,7 @@ globalThis.document = { getElementById(id) { return id === 'document' ? canvas :
   assert.ok(globalThis.nthtmlDemo);
   try {
   assert.ok(painted);
+  assert.deepEqual(canvas.nthtmlWarnings,[]);
   const demo = process.argv[2] || 'overview';
   const sourcePath = demo === 'overview' ? 'examples/demo/sample.html' : `examples/demo/documents/${demo}.html`;
   assert.equal(reference.srcdoc, '<!doctype html><meta charset="utf-8">\n' + fs.readFileSync(sourcePath, 'utf8'));
@@ -69,7 +70,14 @@ globalThis.document = { getElementById(id) { return id === 'document' ? canvas :
   assert.equal(canvas.width,400);
   assert.deepEqual(canvas.nthtmlLinks.map(l => l.id),linkIDs);
   assert.equal(tty.nthtmlSegments.map(s => s.text).join(''),tty.textContent);
-  assert.ok(canvas.height > initialHeight, 'narrower typeset layout must grow vertically');
+  assert.deepEqual(canvas.nthtmlWarnings,[]);
+  if (demo === 'diagrams') {
+    assert.notEqual(canvas.height,initialHeight,'diagram reflow must change layout');
+    assert.ok(tty.textContent.includes('[SVG: Delivery chart:'));
+    assert.ok(tty.textContent.includes('flowchart LR'));
+  } else {
+    assert.ok(canvas.height > initialHeight, 'narrower typeset layout must grow vertically');
+  }
   assert.ok(tty.textContent.split('\n').length > initialLines, 'TTY must rewrap');
   const stablePaints = paints;
   assert.equal(nthtmlDemo.reflow(400,40),'');

@@ -9,7 +9,7 @@ import (
 )
 
 func TestDemoDocuments(t *testing.T) {
-	for _, name := range []string{"overview", "invoice", "field-notes", "status-report", "guide", "typography"} {
+	for _, name := range []string{"overview", "invoice", "field-notes", "status-report", "guide", "typography", "diagrams"} {
 		t.Run(name, func(t *testing.T) {
 			source, err := demoSource(name)
 			if err != nil {
@@ -18,6 +18,9 @@ func TestDemoDocuments(t *testing.T) {
 			result, err := document.Render(context.Background(), strings.NewReader(source), document.Options{Width: 800})
 			if err != nil {
 				t.Fatal(err)
+			}
+			if len(result.Warnings) > 0 {
+				t.Fatal(result.Warnings)
 			}
 			if result.Image.Bounds().Dy() < 500 {
 				t.Fatal("unexpectedly short document")

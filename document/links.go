@@ -102,6 +102,10 @@ func (d *Document) Links(ctx context.Context) ([]Link, error) {
 		if s.display == "block" {
 			b.WriteByte(' ')
 		}
+		if n.svg != "" {
+			b.WriteString(diagramLabel(n))
+			return nil
+		}
 		if n.tag == "img" {
 			b.WriteString(cleanText(n.attrs["alt"]))
 		}

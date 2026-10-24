@@ -72,7 +72,9 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 			visit(c, st)
 		}
 	}
-	if n.tag == "img" {
+	if kind, _ := diagramSource(n); kind != "" {
+		minimum, preferred = 32, 300
+	} else if n.tag == "img" {
 		if src := l.opts.Images[n.attrs["src"]]; src != nil {
 			preferred = min(4096, src.Bounds().Dx())
 			minimum = preferred

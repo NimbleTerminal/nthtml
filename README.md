@@ -213,7 +213,9 @@ specific subset below works; it does not imply browser-compatible behavior.
 | Colors | Partial | `#rgb`, `#rrggbb`, `black`, `white`, `red`, `green`, `blue`, `gray`, and `transparent`. No alpha hex, `rgb()` / `hsl()`, `currentColor`, or full named-color set. |
 | Tables | Partial | Shared content-aware Typeset column widths across explicit rows and row groups (`thead`, `tbody`, `tfoot`); top captions, nested tables, bold headers, row/group backgrounds, uniform row heights, and cell `text-align` / `vertical-align: top\|middle\|bottom`. TTY uses content-based column widths and wrapping. Solid `border-collapse: collapse` / `separate`, with shared-edge conflict resolution. No colspan/rowspan, border spacing, `colgroup`, or full CSS intrinsic sizing. |
 | Images | Partial | Explicit `Options.Images[src]` allowlist; PNG/JPEG/GIF decode helpers and base64 data URL helper. Missing images show alt text. No automatic file/URL loading, animated playback, or browser-style inline image layout. |
-| SVG and other embedded media | Not supported | No SVG fragment renderer, video/audio playback, embedded browser frames, or canvas execution in the document engine. |
+| Embedded SVG | Partial | Inline `<svg>` fragments rasterize through ntsvg; shapes, paths, text, basic gradients, and markers in a bounded SVG subset. Aspect ratio is preserved; width/height attributes and CSS sizing are supported. TTY uses aria-label/title/desc. No external resources, use/references inside definitions, SVG stylesheets, scripts, foreignObject, or SVG-internal link navigation. |
+| Mermaid | Partial | `pre.mermaid`, `div.mermaid`, or `pre > code.language-mermaid`; flowchart/graph, sequenceDiagram, stateDiagram-v2, classDiagram, and pie via pure-Go go-mermaid → ntsvg. TTY retains source. Not full Mermaid compatibility; directives and other diagram families are unsupported. |
+| Other embedded media | Not supported | No video/audio playback, embedded browser frames, or canvas execution in the document engine. |
 | Hyperlinks | Partial | Safe destinations, raster hit regions, TTY spans/OSC 8, Tab/Enter widget navigation, and browser anchors. Hosts own activation; no built-in fragment navigation. Terminal mouse clicks account for crop, zoom, and cell geometry. |
 | Forms | Not supported | No editable controls, form state, or submission. |
 | JavaScript and dynamic CSS | Not supported | No script execution, DOM/event system, animations, transitions, transforms, filters, or CSS variables. |
@@ -251,7 +253,8 @@ raster view; it does **not** currently use the separate nttypeset engine.
 | Multiple positioned Kitty widgets | Not exposed by the current nthtml wrapper |
 | PNG export | Supported by `cmd/nthtml`; other image consumers can use `Result.Image` |
 | ntfonts integration | Embedded fonts by default; custom `document.Options.Fonts` sources supported |
-| Direct nttypeset / ntsvg integration | Not implemented; image and text-box outputs are available to host adapters |
+| ntsvg integration | Embedded SVG and Mermaid rasterization on native and WASM |
+| Direct nttypeset integration | Not implemented; image and text-box outputs are available to host adapters |
 | TinyGo / embedded devices | Unverified architectural goal; not a supported target yet |
 | Full browser rendering | Only the demo's optional reference iframe, rendered by the host browser; not an nthtml capability |
 
@@ -377,3 +380,54 @@ This is constrained solid-border collapse: row-group/column borders, per-side
 borders, hidden/dashed border styles, merged cells, and browser-exact intrinsic
 sizing are not implemented. The grid is capped at 100,000 edge segments;
 oversized grids return `document.ErrLimit`. TTY mode keeps its Unicode grid.
+
+### Embedded SVG and Mermaid
+
+Run `task demo DEMO=diagrams` or select **SVG & Mermaid** in the browser gallery.
+The same Go code generates diagram pixels on native and WASM builds.
+
+```html
+<svg viewBox="0 0 200 80" aria-label="Blue status panel">
+  <title>Status panel</title>
+  <rect width="200" height="80" rx="8" fill="#2247a0"/>
+  <text x="20" y="48" fill="white" font-size="20">Ready</text>
+</svg>
+
+<pre class="mermaid">
+flowchart LR
+    A[Document] --> B[SVG]
+    B --> C[Terminal]
+</pre>
+```
+
+Markdown adapters can emit `<pre><code class="language-mermaid">…</code></pre>`.
+As with other HTML code blocks, escape literal `<` and `&` in diagram source.
+SVG is kept separate from the HTML tree: its internal CSS cannot affect the
+surrounding document. Diagrams occupy blocks even inside inline content.
+An HTML anchor wrapping an SVG remains clickable; SVG-internal anchors are
+unsupported. The browser reference uses its native SVG renderer and displays
+Mermaid source without JavaScript.
+
+The default adapter is `document.DefaultDiagramRenderer`. Hosts can replace
+it through `Options.Diagrams` (the `DiagramRenderer` interface), or set
+`Options.DisableDiagrams` to retain labels/source without rasterization.
+Custom adapters must enforce their own work limits and obey the supplied
+context and image bounds.
+
+Malformed or unsupported diagram content falls back to a label/source and
+adds an entry to `Result.Warnings`; the CLI and demos surface those warnings.
+Unclosed SVG markup is a parse error. Resource-budget violations return
+`document.ErrLimit` instead of silently dropping content.
+
+Limits per render: 32 diagrams, up to 1 Mi pixels each and 4 Mi pixels in total
+(or the smaller document pixel budget), maximum raster edge 4096 wide / 2048
+high. Each SVG is limited to 256 KiB, 2,048 elements, depth 32, 16,384 numeric
+coordinates, and coordinate magnitudes of 32,768. Nonzero stroke widths and dash lengths
+below 0.1 are unsupported; inline SVG styles allow up to 128 declarations. Mermaid source is limited
+to 4 KiB, 65 lines, 512 whitespace-separated tokens, and 256 lexical words/identifiers. Generated SVG passes
+the same checks. Context cancellation is checked between stages; the upstream
+Mermaid layout and SVG raster calls are synchronous and cannot be interrupted
+mid-call. No subprocesses, browser runtime, CGO, font downloads, or external
+resource fetching are used.
+
+See [diagram dependency notices](licenses/diagrams/README.md).

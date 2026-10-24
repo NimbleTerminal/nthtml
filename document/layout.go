@@ -28,6 +28,8 @@ type Box struct {
 	Color                     color.RGBA
 }
 type Result struct {
+	// Warnings describe diagrams replaced by readable fallbacks.
+	Warnings []string
 	document *Document
 	Image    *image.RGBA
 	Boxes    []Box
@@ -38,15 +40,17 @@ type operation struct {
 	source image.Image
 }
 type layout struct {
-	tableWork int
-	ctx       context.Context
-	d         *Document
-	opts      Options
-	ops       []operation
-	faces     map[faceKey]font.Face
-	fonts     map[string]*opentype.Font
-	fontBytes int
-	err       error
+	diagramCount, diagramPixels int
+	warnings                    []string
+	tableWork                   int
+	ctx                         context.Context
+	d                           *Document
+	opts                        Options
+	ops                         []operation
+	faces                       map[faceKey]font.Face
+	fonts                       map[string]*opentype.Font
+	fontBytes                   int
+	err                         error
 }
 
 func (l *layout) add(b Box, src image.Image) {
@@ -103,7 +107,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	}
 	img := image.NewRGBA(image.Rect(0, 0, o.Width, h))
 	draw.Draw(img, img.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
-	result := &Result{document: d, Image: img, Boxes: make([]Box, 0, len(l.ops))}
+	result := &Result{Warnings: l.warnings, document: d, Image: img, Boxes: make([]Box, 0, len(l.ops))}
 	links, err := d.Links(ctx)
 	if err != nil {
 		return nil, err
@@ -217,7 +221,9 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	l.add(Box{Tag: n.tag}, nil)
 	cx, cy, cw := x+padding[3]+s.bw, y+padding[0]+s.bw, max(1, w-extra)
 	contentY := cy
-	if n.tag == "table" {
+	if kind, source := diagramSource(n); kind != "" {
+		cy = l.diagram(n, kind, source, cx, cy, cw, height, s)
+	} else if n.tag == "table" {
 		cy = l.table(n, cx, cy, cw, height, tableStyle)
 	} else if n.tag == "ul" || n.tag == "ol" {
 		index := listStart(n)
@@ -281,7 +287,10 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		}
 		for _, c := range n.children {
 			cs := l.d.styled(c, s)
-			if c.tag == "" || cs.display == "inline" || c.tag == "br" {
+			if kind, _ := diagramSource(c); kind != "" {
+				flush()
+				cy = l.block(c, cx, cy, cw, height, s)
+			} else if c.tag == "" || cs.display == "inline" || c.tag == "br" {
 				inline = append(inline, c)
 			} else {
 				flush()
@@ -346,6 +355,21 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		}
 		if n.tag == "br" {
 			newline()
+			return
+		}
+		if kind, _ := diagramSource(n); kind != "" {
+			if l.d.styled(n, st).display == "none" {
+				return
+			}
+			if hasText {
+				newline()
+			}
+			y = l.block(n, x, y, w, -1, st)
+			px = x
+			lineStart = len(l.ops)
+			lineHeight = s.line
+			hasText = false
+			pendingSpace = false
 			return
 		}
 		if n.tag != "" {

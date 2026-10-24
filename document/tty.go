@@ -82,6 +82,16 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 		if s.display == "none" {
 			return nil
 		}
+		if kind, source := diagramSource(n); kind != "" {
+			if kind == "svg" {
+				b.WriteString("[SVG: " + diagramLabel(n) + "]")
+				return nil
+			}
+			if err := f.flush(); err != nil {
+				return err
+			}
+			return f.append(ansi.Hardwrap(cleanText(source), f.width, true))
+		}
 		if n.tag == "a" && s.linkID != 0 {
 			b.WriteString(linkStart(s.linkID))
 			for _, child := range n.children {

@@ -22,15 +22,20 @@ var ErrLimit = errors.New("nthtml: resource limit exceeded")
 
 type Options struct {
 	// Fonts defaults to ntfonts.Embedded; missing families fall back to Go fonts.
-	Fonts  FaceSource
-	Width  int
-	Limits Limits
+	Fonts FaceSource
+	// Diagrams defaults to the pure-Go SVG/Mermaid renderer.
+	Diagrams DiagramRenderer
+	// DisableDiagrams keeps labels/source text without invoking a renderer.
+	DisableDiagrams bool
+	Width           int
+	Limits          Limits
 	// Images is an explicit allowlist of already decoded images, keyed by src.
 	// The caller owns decoding and must keep these images immutable during Render.
 	Images map[string]image.Image
 }
 
 type node struct {
+	svg       string
 	id        int
 	tag, text string
 	attrs     map[string]string
@@ -89,6 +94,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			}
 			break
 		}
+		raw := string(z.Raw())
 		t := z.Token()
 		parent := stack[len(stack)-1]
 		switch tt {
@@ -102,6 +108,41 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 				n.attrs[a.Key] = a.Val
 			}
 			parent.children = append(parent.children, n)
+			if n.tag == "svg" {
+				var source strings.Builder
+				source.WriteString(raw)
+				depth := 0
+				if tt == html.StartTagToken {
+					depth = 1
+				}
+				for depth > 0 {
+					if err := ctx.Err(); err != nil {
+						return nil, err
+					}
+					kind := z.Next()
+					if kind == html.ErrorToken {
+						return nil, fmt.Errorf("nthtml: unclosed SVG")
+					}
+					source.Write(z.Raw())
+					_ = z.Token()
+					count++
+					if count > l.Nodes || source.Len() > maxSVGBytes {
+						return nil, limitError("SVG input")
+					}
+					if kind == html.StartTagToken {
+						depth++
+					}
+					if kind == html.EndTagToken {
+						depth--
+					}
+					if depth+len(stack) > l.Depth {
+						return nil, limitError("SVG depth")
+					}
+				}
+				n.svg = source.String()
+				continue
+			}
+
 			if tt != html.SelfClosingTagToken && !strings.Contains(" area base br col embed hr img input link meta param source track wbr ", " "+t.Data+" ") {
 				if len(stack) >= l.Depth {
 					return nil, ErrLimit

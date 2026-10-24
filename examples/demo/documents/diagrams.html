@@ -1,0 +1,39 @@
+<style>
+body { padding:24px; background:#edf1f5; color:#203047; }
+article { max-width:720px; margin:0 auto; padding:24px; background:white; }
+h1 { margin:0 0 16px; color:#2247a0; }
+h2 { margin:18px 0 8px; font-size:22px; }
+p { margin:8px 0; }
+svg { width:100%; margin:12px 0; }
+.mermaid { margin:12px 0; padding:12px; background:#f4f6fb; }
+</style>
+<body><article>
+<h1>Diagrams that travel</h1>
+<p>Embedded SVG and Mermaid diagrams share the same pure-Go rendering path in the terminal and browser. Switch to TTY mode for accessible labels and diagram source.</p>
+<h2>Inline SVG: delivery by surface</h2>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160" aria-label="Delivery chart: Terminal 85, Browser 70, Tools 55">
+<title>Delivery by surface</title>
+<rect x="0" y="0" width="600" height="160" fill="#f4f6fb"/>
+<text x="16" y="35" font-size="16" fill="#203047">Terminal</text><rect x="120" y="14" width="400" height="28" rx="4" fill="#2247a0"/>
+<text x="16" y="85" font-size="16" fill="#203047">Browser</text><rect x="120" y="64" width="330" height="28" rx="4" fill="#326c80"/>
+<text x="16" y="135" font-size="16" fill="#203047">Tools</text><rect x="120" y="114" width="260" height="28" rx="4" fill="#719597"/>
+</svg>
+<h2>Mermaid: the document pipeline</h2>
+<pre class="mermaid">
+flowchart LR
+    A[HTML document] --> B[Layout]
+    B --> C[SVG diagrams]
+    C --> D[ntsvg pixels]
+    D --> E[Terminal]
+    D --> F[Browser]
+</pre>
+<h2>Mermaid: a small conversation</h2>
+<pre><code class="language-mermaid">
+sequenceDiagram
+    User->>Document: Resize container
+    Document->>Renderer: Reflow and rasterize
+    Renderer-->>User: Updated diagram
+</code></pre>
+<p>The browser reference displays native SVG and the original Mermaid source. Mermaid needs no JavaScript here: Go generates its SVG before ntsvg paints it.</p>
+<p>Diagrams are bounded and never fetch external resources. Unsupported markup falls back to a label or source text with a warning.</p>
+</article></body>

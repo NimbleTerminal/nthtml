@@ -39,6 +39,16 @@ func run(initial *document.Result, source string) {
 		js.CopyBytesToJS(data.Get("data"), r.Image.Pix)
 		dc.Call("putImageData", data, 0, 0)
 		canvas.Set("nthtmlLinks", js.ValueOf(linkValues(r.Links)))
+		warnings := []any{}
+		for _, warning := range r.Warnings {
+			warnings = append(warnings, warning)
+		}
+		canvas.Set("nthtmlWarnings", js.ValueOf(warnings))
+		status := "Rendered by nthtml · Go WebAssembly"
+		if len(r.Warnings) > 0 {
+			status += " · " + strings.Join(r.Warnings, "; ")
+		}
+		d.Call("getElementById", "status").Set("textContent", status)
 	}
 	paint(initial)
 	setTTY := func(result *document.TTYResult) {
@@ -118,7 +128,6 @@ func run(initial *document.Result, source string) {
 	api.Set("reflow", reflow)
 	api.Set("close", closeDemo)
 	js.Global().Set("nthtmlDemo", api)
-	d.Call("getElementById", "status").Set("textContent", "Rendered by nthtml · Go WebAssembly")
 	<-done
 	js.Global().Set("nthtmlDemo", js.Undefined())
 }

@@ -199,6 +199,10 @@ func paint(s string) color.RGBA {
 }
 func (d *Document) styled(n *node, parent style) style {
 	s := style{collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
+	if n.tag == "svg" {
+		s.width, _ = parseLength(n.attrs["width"], true, false)
+		s.height, _ = parseLength(n.attrs["height"], true, false)
+	}
 	switch n.tag {
 	case "span", "a", "em", "strong", "b", "i", "code", "small", "u", "s", "del":
 		s.display = "inline"

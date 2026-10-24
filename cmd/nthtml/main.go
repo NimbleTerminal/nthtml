@@ -31,6 +31,9 @@ func main() {
 	if e != nil {
 		fail(e)
 	}
+	for _, warning := range result.Warnings {
+		fmt.Fprintln(os.Stderr, "warning:", warning)
+	}
 	f, e := os.Create(*out)
 	if e != nil {
 		fail(e)
