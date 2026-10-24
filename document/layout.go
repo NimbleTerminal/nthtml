@@ -38,6 +38,7 @@ type operation struct {
 	source image.Image
 }
 type layout struct {
+	tableWork int
 	ctx       context.Context
 	d         *Document
 	opts      Options
@@ -160,7 +161,13 @@ func (l *layout) block(n *node, x, y, w, parentHeight int, parent style) int {
 		l.err = e
 		return y
 	}
-	s := l.d.styled(n, parent)
+	return l.blockStyled(n, x, y, w, parentHeight, l.d.styled(n, parent))
+}
+
+func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
+	if l.err != nil {
+		return y
+	}
 	if s.display == "none" {
 		return y
 	}
@@ -206,7 +213,9 @@ func (l *layout) block(n *node, x, y, w, parentHeight int, parent style) int {
 	l.add(Box{Tag: n.tag}, nil)
 	cx, cy, cw := x+padding[3]+s.bw, y+padding[0]+s.bw, max(1, w-extra)
 	contentY := cy
-	if n.tag == "ul" || n.tag == "ol" {
+	if n.tag == "table" {
+		cy = l.table(n, cx, cy, cw, height, s)
+	} else if n.tag == "ul" || n.tag == "ol" {
 		index := listStart(n)
 		for _, child := range n.children {
 			if child.tag != "li" {

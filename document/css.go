@@ -19,6 +19,7 @@ type style struct {
 	bw                              int
 	width, height, maxWidth         cssLength
 	borderBox                       bool
+	vertical                        string
 	display, align, family          string
 	bold, italic, underline, strike bool
 	mono, pre                       bool
@@ -355,6 +356,10 @@ func (d *Document) styled(n *node, parent style) style {
 		case "display":
 			if v == "none" || v == "block" || v == "inline" {
 				s.display = v
+			}
+		case "vertical-align":
+			if v == "top" || v == "middle" || v == "bottom" {
+				s.vertical = v
 			}
 		case "text-align":
 			s.align = v

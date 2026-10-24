@@ -211,7 +211,7 @@ specific subset below works; it does not imply browser-compatible behavior.
 | Typography | Partial | Go defaults plus seven embedded ntfonts families; `font-family` fallback lists and generic serif/sans-serif/monospace; regular, bold, italic, and bold italic faces. `font-size` in pixels or percent; numeric `font-weight` maps to regular/bold; `font-style`; pixel, percentage, or unitless-multiplier `line-height`; underline/line-through via `text-decoration` or `text-decoration-line`; left/center/right `text-align`. No justification, letter/word spacing, or external font downloads. |
 | Unicode text | Partial | Text is drawn from the bundled fonts; TTY wrapping measures terminal cells. No full complex-script shaping, bidi layout, font fallback, or guaranteed emoji coverage. |
 | Colors | Partial | `#rgb`, `#rrggbb`, `black`, `white`, `red`, `green`, `blue`, `gray`, and `transparent`. No alpha hex, `rgb()` / `hsl()`, `currentColor`, or full named-color set. |
-| Tables | Partial | Explicit rows/cells with nested content. Typeset uses equal-width columns per row; TTY uses content-based column widths and wrapping. No colspan/rowspan, shared intrinsic column sizing in Typeset, border collapse, or full CSS table layout. |
+| Tables | Partial | Shared content-aware Typeset column widths across explicit rows and row groups (`thead`, `tbody`, `tfoot`); top captions, nested tables, bold headers, row/group backgrounds, uniform row heights, and cell `text-align` / `vertical-align: top\|middle\|bottom`. TTY uses content-based column widths and wrapping. No colspan/rowspan, border collapse/spacing, `colgroup`, or full CSS intrinsic sizing. |
 | Images | Partial | Explicit `Options.Images[src]` allowlist; PNG/JPEG/GIF decode helpers and base64 data URL helper. Missing images show alt text. No automatic file/URL loading, animated playback, or browser-style inline image layout. |
 | SVG and other embedded media | Not supported | No SVG fragment renderer, video/audio playback, embedded browser frames, or canvas execution in the document engine. |
 | Hyperlinks | Partial | Safe destinations, raster hit regions, TTY spans/OSC 8, Tab/Enter widget navigation, and browser anchors. Hosts own activation; no built-in fragment navigation. Terminal mouse clicks account for crop, zoom, and cell geometry. |
@@ -231,7 +231,7 @@ HTML engine.
 | --- | --- | --- |
 | Output | RGBA image, structured paint boxes, and link hit regions | Plain text, terminal-cell link spans, and optional OSC 8 hyperlinks |
 | Visual styling | Supported font sizes, weight, colors, backgrounds, borders, and spacing | Omits font/color/box styling; respects `display: none` and table-cell alignment |
-| Tables | Equal-width cells per row | Unicode borders, header separators, wrapped/aligned cells; stacked records when too narrow; nested tables flatten inside cells |
+| Tables | Shared content-aware columns, wrapped cells, full-height backgrounds/borders, horizontal and vertical cell alignment | Unicode borders, header separators, wrapped/aligned cells; stacked records when too narrow; nested tables flatten inside cells |
 | Images | Rasterizes allowlisted images | Alt-text placeholder |
 | Resize / reflow | Call `Document.Render` at a new pixel width; browser demo does this on container resize | Call `Document.TTY` / `Result.TTY` with new columns; widget and browser demo reflow on resize |
 | Zoom / scroll | Widget zooms/crops the existing raster; browser zoom scales it; both scroll | Scrolls wrapped lines; no image zoom |
@@ -339,3 +339,24 @@ bytes; exceeding these ceilings returns `document.ErrLimit`.
 The embedded ntfonts faces use the SIL Open Font License; see
 [font notices](licenses/fonts/THIRD_PARTY_NOTICES.md) and the accompanying license
 texts. The library itself remains MIT licensed.
+
+### Typeset tables
+
+Columns share boundaries across header, body, and footer rows. A bounded text
+measurement estimates preferred widths; longer content receives more space,
+and narrow tables wrap at word or rune boundaries. Cell widths in pixels or
+percentages are sizing hints, not guaranteed widths. Empty/missing cells do
+not shift the remaining column boundaries; hidden cells are omitted.
+
+Cells default to top alignment. Use `vertical-align: middle` or `bottom`
+alongside `text-align: right` for numeric columns. Header cells are bold;
+normal color, background, padding, and border declarations style them.
+Backgrounds and borders stretch to the tallest cell in each row.
+
+Try `task demo DEMO=invoice` for wrapped descriptions beside vertically
+centered amounts. Table layout ignores cell margins and row/group box spacing,
+places captions above rows, and preserves row-group source order. It does not
+implement merged cells or browser table layout. Measurement is capped at
+100,000 node/word visits per render; tables allow at most 256 columns and
+require at least one available pixel per column. Violations return
+`document.ErrLimit`. Excessive horizontal cell padding shrinks at narrow widths.

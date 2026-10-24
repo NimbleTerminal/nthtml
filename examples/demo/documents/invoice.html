@@ -7,7 +7,7 @@ h2 { font-size: 20px; }
 .note { background: #eaf1ff; padding: 16px; margin: 8px; }
 th { padding: 12px; background: #203047; color: #ffffff; }
 td { padding: 12px; border: 1px solid #dce3ed; }
-.amount { text-align: right; }
+.amount { text-align: right; vertical-align: middle; }
 .total { height: 22px; background: #eaf1ff; font-weight: bold; }
 </style>
 <body><div class="paper">
@@ -16,11 +16,11 @@ td { padding: 12px; border: 1px solid #dce3ed; }
 <p>Issued October 24, 2026 · Due November 23, 2026</p>
 <table><tr><td><h2>Bill to</h2><p>Northstar Research<br>Product Engineering<br>Portland, Oregon</p></td><td><h2>Project</h2><p>Portable document tools<br>Milestone 02<br>Reference: NORTHSTAR-26</p></td></tr></table>
 <h2>Work delivered</h2>
-<table><tr><th>Description</th><th class="amount">Hours</th><th class="amount">Rate</th><th class="amount">Amount</th></tr>
-<tr><td>Document layouts</td><td class="amount">24</td><td class="amount">$150</td><td class="amount">$3,600</td></tr>
+<table><thead><tr><th>Description</th><th class="amount">Hours</th><th class="amount">Rate</th><th class="amount">Amount</th></tr></thead><tbody>
+<tr><td>Document layouts with responsive tables, shared column sizing, and wrapped descriptions</td><td class="amount">24</td><td class="amount">$150</td><td class="amount">$3,600</td></tr>
 <tr><td>Terminal integration</td><td class="amount">16</td><td class="amount">$150</td><td class="amount">$2,400</td></tr>
 <tr><td>WASM delivery</td><td class="amount">8</td><td class="amount">$150</td><td class="amount">$1,200</td></tr>
-<tr><td class="total">Total USD</td><td class="total"></td><td class="total"></td><td class="amount total">$7,200</td></tr></table>
+<tr><td class="total">Total USD</td><td class="total"></td><td class="total"></td><td class="amount total">$7,200</td></tr></tbody></table>
 <div class="note"><p><strong>Thanks for building with us.</strong><br>This fictional invoice demonstrates tables, nested blocks, numeric alignment, and restrained document styling.</p></div>
 <p class="label">Nimble Terminal · Documents that travel.</p>
 </div></body>

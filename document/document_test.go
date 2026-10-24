@@ -134,6 +134,7 @@ func TestImageBudget(t *testing.T) {
 func FuzzRender(f *testing.F) {
 	f.Add("<p>Hello <b>world</b></p>")
 	f.Add("<table><tr><td>x")
+	f.Add(`<table><thead><tr><th>Header</th><th>Qty</th></tr></thead><tr><td style="padding:4px;border:1px solid blue"><table><tr><td>Nested</td></tr></table></td><td style="vertical-align:bottom"><a href="https://example.com">2</a></td></tr></table>`)
 	f.Add("<ul><li><a href=\"https://example.com\">linked item</a><pre>\n  code\n\tmore</pre></li></ul>")
 	f.Fuzz(func(t *testing.T, s string) {
 		if len(s) > 4096 {
