@@ -77,8 +77,8 @@
     },
     {
       "path": "css/CSS2/normal-flow/height-001.xht",
-      "expected": "FAIL",
-      "reason": "Known gap: height is a minimum in nthtml; height:0 still paints a background behind overflowing text."
+      "expected": "PASS",
+      "reason": "Invalid negative height preserves height:0; text overflows visibly without expanding the background."
     },
     {
       "path": "css/CSS2/margin-padding-clear/padding-001.xht",

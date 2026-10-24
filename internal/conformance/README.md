@@ -11,12 +11,12 @@ task test-wasm                   # runs the same subset under Node/WASM
 
 Open `artifacts/conformance/index.html` for results and failure images. `report.json` contains machine-readable results. Generated artifacts are ignored by Git and uploaded by CI.
 
-## Initial baseline
+## Current baseline
 
 | Result | Cases | Meaning |
 |---|---:|---|
-| PASS | 8 | Display-none and basic italic/bold/normal-weight reference comparisons match. |
-| FAIL | 1 | `height-001`: height zero still paints the overflowing content's background. |
+| PASS | 9 | Display-none, basic italic/bold/normal-weight, and zero-height overflow reference comparisons match. |
+| FAIL | 0 | No failures in the runnable subset. |
 | UNSUPPORTED | 7 | Dependencies outside our reviewed subset; never counted as passes. |
 | ERROR | 0 | Harness errors, missing fixtures, or rejected prerequisites. |
 

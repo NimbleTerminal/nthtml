@@ -103,6 +103,10 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	if l.err != nil {
 		return nil, l.err
 	}
+	// Visible overflow contributes to the exported canvas, not normal flow.
+	for _, op := range l.ops {
+		h = max(h, op.box.Bounds.Max.Y)
+	}
 	h = max(1, h)
 	if h > d.limits.Height || o.Width > d.limits.Pixels/h {
 		return nil, limitError("pixels")
@@ -303,7 +307,16 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		}
 		flush()
 	}
-	cy = max(cy, contentY+max(0, height)) + padding[2] + s.bw
+	// Definite block heights size the box even when content overflows.
+	// Tables/cells retain their minimum-height rules; replaced content keeps
+	// the size chosen by its image/diagram layout.
+	kind, _ := diagramSource(n)
+	if height >= 0 && kind == "" && n.tag != "img" && n.tag != "table" && n.tag != "tr" && n.tag != "td" && n.tag != "th" && n.tag != "thead" && n.tag != "tbody" && n.tag != "tfoot" {
+		cy = contentY + height
+	} else {
+		cy = max(cy, contentY+max(0, height))
+	}
+	cy += padding[2] + s.bw
 	if l.err != nil {
 		return cy
 	}
