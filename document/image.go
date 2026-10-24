@@ -9,6 +9,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -43,4 +44,66 @@ func DecodeDataURL(src string) (image.Image, error) {
 		return nil, fmt.Errorf("nthtml: expected base64 image data URL")
 	}
 	return DecodeImage(base64.NewDecoder(base64.StdEncoding, strings.NewReader(payload)))
+}
+
+// ImageSources lists the distinct img src values in document order, so a host
+// can decode exactly the resources it chooses to allow before Render. Hidden
+// images are included; the list never exceeds the parsed node budget.
+func (d *Document) ImageSources() []string {
+	var out []string
+	seen := map[string]bool{}
+	var visit func(*node)
+	visit = func(n *node) {
+		if src := n.attrs["src"]; n.tag == "img" && src != "" && !seen[src] {
+			seen[src] = true
+			out = append(out, src)
+		}
+		for _, c := range n.children {
+			visit(c)
+		}
+	}
+	visit(d.root)
+	return out
+}
+
+// imageSize places an image as a replaced element: a CSS width fills the
+// box, else the width attribute, else the image's own size, never wider than
+// the box. A CSS or attribute height is kept; a missing one follows the
+// image's aspect ratio.
+func imageSize(n *node, natural image.Point, cssWidth bool, box, cssHeight int) (int, int) {
+	attrW, attrH := pixelAttr(n.attrs["width"]), pixelAttr(n.attrs["height"])
+	w := box
+	switch {
+	case cssWidth:
+	case attrW > 0:
+		w = attrW
+	case cssHeight > 0:
+		w = cssHeight * natural.X / natural.Y
+	case attrH > 0:
+		w = attrH * natural.X / natural.Y
+	default:
+		w = natural.X
+	}
+	w = max(1, min(w, box))
+	h := cssHeight
+	if h <= 0 {
+		h = attrH
+		if h > 0 && attrW > 0 && attrW != w {
+			h = h * w / attrW // A capped width keeps the attributes' ratio.
+		}
+	}
+	if h <= 0 {
+		h = w * natural.Y / natural.X
+	}
+	return w, max(1, h)
+}
+
+// pixelAttr reads a nonnegative integer width/height attribute, as in
+// width="320" or width="320px"; anything else is absent.
+func pixelAttr(v string) int {
+	n, err := strconv.Atoi(strings.TrimSuffix(strings.TrimSpace(v), "px"))
+	if err != nil || n < 1 || n > 16384 {
+		return 0
+	}
+	return n
 }

@@ -133,7 +133,7 @@ func parseCSS(s string, budget int) ([]rule, error) {
 			}
 			out = append(out, rule{v, declarations(body), sp})
 			if len(out) > budget {
-				return nil, ErrLimit
+				return nil, limitError("more CSS rules than the budget")
 			}
 		}
 	}

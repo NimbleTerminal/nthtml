@@ -262,12 +262,9 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	} else if n.tag == "img" {
 		src := l.opts.Images[n.attrs["src"]]
 		if src != nil && !src.Bounds().Empty() {
-			h := max(0, height)
-			if h == 0 {
-				h = int(float64(cw) * float64(src.Bounds().Dy()) / float64(src.Bounds().Dx()))
-			}
+			iw, h := imageSize(n, src.Bounds().Size(), s.width.definite(cw), cw, height)
 			h = min(h, l.d.limits.Height)
-			l.add(Box{Bounds: image.Rect(cx, cy, cx+cw, cy+h), Tag: "img", LinkID: s.linkID}, src)
+			l.add(Box{Bounds: image.Rect(cx, cy, cx+iw, cy+h), Tag: "img", LinkID: s.linkID}, src)
 			cy += h
 		} else {
 			cy = l.flow([]*node{{text: "[image: " + n.attrs["alt"] + "]"}}, cx, cy, cw, s)

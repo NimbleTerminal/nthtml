@@ -58,7 +58,7 @@ func limits(l Limits) (Limits, error) {
 			*p = b[i]
 		}
 		if *p < 1 || *p > b[i] {
-			return l, ErrLimit
+			return l, limitError(fmt.Sprintf("limit %d outside 1..%d", *p, b[i]))
 		}
 	}
 	return l, nil
@@ -76,7 +76,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 		return nil, err
 	}
 	if len(data) > l.Bytes {
-		return nil, ErrLimit
+		return nil, limitError(fmt.Sprintf("input over %d bytes", l.Bytes))
 	}
 	root := &node{tag: "document"}
 	stack := []*node{root}
@@ -101,7 +101,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 		case html.StartTagToken, html.SelfClosingTagToken:
 			count++
 			if count > l.Nodes {
-				return nil, ErrLimit
+				return nil, limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
 			}
 			n := &node{id: count, tag: t.Data, attrs: map[string]string{}}
 			for _, a := range t.Attr {
@@ -145,7 +145,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 
 			if tt != html.SelfClosingTagToken && !strings.Contains(" area base br col embed hr img input link meta param source track wbr ", " "+t.Data+" ") {
 				if len(stack) >= l.Depth {
-					return nil, ErrLimit
+					return nil, limitError(fmt.Sprintf("nesting deeper than %d", l.Depth))
 				}
 				stack = append(stack, n)
 			}
@@ -159,7 +159,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 		case html.TextToken:
 			count++
 			if count > l.Nodes {
-				return nil, ErrLimit
+				return nil, limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
 			}
 			parent.children = append(parent.children, &node{text: t.Data})
 		}

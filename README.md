@@ -213,7 +213,7 @@ specific subset below works; it does not imply browser-compatible behavior.
 | Unicode text | Partial | Text is drawn from the bundled fonts; TTY wrapping measures terminal cells. No full complex-script shaping, bidi layout, font fallback, or guaranteed emoji coverage. |
 | Colors | Partial | `#rgb`, `#rrggbb`, `black`, `white`, `red`, `green`, `blue`, `gray`, and `transparent`. No alpha hex, `rgb()` / `hsl()`, `currentColor`, or full named-color set. |
 | Tables | Partial | Shared content-aware Typeset column widths across explicit rows and row groups (`thead`, `tbody`, `tfoot`); top captions, nested tables, bold headers, row/group backgrounds, uniform row heights, and cell `text-align` / `vertical-align: top\|middle\|bottom`. TTY uses content-based column widths and wrapping. Solid `border-collapse: collapse` / `separate`, with shared-edge conflict resolution. No colspan/rowspan, border spacing, `colgroup`, or full CSS intrinsic sizing. |
-| Images | Partial | Explicit `Options.Images[src]` allowlist; PNG/JPEG/GIF decode helpers and base64 data URL helper. Missing images show alt text. No automatic file/URL loading, animated playback, or browser-style inline image layout. |
+| Images | Partial | Explicit `Options.Images[src]` allowlist; `Document.ImageSources` lists the `src` values to decide on; PNG/JPEG/GIF decode helpers and base64 data URL helper. Images take their own pixel size, the `width`/`height` attributes, or a CSS width, keep their aspect ratio when one side is given, and never exceed the containing box. Missing images show alt text. No automatic file/URL loading, animated playback, or browser-style inline image layout (each image is its own block). |
 | Embedded SVG | Partial | Inline `<svg>` fragments rasterize through ntsvg; shapes, paths, text, basic gradients, and markers in a bounded SVG subset. Aspect ratio is preserved; width/height attributes and CSS sizing are supported. TTY uses aria-label/title/desc. No external resources, use/references inside definitions, SVG stylesheets, scripts, foreignObject, or SVG-internal link navigation. |
 | Mermaid | Partial | `pre.mermaid`, `div.mermaid`, or `pre > code.language-mermaid`; flowchart/graph, sequenceDiagram, stateDiagram-v2, classDiagram, and pie via pure-Go go-mermaid → ntsvg. TTY retains source. Not full Mermaid compatibility; directives and other diagram families are unsupported. |
 | Other embedded media | Not supported | No video/audio playback, embedded browser frames, or canvas execution in the document engine. |
@@ -261,7 +261,14 @@ raster view; it does **not** currently use the separate nttypeset engine.
 
 To allow an image, decode it with `document.DecodeImage(reader)` or
 `document.DecodeDataURL(src)` and insert it into `Options.Images[src]`. HTML never
-opens a path or fetches a URL. The caller owns the lifetime and total memory of
+opens a path or fetches a URL. `Document.ImageSources()` lists the distinct `src`
+values in document order, so a host can resolve and decode exactly those under
+its own policy and budget before `Render`.
+
+To show a long result as pages (exports, printing), cut it with
+`Result.PageBreak(top, limit)`: the lowest y up to `limit` that cuts no line of
+text, list marker or image, or `limit` itself when keeping them whole would
+leave the page less than half full. The caller owns the lifetime and total memory of
 its image map and must keep images immutable during rendering.
 
 ## Resource limits
