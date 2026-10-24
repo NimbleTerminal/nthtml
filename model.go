@@ -3,15 +3,31 @@ package nthtml
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"context"
 	"image"
 	"nimbleterminal.dev/nthtml/document"
 	"nimbleterminal.dev/ntpicture"
+	"strings"
+)
+
+// LayoutMode selects styled pixels or plain terminal-cell text.
+// LayoutTypeset uses nthtml's rasterizer, not the separate nttypeset engine.
+type LayoutMode int
+
+const (
+	LayoutTypeset LayoutMode = iota
+	LayoutTTY
 )
 
 // Model follows ntpicture's pointer-mutating component convention. Forward all
 // messages and run returned commands. The host owns focus and quit handling.
 type Model struct {
 	pic                    *ntpicture.Picture
+	result                 *document.Result
+	mode                   LayoutMode
+	ttyLines               []string
+	ttyTop                 int
+	err                    error
 	source                 image.Image
 	initial                tea.Cmd
 	zoom, x, y, cols, rows int
@@ -20,26 +36,91 @@ type Model struct {
 func New(result *document.Result) *Model {
 	m := &Model{pic: ntpicture.New(ntpicture.Options{AutoMode: true}), cols: 80, rows: 24}
 	if result != nil {
+		m.result = result
 		m.source = result.Image
 		m.initial = m.pic.SetImage(m.source)
 	}
 	return m
 }
-func (m *Model) Init() tea.Cmd  { return tea.Batch(m.pic.Init(), m.initial, m.SetSize(m.cols, m.rows)) }
-func (m *Model) View() string   { return m.pic.View() }
+func (m *Model) Init() tea.Cmd { return tea.Batch(m.pic.Init(), m.initial, m.SetSize(m.cols, m.rows)) }
+func (m *Model) View() string {
+	if m.mode == LayoutTTY {
+		end := min(len(m.ttyLines), m.ttyTop+m.rows)
+		return strings.Join(m.ttyLines[m.ttyTop:end], "\n")
+	}
+	return m.pic.View()
+}
+func (m *Model) LayoutMode() LayoutMode { return m.mode }
+func (m *Model) Err() error             { return m.err }
+func (m *Model) SetLayoutMode(mode LayoutMode) tea.Cmd {
+	if mode != LayoutTypeset && mode != LayoutTTY {
+		return nil
+	}
+	if m.mode == mode {
+		return nil
+	}
+	m.mode = mode
+	if mode == LayoutTTY {
+		m.reflowTTY()
+	}
+	return m.pic.SetVisible(mode == LayoutTypeset)
+}
+func (m *Model) ToggleLayout() tea.Cmd {
+	if m.mode == LayoutTypeset {
+		return m.SetLayoutMode(LayoutTTY)
+	}
+	return m.SetLayoutMode(LayoutTypeset)
+}
+func (m *Model) reflowTTY() {
+	text, err := m.result.TTY(context.Background(), m.cols)
+	m.err = err
+	m.ttyLines = strings.Split(text, "\n")
+	m.scrollTTY(0)
+}
+func (m *Model) scrollTTY(delta int) {
+	m.ttyTop = max(0, min(max(0, len(m.ttyLines)-m.rows), m.ttyTop+delta))
+}
 func (m *Model) Close() tea.Cmd { return m.pic.Close() }
 func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	m.cols = max(1, min(cols, 1000))
 	m.rows = max(1, min(rows, 1000))
+	if m.mode == LayoutTTY {
+		m.reflowTTY()
+	}
 	return tea.Batch(m.pic.SetSize(m.cols, m.rows), m.viewport())
 }
-func (m *Model) Zoom(delta int) tea.Cmd { m.zoom = max(0, min(6, m.zoom+delta)); return m.viewport() }
+func (m *Model) Zoom(delta int) tea.Cmd {
+	if m.mode == LayoutTTY {
+		return nil
+	}
+	m.zoom = max(0, min(6, m.zoom+delta))
+	return m.viewport()
+}
 func (m *Model) Pan(dx, dy int) tea.Cmd {
+	if m.mode == LayoutTTY {
+		step := dy / 20
+		if step == 0 && dy != 0 {
+			if dy > 0 {
+				step = 1
+			} else {
+				step = -1
+			}
+		}
+		m.scrollTTY(step)
+		return nil
+	}
 	m.x += max(-4096, min(4096, dx))
 	m.y += max(-16384, min(16384, dy))
 	return m.viewport()
 }
-func (m *Model) Reset() tea.Cmd { m.zoom, m.x, m.y = 0, 0, 0; return m.viewport() }
+func (m *Model) Reset() tea.Cmd {
+	if m.mode == LayoutTTY {
+		m.ttyTop = 0
+		return nil
+	}
+	m.zoom, m.x, m.y = 0, 0, 0
+	return m.viewport()
+}
 func (m *Model) viewport() tea.Cmd {
 	if m.source == nil {
 		return nil
@@ -59,6 +140,8 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch v := msg.(type) {
 	case tea.KeyPressMsg:
 		switch v.String() {
+		case "t":
+			cmd = m.ToggleLayout()
 		case "+", "=":
 			cmd = m.Zoom(1)
 		case "-":
@@ -74,9 +157,17 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		case "down", "j":
 			cmd = m.Pan(0, 40)
 		case "pgup":
-			cmd = m.Pan(0, -300)
+			if m.mode == LayoutTTY {
+				m.scrollTTY(-m.rows)
+			} else {
+				cmd = m.Pan(0, -300)
+			}
 		case "pgdown":
-			cmd = m.Pan(0, 300)
+			if m.mode == LayoutTTY {
+				m.scrollTTY(m.rows)
+			} else {
+				cmd = m.Pan(0, 300)
+			}
 		}
 	case tea.MouseWheelMsg:
 		switch v.Button {

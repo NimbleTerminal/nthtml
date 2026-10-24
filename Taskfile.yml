@@ -1,0 +1,164 @@
+# nthtml - Copyright (c) 2026 Neomantra Corp.
+version: '3'
+
+env:
+  GOWORK: 'off'
+  CGO_ENABLED: '0'
+
+vars:
+  EXE: '{{if eq OS "windows"}}.exe{{end}}'
+  DEMOS: [overview, invoice, field-notes, status-report]
+
+tasks:
+  default:
+    desc: Build the library, CLI, and terminal demo
+    cmds:
+      - task: build
+
+  list:
+    desc: List available tasks
+    cmds:
+      - task --list-all
+
+  build:
+    desc: Build the library, CLI, and terminal demo into bin/
+    cmds:
+      - go build -mod=readonly ./...
+      - go build -mod=readonly -o bin/nthtml{{.EXE}} ./cmd/nthtml
+      - go build -mod=readonly -o bin/demo{{.EXE}} ./examples/demo
+
+  demo:
+    desc: 'Run a terminal demo (DEMO=overview|invoice|field-notes|status-report; t toggles layout)'
+    aliases: [run]
+    interactive: true
+    vars:
+      DEMO: '{{default "overview" .DEMO}}'
+    env:
+      NTHTML_DEMO: '{{.DEMO}}'
+    cmds:
+      - go run ./examples/demo -demo "$NTHTML_DEMO" {{.CLI_ARGS}}
+
+  invoice:
+    desc: Run the studio invoice demo
+    cmds:
+      - task: demo
+        vars: {DEMO: invoice}
+
+  field-notes:
+    desc: Run the long-form field notes demo
+    cmds:
+      - task: demo
+        vars: {DEMO: field-notes}
+
+  status-report:
+    desc: Run the dark delivery status demo
+    cmds:
+      - task: demo
+        vars: {DEMO: status-report}
+
+  render:
+    desc: 'Render HTML to PNG (INPUT=path OUTPUT=document.png WIDTH=800)'
+    vars:
+      INPUT: '{{default "examples/demo/sample.html" .INPUT}}'
+      OUTPUT: '{{default "document.png" .OUTPUT}}'
+      WIDTH: '{{default "800" .WIDTH}}'
+    env:
+      NTHTML_INPUT: '{{.INPUT}}'
+      NTHTML_OUTPUT: '{{.OUTPUT}}'
+      NTHTML_WIDTH: '{{.WIDTH}}'
+    cmds:
+      - go run ./cmd/nthtml -width "$NTHTML_WIDTH" -o "$NTHTML_OUTPUT" "$NTHTML_INPUT"
+
+  previews:
+    desc: Regenerate the three checked-in demo PNG previews
+    cmds:
+      - for: [invoice, field-notes, status-report]
+        task: render
+        vars:
+          INPUT: 'examples/demo/documents/{{.ITEM}}.html'
+          OUTPUT: 'examples/demo/previews/{{.ITEM}}.png'
+
+  fmt:
+    desc: Format Go source
+    cmds:
+      - go fmt ./...
+
+  go-tidy:
+    desc: Tidy Go module dependencies
+    cmds:
+      - go mod tidy
+
+  test:
+    desc: Run native tests (pass additional flags after --)
+    cmds:
+      - go test -mod=readonly {{.CLI_ARGS}} ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet -mod=readonly ./...
+
+  check:
+    desc: Check native tests, vet, formatting, and module files without modifying source
+    cmds:
+      - task: test
+      - task: vet
+      - |
+        set -eu
+        unformatted_files=$(gofmt -l .)
+        if [ -n "$unformatted_files" ]; then
+          printf '%s\n' "$unformatted_files"
+          exit 1
+        fi
+      - go mod tidy -diff
+      - git diff --check
+
+  fuzz:
+    desc: 'Fuzz the document renderer (DURATION=10s)'
+    vars:
+      DURATION: '{{default "10s" .DURATION}}'
+    env:
+      NTHTML_FUZZ_DURATION: '{{.DURATION}}'
+    cmds:
+      - go test ./document -run '^$' -fuzz '^FuzzRender$' -fuzztime "$NTHTML_FUZZ_DURATION"
+
+  build-wasm-site:
+    desc: Build the browser demo and matching Go WASM runtime into web/
+    aliases: [build-web]
+    cmds:
+      - ./scripts/build-web.sh
+
+  serve-wasm-site:
+    desc: 'Build and serve the browser gallery at http://localhost:8080 (PORT=8080)'
+    aliases: [serve]
+    vars:
+      PORT: '{{default "8080" .PORT}}'
+    env:
+      NTHTML_PORT: '{{.PORT}}'
+    cmds:
+      - task: build-wasm-site
+      - python3 -m http.server "$NTHTML_PORT" --bind 127.0.0.1 --directory web
+
+  test-wasm:
+    desc: Build all WASM packages and run document/demo tests under Node
+    env:
+      GOOS: js
+      GOARCH: wasm
+    cmds:
+      - go build -mod=readonly ./...
+      - go test -mod=readonly -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" {{.CLI_ARGS}} ./document ./examples/demo
+
+  test-web:
+    desc: Build and smoke-test all four browser demos under Node
+    cmds:
+      - task: build-wasm-site
+      - for: {var: DEMOS}
+        cmd: node scripts/wasm-smoke.cjs {{.ITEM}}
+
+  ci:
+    desc: Run native checks, builds, WASM tests, and browser smoke checks
+    cmds:
+      - task: check
+      - task: build
+      - task: test-wasm
+      - task: test-web

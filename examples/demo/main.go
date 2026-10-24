@@ -26,7 +26,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	run(result)
+	run(result, source)
 }
 
 func demoSource(name string) (string, error) {

@@ -26,8 +26,9 @@ type Box struct {
 	Color     color.RGBA
 }
 type Result struct {
-	Image *image.RGBA
-	Boxes []Box
+	document *Document
+	Image    *image.RGBA
+	Boxes    []Box
 }
 type operation struct {
 	box    Box
@@ -119,7 +120,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	}
 	img := image.NewRGBA(image.Rect(0, 0, o.Width, h))
 	draw.Draw(img, img.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
-	result := &Result{Image: img, Boxes: make([]Box, 0, len(l.ops))}
+	result := &Result{document: d, Image: img, Boxes: make([]Box, 0, len(l.ops))}
 	for _, op := range l.ops {
 		if e := ctx.Err(); e != nil {
 			return nil, e

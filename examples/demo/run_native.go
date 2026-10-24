@@ -23,12 +23,16 @@ func (a app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, a.viewer.Update(msg)
 }
 func (a app) View() tea.View {
-	v := tea.NewView(a.viewer.View() + "\n nthtml · arrows scroll · +/- zoom · 0 reset · q quit")
+	mode := "Typeset"
+	if a.viewer.LayoutMode() == nthtml.LayoutTTY {
+		mode = "TTY"
+	}
+	v := tea.NewView(a.viewer.View() + "\n nthtml · " + mode + " · t layout · arrows scroll · +/- zoom · 0 reset · q quit")
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
-func run(r *document.Result) {
+func run(r *document.Result, _ string) {
 	a := app{nthtml.New(r)}
 	defer a.viewer.Close()
 	if _, err := tea.NewProgram(a).Run(); err != nil {
