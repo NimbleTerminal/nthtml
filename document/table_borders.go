@@ -53,13 +53,7 @@ func (l *layout) collapseGrid(rows []tableRow, cols int, s style) *collapsedGrid
 			if c == cols-1 {
 				*right = chooseBorder(*right, rb)
 			}
-			if c < len(row.styles) {
-				cb := borderOf(row.styles[c], 2)
-				*top = chooseBorder(*top, cb)
-				*bottom = chooseBorder(*bottom, cb)
-				*left = chooseBorder(*left, cb)
-				*right = chooseBorder(*right, cb)
-			}
+
 			tb := borderOf(s, 0)
 			if r == 0 {
 				*top = chooseBorder(*top, tb)
@@ -75,6 +69,37 @@ func (l *layout) collapseGrid(rows []tableRow, cols int, s style) *collapsedGrid
 			}
 		}
 	}
+	for r, row := range rows {
+		for i, sp := range row.spans {
+			cb := borderOf(row.styles[i], 2)
+			for c := sp.col; c < sp.col+sp.cols; c++ {
+				top, bottom := &g.h[r*cols+c], &g.h[(r+sp.rows)*cols+c]
+				*top = chooseBorder(*top, cb)
+				*bottom = chooseBorder(*bottom, cb)
+			}
+			for rr := r; rr < r+sp.rows; rr++ {
+				left, right := &g.v[rr*(cols+1)+sp.col], &g.v[rr*(cols+1)+sp.col+sp.cols]
+				*left = chooseBorder(*left, cb)
+				*right = chooseBorder(*right, cb)
+			}
+		}
+	}
+	// No row or table border may draw across the interior of a spanning cell.
+	for r, row := range rows {
+		for _, sp := range row.spans {
+			for rr := r + 1; rr < r+sp.rows; rr++ {
+				for c := sp.col; c < sp.col+sp.cols; c++ {
+					g.h[rr*cols+c] = tableBorder{}
+				}
+			}
+			for rr := r; rr < r+sp.rows; rr++ {
+				for c := sp.col + 1; c < sp.col+sp.cols; c++ {
+					g.v[rr*(cols+1)+c] = tableBorder{}
+				}
+			}
+		}
+	}
+
 	return g
 }
 func (g *collapsedGrid) insets(r, c int) [4]int {
@@ -128,4 +153,21 @@ func (g *collapsedGrid) paint(l *layout, x int, widths, ys []int) {
 			l.rect(image.Rect(x, ys[r], x+b.width, ys[r+1]).Intersect(bounds), b.color, "collapsed-border")
 		}
 	}
+}
+
+func (g *collapsedGrid) spanInsets(r int, sp cellSpan) [4]int {
+	var out [4]int
+	for c := sp.col; c < sp.col+sp.cols; c++ {
+		a := g.insets(r, c)
+		b := g.insets(r+sp.rows-1, c)
+		out[0] = max(out[0], a[0])
+		out[2] = max(out[2], b[2])
+	}
+	for rr := r; rr < r+sp.rows; rr++ {
+		a := g.insets(rr, sp.col)
+		b := g.insets(rr, sp.col+sp.cols-1)
+		out[3] = max(out[3], a[3])
+		out[1] = max(out[1], b[1])
+	}
+	return out
 }

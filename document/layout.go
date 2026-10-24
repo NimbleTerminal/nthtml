@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"image/draw"
 	"strings"
-	"unicode"
 
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
@@ -412,10 +411,13 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			text, nextColumn := preTextAt(n.text, preColumn)
 			preColumn = nextColumn
 			if preStart {
-				text = strings.TrimPrefix(text, "\n")
+				if n.parent != nil && n.parent.tag == "pre" {
+					text = strings.TrimPrefix(text, "\n")
+				}
 				preStart = false
 			}
-			for _, r := range text {
+			runes := []rune(text)
+			for index, r := range runes {
 				if l.err != nil {
 					return
 				}
@@ -428,9 +430,19 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					newline()
 					continue
 				}
+				if st.whiteSpace != "pre" && !cssSpace(r) && (index == 0 || cssSpace(runes[index-1])) {
+					end := index + 1
+					for end < len(runes) && !cssSpace(runes[end]) {
+						end++
+					}
+					ww := font.MeasureString(f, string(runes[index:end])).Ceil()
+					if px > x && px+ww > x+w {
+						newline()
+					}
+				}
 				a, _ := f.GlyphAdvance(r)
 				adv := max(1, a.Ceil())
-				if px > x && px+adv > x+w {
+				if st.whiteSpace != "pre" && (cssSpace(r) || st.overflowWrap != "normal") && px > x && px+adv > x+w {
 					newline()
 				}
 				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), TextPrefix: prefix, FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
@@ -442,13 +454,13 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			return
 		}
 		// Words wrap at whitespace; oversized words break at rune boundaries.
-		text := n.text
+		text := strings.ReplaceAll(strings.ReplaceAll(n.text, "\r\n", "\n"), "\r", "\n")
 		for len(text) > 0 {
 			if e := l.ctx.Err(); e != nil {
 				l.err = e
 				return
 			}
-			i := strings.IndexFunc(text, unicode.IsSpace)
+			i := strings.IndexFunc(text, cssSpace)
 			word := text
 			if i >= 0 {
 				word = text[:i]
@@ -462,7 +474,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					space = font.MeasureString(f, " ").Ceil()
 				}
 				ww := font.MeasureString(f, word).Ceil()
-				if px > x && px+space+ww > x+w {
+				if st.whiteSpace != "nowrap" && px > x && px+space+ww > x+w {
 					newline()
 					space = 0
 				}
@@ -480,7 +492,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				for _, r := range word {
 					a, _ := f.GlyphAdvance(r)
 					adv := max(1, a.Ceil())
-					if px > x && px+adv > x+w {
+					if st.whiteSpace != "nowrap" && st.overflowWrap != "normal" && px > x && px+adv > x+w {
 						emit()
 						newline()
 						runX = px
@@ -495,8 +507,17 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			if i < 0 {
 				break
 			}
-			text = strings.TrimLeftFunc(text[i:], unicode.IsSpace)
-			pendingSpace = true
+			text = text[i:]
+			for len(text) > 0 && cssSpace(rune(text[0])) {
+				if text[0] == '\n' && st.whiteSpace == "pre-line" {
+					prefix += "\n"
+					newline()
+					pendingSpace = false
+				} else {
+					pendingSpace = true
+				}
+				text = text[1:]
+			}
 		}
 	}
 	for _, n := range nodes {

@@ -10,67 +10,22 @@ import (
 type ttyCell struct {
 	text, align string
 	header      bool
+	row         int
+	span        cellSpan
+	lines       []string
 }
-type ttyRow []ttyCell
 
 func (d *Document) ttyTable(ctx context.Context, n *node, parent style, width int, cellText func(*node, style) (string, error)) (string, error) {
-	var rows []ttyRow
-	var captions []string
-	columns := 0
-	var collect func(*node, style) error
-	collect = func(n *node, st style) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		for _, child := range n.children {
-			cs := d.styled(child, st)
-			if cs.display == "none" {
-				continue
-			}
-			switch child.tag {
-			case "thead", "tbody", "tfoot":
-				first := len(rows)
-				if err := collect(child, cs); err != nil {
-					return err
-				}
-				if anchorName(child) != "" && first < len(rows) && len(rows[first]) > 0 {
-					rows[first][0].text = anchorMarker(child.id) + rows[first][0].text
-				}
-			case "caption":
-				text, err := cellText(child, st)
-				if err != nil {
-					return err
-				}
-				captions = append(captions, ansi.Wrap(text, width, ""))
-			case "tr":
-				var row ttyRow
-				for _, cell := range child.children {
-					if cell.tag != "td" && cell.tag != "th" {
-						continue
-					}
-					s := d.styled(cell, cs)
-					if s.display == "none" {
-						continue
-					}
-					text, err := cellText(cell, cs)
-					if err != nil {
-						return err
-					}
-					row = append(row, ttyCell{text, s.align, cell.tag == "th"})
-				}
-				if len(row) > 0 {
-					if anchorName(child) != "" {
-						row[0].text = anchorMarker(child.id) + row[0].text
-					}
-					rows = append(rows, row)
-					columns = max(columns, len(row))
-				}
-			}
-		}
-		return nil
+	work := 0
+	rows, columns, err := d.collectTable(n, parent, func() bool { work++; return ctx.Err() == nil && work <= 100000 })
+	if ctx.Err() != nil {
+		return "", ctx.Err()
 	}
-	if err := collect(n, parent); err != nil {
+	if err != nil {
 		return "", err
+	}
+	if work > 100000 {
+		return "", limitError("TTY table grid")
 	}
 	var out strings.Builder
 	write := func(s string) error {
@@ -80,62 +35,98 @@ func (d *Document) ttyTable(ctx context.Context, n *node, parent style, width in
 		out.WriteString(s)
 		return nil
 	}
-	for _, caption := range captions {
-		if err := write(caption + "\n"); err != nil {
-			return "", err
+	for _, child := range n.children {
+		if child.tag == "caption" && d.styled(child, parent).display != "none" {
+			text, err := cellText(child, parent)
+			if err != nil {
+				return "", err
+			}
+			if err = write(ansi.Wrap(text, width, "") + "\n"); err != nil {
+				return "", err
+			}
 		}
 	}
 	if columns == 0 {
 		return strings.TrimRight(out.String(), "\n"), nil
 	}
-	// Two content cells per column allow wide Unicode glyphs without overflow.
-	// Three additional cells account for padding and dividers.
-	if width < 5*columns+1 {
-		var headers []string
-		if len(rows) > 0 {
-			for _, c := range rows[0] {
-				if c.header {
-					headers = append(headers, strings.Join(strings.Fields(c.text), " "))
-				} else {
-					headers = append(headers, "")
-				}
-			}
+	var cells []ttyCell
+	owners := make([][]int, len(rows))
+	for r := range owners {
+		owners[r] = make([]int, columns)
+		for c := range owners[r] {
+			owners[r][c] = -1
 		}
-		for i, row := range rows {
+	}
+	textBytes := 0
+	for r, row := range rows {
+		for i, cell := range row.cells {
 			if err := ctx.Err(); err != nil {
 				return "", err
 			}
-			if i > 0 {
+			text, err := cellText(cell, row.style)
+			if err != nil {
+				return "", err
+			}
+			if i == 0 {
+				for _, id := range row.anchorIDs {
+					text = anchorMarker(id) + text
+				}
+			}
+			textBytes += len(text)
+			if textBytes > maxTTYBytes {
+				return "", limitError("TTY table text")
+			}
+			sp := row.spans[i]
+			id := len(cells)
+			cells = append(cells, ttyCell{text: text, align: row.styles[i].align, header: cell.tag == "th", row: r, span: sp})
+			for rr := r; rr < r+sp.rows; rr++ {
+				for c := sp.col; c < sp.col+sp.cols; c++ {
+					owners[rr][c] = id
+				}
+			}
+		}
+	}
+	// Narrow terminals use each source cell once, with logical-column headers.
+	if width < 5*columns+1 {
+		headers := make([]string, columns)
+		for _, c := range cells {
+			if c.row == 0 && c.header {
+				for col := c.span.col; col < c.span.col+c.span.cols; col++ {
+					headers[col] = strings.Join(strings.Fields(c.text), " ")
+				}
+			}
+		}
+		last := -1
+		for _, c := range cells {
+			if c.row != last && last >= 0 {
 				if err := write("\n"); err != nil {
 					return "", err
 				}
 			}
-			for j, c := range row {
-				text := c.text
-				if i > 0 && j < len(headers) && headers[j] != "" {
-					text = headers[j] + ": " + text
-				}
-				if err := write(ansi.Wrap(text, width, "") + "\n"); err != nil {
-					return "", err
-				}
+			last = c.row
+			text := c.text
+			if c.row > 0 && headers[c.span.col] != "" {
+				text = headers[c.span.col] + ": " + text
+			}
+			if err := write(ansi.Wrap(text, width, "") + "\n"); err != nil {
+				return "", err
 			}
 		}
 		return strings.TrimRight(out.String(), "\n"), nil
 	}
-	desired := make([]int, columns)
-	sizes := make([]int, columns)
+	desired, sizes := make([]int, columns), make([]int, columns)
 	for i := range sizes {
 		sizes[i] = 2
 		desired[i] = 2
 	}
-	for _, row := range rows {
-		for j, c := range row {
-			for _, line := range strings.Split(c.text, "\n") {
-				desired[j] = max(desired[j], min(width, ansi.StringWidth(line)))
-			}
+	for _, c := range cells {
+		need := 2
+		for _, line := range strings.Split(c.text, "\n") {
+			need = max(need, min(width, ansi.StringWidth(line)))
 		}
+		spreadRequirement(desired, c.span.col, c.span.cols, max(2, need-3*(c.span.cols-1)))
 	}
-	budget := width - 1 - 3*columns - 2*columns
+	budget := width - 1 - 5*columns
 	for budget > 0 {
 		changed := false
 		for i := range sizes {
@@ -149,60 +140,136 @@ func (d *Document) ttyTable(ctx context.Context, n *node, parent style, width in
 			break
 		}
 	}
-	border := func(left, mid, right, fill string) error {
-		var parts []string
-		for _, size := range sizes {
-			parts = append(parts, strings.Repeat(fill, size+2))
+	cellWidth := func(sp cellSpan) int {
+		w := 3 * (sp.cols - 1)
+		for _, v := range sizes[sp.col : sp.col+sp.cols] {
+			w += v
 		}
-		return write(left + strings.Join(parts, mid) + right + "\n")
+		return w
 	}
-	if err := border("┌", "┬", "┐", "─"); err != nil {
+	heights := make([]int, len(rows))
+	for i := range heights {
+		heights[i] = 1
+	}
+	for i := range cells {
+		c := &cells[i]
+		c.lines = linkedLines(ansi.Wrap(c.text, cellWidth(c.span), ""))
+		if c.span.rows == 1 {
+			heights[c.row] = max(heights[c.row], len(c.lines))
+		}
+	}
+	for _, c := range cells {
+		spreadRequirement(heights, c.row, c.span.rows, len(c.lines))
+	}
+	vertical := func(r, c int) bool {
+		if r < 0 || r >= len(rows) {
+			return false
+		}
+		return c == 0 || c == columns || owners[r][c-1] != owners[r][c] || owners[r][c] < 0
+	}
+	horizontal := func(r, c int) bool {
+		if c < 0 || c >= columns {
+			return false
+		}
+		return r == 0 || r == len(rows) || owners[r-1][c] != owners[r][c] || owners[r][c] < 0
+	}
+	separator := func(r int) error {
+		heavy := false
+		if r > 0 && r < len(rows) {
+			for _, c := range cells {
+				if c.row == r-1 && c.header {
+					heavy = true
+					break
+				}
+			}
+		}
+		var line strings.Builder
+		for c := 0; c <= columns; c++ {
+			mask := 0
+			if horizontal(r, c-1) {
+				mask |= 1
+			}
+			if horizontal(r, c) {
+				mask |= 2
+			}
+			if vertical(r-1, c) {
+				mask |= 4
+			}
+			if vertical(r, c) {
+				mask |= 8
+			}
+			glyph := map[int]string{0: " ", 1: "─", 2: "─", 3: "─", 4: "│", 8: "│", 12: "│", 10: "┌", 9: "┐", 6: "└", 5: "┘", 11: "┬", 7: "┴", 14: "├", 13: "┤", 15: "┼"}[mask]
+			if glyph == "" {
+				glyph = "│"
+			}
+			if heavy {
+				switch glyph {
+				case "─":
+					glyph = "═"
+				case "├":
+					glyph = "╞"
+				case "┤":
+					glyph = "╡"
+				case "┼":
+					glyph = "╪"
+				}
+			}
+			line.WriteString(glyph)
+			if c < columns {
+				fill := " "
+				if horizontal(r, c) {
+					fill = "─"
+					if heavy {
+						fill = "═"
+					}
+				}
+				line.WriteString(strings.Repeat(fill, sizes[c]+2))
+			}
+		}
+		return write(line.String() + "\n")
+	}
+	if err := separator(0); err != nil {
 		return "", err
 	}
-	for i, row := range rows {
+	for r := range rows {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		wrapped := make([][]string, columns)
-		height := 1
-		header := false
-		for j, c := range row {
-			wrapped[j] = linkedLines(ansi.Wrap(c.text, sizes[j], ""))
-			height = max(height, len(wrapped[j]))
-			header = header || c.header
-		}
-		for line := 0; line < height; line++ {
-			var cells []string
-			for j, size := range sizes {
-				text := ""
-				if line < len(wrapped[j]) {
-					text = wrapped[j][line]
-				}
-				padding := max(0, size-ansi.StringWidth(text))
-				left := 0
-				if j < len(row) {
-					switch row[j].align {
-					case "right":
-						left = padding
-					case "center":
-						left = padding / 2
+		for line := 0; line < heights[r]; line++ {
+			var text strings.Builder
+			text.WriteString("│")
+			for col := 0; col < columns; {
+				id := owners[r][col]
+				span := cellSpan{col: col, cols: 1}
+				value, align := "", ""
+				if id >= 0 {
+					c := cells[id]
+					span = c.span
+					align = c.align
+					offset := line
+					for rr := c.row; rr < r; rr++ {
+						offset += heights[rr]
+					}
+					if offset < len(c.lines) {
+						value = c.lines[offset]
 					}
 				}
-				cells = append(cells, " "+strings.Repeat(" ", left)+text+strings.Repeat(" ", padding-left)+" ")
+				size := cellWidth(span)
+				padding := max(0, size-ansi.StringWidth(value))
+				left := 0
+				if align == "right" {
+					left = padding
+				} else if align == "center" {
+					left = padding / 2
+				}
+				text.WriteString(" " + strings.Repeat(" ", left) + value + strings.Repeat(" ", padding-left) + " │")
+				col += span.cols
 			}
-			if err := write("│" + strings.Join(cells, "│") + "│\n"); err != nil {
+			if err := write(text.String() + "\n"); err != nil {
 				return "", err
 			}
 		}
-		var err error
-		if i == len(rows)-1 {
-			err = border("└", "┴", "┘", "─")
-		} else if header {
-			err = border("╞", "╪", "╡", "═")
-		} else {
-			err = border("├", "┼", "┤", "─")
-		}
-		if err != nil {
+		if err := separator(r + 1); err != nil {
 			return "", err
 		}
 	}

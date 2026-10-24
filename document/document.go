@@ -35,6 +35,8 @@ type Options struct {
 }
 
 type node struct {
+	decl      map[string]string
+	parent    *node
 	svg       string
 	id        int
 	tag, text string
@@ -103,7 +105,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			if count > l.Nodes {
 				return nil, limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
 			}
-			n := &node{id: count, tag: t.Data, attrs: map[string]string{}}
+			n := &node{parent: parent, id: count, tag: t.Data, attrs: map[string]string{}}
 			for _, a := range t.Attr {
 				n.attrs[a.Key] = a.Val
 			}
@@ -161,7 +163,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			if count > l.Nodes {
 				return nil, limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
 			}
-			parent.children = append(parent.children, &node{text: t.Data})
+			parent.children = append(parent.children, &node{parent: parent, text: t.Data})
 		}
 	}
 	d := &Document{root: root, limits: l}
@@ -186,6 +188,42 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 		return nil
 	}
 	if err := visit(root); err != nil {
+		return nil, err
+	}
+	// Resolve author declarations once. Parent-dependent computed values still
+	// resolve during layout, but selector work cannot multiply during reflow
+	// or nested table measurement.
+	work, entries := 0, 0
+	var cascade func(*node, int) error
+	cascade = func(n *node, depth int) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if n.tag != "" {
+			for _, r := range d.rules {
+				terms := 0
+				for _, part := range r.selector {
+					terms += len(part.terms)
+				}
+				work += 1 + depth*terms + len(r.decl) + len(n.attrs["class"])/16
+				if work > 8000000 {
+					return limitError("CSS matching work")
+				}
+			}
+			n.decl = d.cascade(n)
+			entries += len(n.decl)
+			if entries > 100000 {
+				return limitError("computed declarations")
+			}
+		}
+		for _, child := range n.children {
+			if err := cascade(child, depth+1); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := cascade(root, 0); err != nil {
 		return nil, err
 	}
 	return d, nil

@@ -44,11 +44,11 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				if !l.tableStep() {
 					return
 				}
-				if st.pre && r == '\n' {
+				if (st.pre || st.whiteSpace == "pre-line") && r == '\n' {
 					flushLine()
 					continue
 				}
-				if !st.pre && unicode.IsSpace(r) {
+				if !st.pre && cssSpace(r) {
 					flushWord()
 					pending = line > 0
 					continue
@@ -80,55 +80,39 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 			minimum = preferred
 		}
 	} else if n.tag == "table" {
-		// Nested tables contribute the sum of their shared column requirements.
-		var mins, prefs []int
-		var rows func(*node, style)
-		rows = func(n *node, st style) {
-			for _, c := range n.children {
-				if !l.tableStep() {
-					return
-				}
-				cs := l.d.styled(c, st)
-				if cs.display == "none" {
-					continue
-				}
-				switch c.tag {
-				case "thead", "tbody", "tfoot":
-					rows(c, cs)
-				case "tr":
-					i := 0
-					for _, cell := range c.children {
-						if cell.tag != "td" && cell.tag != "th" {
-							continue
-						}
-						ss := l.d.styled(cell, cs)
-						if ss.display == "none" {
-							continue
-						}
-						a, b := l.preferredCell(cell, ss, basis)
-						if i == len(mins) {
-							mins = append(mins, 0)
-							prefs = append(prefs, 0)
-						}
-						mins[i] = max(mins[i], a)
-						prefs[i] = max(prefs[i], b)
-						i++
-					}
-				case "caption":
-					a, b := l.preferredCell(c, cs, basis)
+		rows, cols, err := l.d.collectTable(n, s, l.tableStep)
+		if err != nil {
+			l.err = err
+			return 1, 1
+		}
+		mins, prefs := make([]int, cols), make([]int, cols)
+		for _, row := range rows {
+			for i, cell := range row.cells {
+				a, b := l.preferredCell(cell, row.styles[i], basis)
+				sp := row.spans[i]
+				spreadRequirement(mins, sp.col, sp.cols, a)
+				spreadRequirement(prefs, sp.col, sp.cols, b)
+			}
+		}
+		for i := range mins {
+			minimum = min(4096, minimum+mins[i])
+			preferred = min(4096, preferred+prefs[i])
+		}
+		if !s.collapse {
+			minimum = min(4096, minimum+s.spacing[0]*(cols+1))
+			preferred = min(4096, preferred+s.spacing[0]*(cols+1))
+		}
+		for _, child := range n.children {
+			if child.tag == "caption" {
+				cs := l.d.styled(child, s)
+				if cs.display != "none" {
+					a, b := l.preferredCell(child, cs, basis)
 					minimum = max(minimum, a)
 					preferred = max(preferred, b)
 				}
 			}
 		}
-		rows(n, s)
-		a, b := 0, 0
-		for i := range mins {
-			a = min(4096, a+mins[i])
-			b = min(4096, b+prefs[i])
-		}
-		minimum = max(minimum, a)
-		preferred = max(preferred, b)
+
 	} else {
 		for _, c := range n.children {
 			visit(c, s)
@@ -140,6 +124,11 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 	if n.tag != "td" && n.tag != "th" {
 		m := resolveEdges(s.margin, basis)
 		extra += m[1] + m[3]
+	}
+	if s.whiteSpace == "nowrap" || s.whiteSpace == "pre" {
+		minimum = preferred
+	} else if s.overflowWrap == "anywhere" {
+		minimum = 1
 	}
 	minimum = min(4096, minimum+extra)
 	preferred = min(4096, preferred+extra)

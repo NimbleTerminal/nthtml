@@ -8,11 +8,13 @@ import (
 )
 
 type rule struct {
-	selector    string
+	selector    selector
 	decl        map[string]string
 	specificity int
 }
 type style struct {
+	whiteSpace, overflowWrap        string
+	spacing                         [2]int
 	collapse                        bool
 	size, line                      int
 	fg, bg, border                  color.RGBA
@@ -30,6 +32,17 @@ type style struct {
 
 func declarations(s string) map[string]string {
 	m := map[string]string{}
+	important := false
+	put := func(k, v string) {
+		_, old := importance(m[k])
+		if old && !important {
+			return
+		}
+		if important {
+			v += " !important"
+		}
+		m[k] = v
+	}
 	for i, p := range strings.Split(s, ";") {
 		if i >= 128 {
 			break
@@ -39,7 +52,30 @@ func declarations(s string) map[string]string {
 			continue
 		}
 		k = strings.ToLower(strings.TrimSpace(k))
-		v = strings.TrimSpace(v)
+		v, important = importance(strings.TrimSpace(v))
+		if k == "white-space" {
+			v = strings.ToLower(v)
+			if v != "normal" && v != "nowrap" && v != "pre" && v != "pre-wrap" && v != "pre-line" && v != "break-spaces" {
+				continue
+			}
+		}
+		if k == "overflow-wrap" || k == "word-wrap" {
+			v = strings.ToLower(v)
+			if v != "normal" && v != "break-word" && v != "anywhere" {
+				continue
+			}
+		}
+		if k == "border-spacing" {
+			parts := strings.Fields(v)
+			valid := len(parts) == 1 || len(parts) == 2
+			for _, p := range parts {
+				l, ok := parseLength(p, false, false)
+				valid = valid && ok && l.unit == lengthPX
+			}
+			if !valid {
+				continue
+			}
+		}
 		switch k {
 		case "margin", "padding":
 			parts := strings.Fields(v)
@@ -67,29 +103,31 @@ func declarations(s string) map[string]string {
 				sides[3] = parts[3]
 			}
 			for j, side := range []string{"top", "right", "bottom", "left"} {
-				m[k+"-"+side] = sides[j]
+				put(k+"-"+side, sides[j])
 			}
 		case "border":
 			parts := strings.Fields(v)
 			if len(parts) > 0 {
 				if _, ok := parseLength(parts[0], false, false); ok {
-					m["border-width"] = parts[0]
+					put("border-width", parts[0])
 				}
 			}
 			if len(parts) > 2 {
-				m["border-color"] = parts[2]
+				put("border-color", parts[2])
 			}
+		case "word-wrap":
+			put("overflow-wrap", v)
 		case "background":
-			m["background-color"] = v
+			put("background-color", v)
 		case "text-decoration":
-			m["text-decoration-line"] = v
+			put("text-decoration-line", v)
 		default:
 			if strings.HasPrefix(k, "margin-") || strings.HasPrefix(k, "padding-") || k == "width" || k == "height" || k == "max-width" {
 				if _, ok := parseLength(v, strings.HasPrefix(k, "margin-") || k == "width" || k == "height", k == "max-width"); !ok {
 					continue
 				}
 			}
-			m[k] = v
+			put(k, v)
 		}
 	}
 	return m
@@ -118,60 +156,31 @@ func parseCSS(s string, budget int) ([]rule, error) {
 			break
 		}
 		s = tail
+		var group []rule
+		valid := true
 		for _, v := range strings.Split(sel, ",") {
-			v = strings.TrimSpace(v)
-			if !simpleSelector(v) {
-				continue
+			compiled, sp, ok := parseSelector(strings.TrimSpace(v))
+			if !ok {
+				valid = false
+				break
 			}
-			sp := 1
-			if v == "*" {
-				sp = 0
-			} else if v[0] == '.' {
-				sp = 10
-			} else if v[0] == '#' {
-				sp = 100
+			group = append(group, rule{compiled, nil, sp})
+			if len(group) > budget {
+				return nil, limitError("more CSS rules than the budget")
 			}
-			out = append(out, rule{v, declarations(body), sp})
+		}
+		if valid {
+			decl := declarations(body)
+			for _, r := range group {
+				r.decl = decl
+				out = append(out, r)
+			}
 			if len(out) > budget {
 				return nil, limitError("more CSS rules than the budget")
 			}
 		}
 	}
 	return out, nil
-}
-func simpleSelector(s string) bool {
-	if s == "*" {
-		return true
-	}
-	if s == "" {
-		return false
-	}
-	for i, r := range s {
-		if i == 0 && (r == '.' || r == '#') {
-			continue
-		}
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
-			return false
-		}
-	}
-	return true
-}
-func matches(n *node, s string) bool {
-	if s == "*" {
-		return true
-	}
-	if strings.HasPrefix(s, "#") {
-		return n.attrs["id"] == s[1:]
-	}
-	if strings.HasPrefix(s, ".") {
-		for _, c := range strings.Fields(n.attrs["class"]) {
-			if c == s[1:] {
-				return true
-			}
-		}
-		return false
-	}
-	return n.tag == s
 }
 func number(s string) int {
 	l, ok := parseLength(s, false, false)
@@ -198,7 +207,7 @@ func paint(s string) color.RGBA {
 	return color.RGBA{}
 }
 func (d *Document) styled(n *node, parent style) style {
-	s := style{collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
+	s := style{whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
 	if n.tag == "svg" {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
 		s.height, _ = parseLength(n.attrs["height"], true, false)
@@ -236,6 +245,7 @@ func (d *Document) styled(n *node, parent style) style {
 		s.family = "Go Mono"
 		s.mono = true
 		s.pre = true
+		s.whiteSpace = "pre-wrap"
 		s.padding = uniform(12)
 		s.margin = uniform(8)
 		s.bg = color.RGBA{238, 241, 246, 255}
@@ -255,21 +265,7 @@ func (d *Document) styled(n *node, parent style) style {
 	if n.tag == "strong" || n.tag == "b" || n.tag == "th" {
 		s.bold = true
 	}
-	values := map[string]string{}
-	scores := map[string]int{}
-	for _, r := range d.rules {
-		if matches(n, r.selector) {
-			for k, v := range r.decl {
-				if sc, ok := scores[k]; !ok || r.specificity >= sc {
-					values[k] = v
-					scores[k] = r.specificity
-				}
-			}
-		}
-	}
-	for k, v := range declarations(n.attrs["style"]) {
-		values[k] = v
-	}
+	values := n.decl
 	keys := make([]string, 0, len(values))
 	for k := range values {
 		keys = append(keys, k)
@@ -368,6 +364,31 @@ func (d *Document) styled(n *node, parent style) style {
 			if v == "none" || v == "block" || v == "inline" {
 				s.display = v
 			}
+		case "white-space":
+			switch v {
+			case "normal", "nowrap", "pre", "pre-wrap", "pre-line", "break-spaces":
+				s.whiteSpace = v
+				s.pre = v == "pre" || v == "pre-wrap" || v == "break-spaces"
+			}
+		case "overflow-wrap", "word-wrap":
+			switch v {
+			case "normal", "break-word", "anywhere":
+				s.overflowWrap = v
+			}
+		case "border-spacing":
+			parts := strings.Fields(v)
+			if len(parts) == 1 || len(parts) == 2 {
+				a, ok := parseLength(parts[0], false, false)
+				b := a
+				valid := ok && a.unit == lengthPX
+				if len(parts) == 2 {
+					b, ok = parseLength(parts[1], false, false)
+					valid = valid && ok && b.unit == lengthPX
+				}
+				if valid {
+					s.spacing = [2]int{a.resolve(0, 256), b.resolve(0, 256)}
+				}
+			}
 		case "vertical-align":
 			if v == "top" || v == "middle" || v == "bottom" {
 				s.vertical = v
@@ -391,4 +412,35 @@ func (d *Document) styled(n *node, parent style) style {
 
 	s.line = max(s.line, s.size+2)
 	return s
+}
+
+func (d *Document) cascade(n *node) map[string]string {
+	values := map[string]string{}
+	scores := map[string]int{}
+	for _, r := range d.rules {
+		if r.selector.matches(n) {
+			for k, v := range r.decl {
+				v, important := importance(v)
+				score := r.specificity
+				if important {
+					score += 1 << 30
+				}
+				if sc, ok := scores[k]; !ok || score >= sc {
+					values[k] = v
+					scores[k] = score
+				}
+			}
+		}
+	}
+	for k, v := range declarations(n.attrs["style"]) {
+		v, important := importance(v)
+		score := 1 << 29
+		if important {
+			score += 1 << 30
+		}
+		if score >= scores[k] {
+			values[k] = v
+		}
+	}
+	return values
 }

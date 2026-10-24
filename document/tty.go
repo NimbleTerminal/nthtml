@@ -11,7 +11,8 @@ import (
 const maxTTYBytes = 4 << 20
 
 type ttyFlow struct {
-	pending   strings.Builder
+	policy    style
+	pending   ttyBuilder
 	parts     []string
 	bytes     int
 	width     int
@@ -34,14 +35,22 @@ func (f *ttyFlow) append(s string) error {
 	return nil
 }
 func (f *ttyFlow) flush() error {
-	text := normalizeTTY(f.pending.String())
+	if f.pending.special {
+		text := wrapTTYRuns(f.pending.runs, f.width)
+		f.pending.Reset()
+		return f.append(text)
+	}
+	text := f.pending.String()
+	if !f.policy.pre {
+		text = normalizeTTY(text)
+	}
 	f.pending.Reset()
 	if text == "" {
 		return nil
 	}
 	var lines []string
 	for _, line := range strings.Split(text, "\n") {
-		lines = append(lines, ansi.Wrap(line, f.width, ""))
+		lines = append(lines, wrapTTYLine(line, f.width, f.policy))
 	}
 	return f.append(strings.Join(lines, "\n"))
 }
@@ -68,17 +77,27 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			return err
 		}
 		b := &f.pending
+		b.policy = parent
 		if n.tag == "" {
 			if parent.pre {
 				text, col := preTextAt(n.text, f.preColumn)
 				f.preColumn = col
 				b.WriteString(text)
+			} else if parent.whiteSpace == "pre-line" {
+				text := strings.ReplaceAll(strings.ReplaceAll(n.text, "\r\n", "\n"), "\r", "\n")
+				for i, line := range strings.Split(text, "\n") {
+					if i > 0 {
+						b.WriteString("\n")
+					}
+					b.WriteString(cleanText(line))
+				}
 			} else {
 				b.WriteString(cleanText(n.text))
 			}
 			return nil
 		}
 		s := d.styled(n, parent)
+		b.policy = s
 		if s.display == "none" {
 			return nil
 		}
@@ -110,19 +129,33 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			}
 			return nil
 		}
-		if n.tag == "pre" {
+		if n.tag == "pre" || s.display != "inline" && (s.whiteSpace != parent.whiteSpace || s.overflowWrap != parent.overflowWrap) && n.tag != "table" {
 			if err := f.flush(); err != nil {
 				return err
 			}
-			code := &ttyFlow{width: f.width}
+			code := &ttyFlow{width: f.width, policy: s}
+			code.pending.policy = s
+			code.pending.WriteString(marker)
 			for _, child := range n.children {
-				if err := walk(child, s, code, true); err != nil {
+				if err := walk(child, s, code, inCell); err != nil {
 					return err
 				}
 			}
-			text := strings.TrimPrefix(code.pending.String(), "\n")
-			// Preserve whitespace; soft-wrap long lines without collapsing indentation.
-			return f.append(marker + strings.Join(linkedLines(ansi.Hardwrap(text, f.width, true)), "\n"))
+			if n.tag == "pre" {
+				for i := range code.pending.runs {
+					if ansi.StringWidth(code.pending.runs[i].text) == 0 && !strings.Contains(code.pending.runs[i].text, "\n") {
+						continue
+					}
+					if code.pending.runs[i].text != "" {
+						code.pending.runs[i].text = strings.TrimPrefix(code.pending.runs[i].text, "\n")
+						break
+					}
+				}
+			}
+			if err := code.flush(); err != nil {
+				return err
+			}
+			return f.append(strings.Join(code.parts, "\n\n"))
 		}
 		if n.tag == "ul" || n.tag == "ol" {
 			if err := f.flush(); err != nil {
@@ -270,7 +303,7 @@ func normalizeTTY(text string) string {
 }
 func cleanText(s string) string {
 	return strings.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
+		if cssSpace(r) {
 			return ' '
 		}
 		if unicode.IsControl(r) {
@@ -287,4 +320,18 @@ func (r *Result) TTY(ctx context.Context, width int) (string, error) {
 		return "", nil
 	}
 	return r.document.TTY(ctx, width)
+}
+
+// TTY preserves explicit no-wrap modes; the widget can pan long lines.
+func wrapTTYLine(text string, width int, s style) string {
+	if s.whiteSpace == "nowrap" || s.whiteSpace == "pre" {
+		return text
+	}
+	if s.pre {
+		return ansi.Hardwrap(text, width, true)
+	}
+	if s.overflowWrap == "normal" {
+		return ansi.Wordwrap(text, width, "")
+	}
+	return ansi.Wrap(text, width, "")
 }

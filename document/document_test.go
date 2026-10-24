@@ -140,6 +140,9 @@ func FuzzRender(f *testing.F) {
 	f.Add(`<table style="border-collapse:collapse"><tr><td style="border:3px solid red">long<span>word</span><br>line</td><td style="border:1px solid blue">two</td></tr></table>`)
 	f.Add(`<table><thead><tr><th>Header</th><th>Qty</th></tr></thead><tr><td style="padding:4px;border:1px solid blue"><table><tr><td>Nested</td></tr></table></td><td style="vertical-align:bottom"><a href="https://example.com">2</a></td></tr></table>`)
 	f.Add("<ul><li><a href=\"https://example.com\">linked item</a><pre>\n  code\n\tmore</pre></li></ul>")
+	f.Add(spanExample)
+	f.Add(`<style>table.report > tbody td.amount{color:red!important} .a .b{white-space:pre-line}</style><table class="report"><tbody><tr><td colspan="2" rowspan="0" class="amount">merged</td></tr><tr><td>x</td></tr></tbody></table>`)
+	f.Add("<p>Before <a href='https://example.com' style='white-space:nowrap'>one two three</a> after</p><pre style='white-space:pre-line'>a\n\n b</pre>")
 	f.Fuzz(func(t *testing.T, s string) {
 		if len(s) > 4096 {
 			t.Skip()

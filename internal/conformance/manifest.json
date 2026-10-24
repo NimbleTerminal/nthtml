@@ -32,7 +32,17 @@
     "css/CSS2/tables/border-collapse-offset-001-ref.xht": "a50ef5eb9e3739768078e57a181660184e6c684e7bec85bf2719f515d3305731",
     "css/CSS2/tables/border-conflict-element-001d.xht": "217226caba0c452831eeb9692d8f939946811d3a4404719ca2e3e4fb67db60fc",
     "css/CSS2/tables/border-conflict-element-001d-ref.xht": "adcb809fde777c1cdb97449faef3e8fe634b034d03bfadcd2dc81e616c32bca1",
-    "css/CSS2/tables/border-collapse-001.xht": "2378a0025e0f64ad669937db8c8d303cc6d98f2d12c90dab908d959ab071ca36"
+    "css/CSS2/tables/border-collapse-001.xht": "2378a0025e0f64ad669937db8c8d303cc6d98f2d12c90dab908d959ab071ca36",
+    "css/CSS2/selectors/child-selector-001.xht": "86a308f6f44018223e92c76af6b65094ae2c51bc2cf45bb1658872b568d1214e",
+    "css/CSS2/selectors/child-selector-001-ref.xht": "00ae4c802a4d4ea1ec35e12b850973654be4fa3f7c826b72e7b1f9095c129f3b",
+    "css/CSS2/selectors/child-selector-002.xht": "c0e4851cb3eece01e68e3fd15cdeabf87cfba652636500f73fb955a54411af40",
+    "css/CSS2/selectors/child-selector-002-ref.xht": "05c8194cf4f4c4f5b27175d0dc00a68cecec2eadcd21afa8925fe6d28067ed31",
+    "css/CSS2/selectors/child-selector-003.xht": "2cd2cf00c7586bfa3570ec5fc1d7a2b33e1f292d1b82c09febc033b70c1ed14b",
+    "css/CSS2/selectors/child-selector-003-ref.xht": "51da4bdffa86d9e574ba118d88431778db101129efc33ef0f947d6406f2ff264",
+    "css/CSS2/selectors/descendent-selector-002.xht": "304937ef4759b342b421a3c0d05ba0958827268b811440506b7a0b898d15e621",
+    "css/CSS2/selectors/descendent-selector-002-ref.xht": "31cfcb5adadd9e0b2b72b45180c1d1b0f66c29aea16a0116a49b0cfc74756286",
+    "css/CSS2/selectors/descendent-selector-004.xht": "c2f711243a98c2cf5c924b8622ba5f30422a34110e7d96cfd96648cfd04a3a4e",
+    "css/CSS2/selectors/descendent-selector-004-ref.xht": "c9eb4a42cfdb703e381fa62897e93c68e1a81af178b811536af5d3858e0be412"
   },
   "cases": [
     {
@@ -98,7 +108,7 @@
     {
       "path": "css/CSS2/borders/border-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Reference requires external Ahem stylesheet/font, em units, compound selectors, and word-spacing."
+      "reason": "Reference requires external Ahem stylesheet/font, em units, word-spacing."
     },
     {
       "path": "css/CSS2/tables/border-collapse-offset-001.xht",
@@ -108,12 +118,37 @@
     {
       "path": "css/CSS2/tables/border-conflict-element-001d.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires Ahem, external image assets, per-side border colors, em units, compound/descendant selectors, and XHTML CSS CDATA."
+      "reason": "Requires Ahem, external image assets, per-side border colors, em units, XHTML CSS CDATA."
     },
     {
       "path": "css/CSS2/tables/border-collapse-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Manual test with no upstream match/mismatch reference; border-spacing is not supported."
+      "reason": "Manual test with no upstream match/mismatch reference."
+    },
+    {
+      "path": "css/CSS2/selectors/child-selector-001.xht",
+      "expected": "PASS",
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+    },
+    {
+      "path": "css/CSS2/selectors/child-selector-002.xht",
+      "expected": "PASS",
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+    },
+    {
+      "path": "css/CSS2/selectors/child-selector-003.xht",
+      "expected": "PASS",
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-002.xht",
+      "expected": "PASS",
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-004.xht",
+      "expected": "PASS",
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
     }
   ]
 }

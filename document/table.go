@@ -5,10 +5,13 @@ import (
 )
 
 type tableRow struct {
-	anchors []string
-	style   style
-	cells   []*node
-	styles  []style
+	spans     []cellSpan
+	groupEnd  int
+	anchorIDs []int
+	anchors   []string
+	style     style
+	cells     []*node
+	styles    []style
 }
 
 // Table work is cumulative across nested tables, so repeated intrinsic
@@ -101,50 +104,11 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 			y = l.block(child, x, y, w, parentHeight, s)
 		}
 	}
-	var rows []tableRow
-	columns := 0
-	var collect func(*node, style)
-	collect = func(parent *node, ps style) {
-		for _, child := range parent.children {
-			if !l.tableStep() {
-				return
-			}
-			cs := l.d.styled(child, ps)
-			if cs.display == "none" {
-				continue
-			}
-			switch child.tag {
-			case "thead", "tbody", "tfoot":
-				first := len(rows)
-				collect(child, cs)
-				if name := anchorName(child); name != "" && first < len(rows) {
-					rows[first].anchors = append(rows[first].anchors, name)
-				}
-			case "tr":
-				if cs.bg.A == 0 {
-					cs.bg = ps.bg
-				}
-				row := tableRow{style: cs}
-				if name := anchorName(child); name != "" {
-					row.anchors = append(row.anchors, name)
-				}
-				for _, cell := range child.children {
-					if cell.tag != "td" && cell.tag != "th" {
-						continue
-					}
-					cellStyle := l.d.styled(cell, cs)
-					if cellStyle.display == "none" {
-						continue
-					}
-					row.cells = append(row.cells, cell)
-					row.styles = append(row.styles, cellStyle)
-				}
-				columns = max(columns, len(row.cells))
-				rows = append(rows, row)
-			}
-		}
+	rows, columns, err := l.d.collectTable(n, s, l.tableStep)
+	if err != nil {
+		l.err = err
+		return y
 	}
-	collect(n, s)
 	if columns > 256 || columns > w {
 		l.err = limitError("table columns")
 		return y
@@ -153,17 +117,28 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 		return y
 	}
 	minimum, preferred := make([]int, columns), make([]int, columns)
+	sx, sy := s.spacing[0], s.spacing[1]
+	if s.collapse {
+		sx, sy = 0, 0
+	}
+	// Keep one content pixel per column; constrain spacing on narrow viewports.
+	sx = min(sx, max(0, (w-columns)/(columns+1)))
 	for _, row := range rows {
 		for i, cell := range row.cells {
 			a, b := l.preferredCell(cell, row.styles[i], w)
-			minimum[i] = max(minimum[i], a)
-			preferred[i] = max(preferred[i], b)
+			sp := row.spans[i]
+			spreadRequirement(minimum, sp.col, sp.cols, max(1, a-sx*(sp.cols-1)))
+			spreadRequirement(preferred, sp.col, sp.cols, max(1, b-sx*(sp.cols-1)))
 		}
 	}
 	if l.err != nil {
 		return y
 	}
-	widths := tableWidths(minimum, preferred, w)
+	widths := tableWidths(minimum, preferred, w-sx*(columns+1))
+	xs := []int{x + sx}
+	for _, width := range widths {
+		xs = append(xs, xs[len(xs)-1]+width+sx)
+	}
 	var grid *collapsedGrid
 	if s.collapse {
 		grid = l.collapseGrid(rows, columns, s)
@@ -171,37 +146,44 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 			return y
 		}
 	}
-	rowY := []int{y}
-	for ri, row := range rows {
-		if !l.tableStep() {
-			return y
-		}
-		for _, name := range row.anchors {
-			l.add(Box{Tag: "anchor", Anchor: name, Bounds: image.Rect(x, y, x+1, y+1)}, nil)
-		}
-		rowStart := len(l.ops)
+	type laidCell struct {
+		start, end, height, row int
+		span                    cellSpan
+		s                       style
+	}
+	var cells []laidCell
+	heights := make([]int, len(rows))
+	// Allocate every row background before cell contents so a rowspan cannot
+	// be overpainted by the background of a later row.
+	rowOps := make([]int, len(rows))
+	rowPieces := make([][]int, len(rows))
+	for i, row := range rows {
+		rowOps[i] = len(l.ops)
 		l.add(Box{Tag: "tr"}, nil)
-		type laidCell struct {
-			start, end, bottom int
-			s                  style
-		}
-		var cells []laidCell
-		right, bottom := x, y
-		for i, cell := range row.cells {
-			width := widths[i]
-			if width == 0 {
-				continue
+		if sx > 0 && row.style.bg.A > 0 {
+			for range widths {
+				rowPieces[i] = append(rowPieces[i], len(l.ops))
+				l.add(Box{Tag: "row-background"}, nil)
 			}
+		}
+		if row.style.height.definite(parentHeight) {
+			heights[i] = row.style.height.resolve(parentHeight, l.d.limits.Height)
+		}
+	}
+	for ri, row := range rows {
+		for i, cell := range row.cells {
+			if !l.tableStep() {
+				return y
+			}
+			sp := row.spans[i]
+			width := xs[sp.col+sp.cols] - xs[sp.col] - sx
 			cs := row.styles[i]
-			// Column allocation owns the cell's outer width; width declarations are
-			// sizing hints above. Cell margins are ignored, as in CSS tables.
 			cs.width = cssLength{}
 			cs.maxWidth = cssLength{}
 			cs.margin = [4]cssLength{}
-			// Keep a content pixel at narrow sizes; shrink excessive cell padding.
 			padding := resolveEdges(cs.padding, width)
 			if grid != nil {
-				inset := grid.insets(ri, i)
+				inset := grid.spanInsets(ri, sp)
 				for j := range padding {
 					padding[j] += inset[j]
 				}
@@ -217,49 +199,71 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 				cs.padding[j] = px(padding[j])
 			}
 			first := len(l.ops)
-			endY := l.blockStyled(cell, right, y, width, parentHeight, cs)
-			cells = append(cells, laidCell{first, len(l.ops), endY, cs})
-			bottom = max(bottom, endY)
-			right += width
-		}
-		if row.style.height.definite(parentHeight) {
-			bottom = max(bottom, y+row.style.height.resolve(parentHeight, l.d.limits.Height))
-		}
-		if l.err != nil {
-			return bottom
-		}
-		l.ops[rowStart].box = Box{Tag: "tr", Bounds: image.Rect(x, y, x+w, bottom), Color: row.style.bg}
-		for _, cell := range cells {
-			delta := bottom - cell.bottom
-			if cell.start >= cell.end {
-				continue
-			}
-			box := &l.ops[cell.start].box
-			box.Bounds.Max.Y = bottom
-			contentEnd := cell.end
-			if cell.s.bw > 0 {
-				contentEnd -= 4
-				// blockStyled emits top, bottom, left, right borders after descendants.
-				l.ops[contentEnd+1].box.Bounds = l.ops[contentEnd+1].box.Bounds.Add(image.Pt(0, delta))
-				l.ops[contentEnd+2].box.Bounds.Max.Y = bottom
-				l.ops[contentEnd+3].box.Bounds.Max.Y = bottom
-			}
-			shift := 0
-			switch cell.s.vertical {
-			case "middle":
-				shift = delta / 2
-			case "bottom":
-				shift = delta
-			}
-			for i := cell.start + 1; i < contentEnd; i++ {
-				l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(image.Pt(0, shift))
+			h := l.blockStyled(cell, xs[sp.col], 0, width, parentHeight, cs)
+			cells = append(cells, laidCell{first, len(l.ops), h, ri, sp, cs})
+			if sp.rows == 1 {
+				heights[ri] = max(heights[ri], h)
 			}
 		}
-		y = bottom
-		rowY = append(rowY, y)
+	}
+	for _, cell := range cells {
+		spreadRequirement(heights, cell.row, cell.span.rows, max(0, cell.height-sy*(cell.span.rows-1)))
+	}
+	rowY := []int{y + sy}
+	for _, h := range heights {
+		rowY = append(rowY, rowY[len(rowY)-1]+h+sy)
+	}
+	if rowY[len(rowY)-1] > l.d.limits.Height {
+		l.err = limitError("table height")
+		return y
+	}
+	if l.err != nil {
+		return y
+	}
+	for ri, row := range rows {
+		top, bottom := rowY[ri], rowY[ri+1]-sy
+		l.ops[rowOps[ri]].box = Box{Tag: "tr", Bounds: image.Rect(x+sx, top, x+w-sx, bottom), Color: row.style.bg}
+		if len(rowPieces[ri]) > 0 {
+			l.ops[rowOps[ri]].box.Color.A = 0
+			for col, op := range rowPieces[ri] {
+				l.ops[op].box = Box{Tag: "row-background", Bounds: image.Rect(xs[col], top, xs[col]+widths[col], bottom), Color: row.style.bg}
+			}
+		}
+		for _, name := range row.anchors {
+			l.add(Box{Tag: "anchor", Anchor: name, Bounds: image.Rect(x, top, x+1, top+1)}, nil)
+		}
+	}
+	for _, cell := range cells {
+		if cell.start >= cell.end {
+			continue
+		}
+		top := rowY[cell.row]
+		bottom := rowY[cell.row+cell.span.rows] - sy
+		delta := bottom - top - cell.height
+		for i := cell.start; i < cell.end; i++ {
+			l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(image.Pt(0, top))
+		}
+		l.ops[cell.start].box.Bounds.Max.Y = bottom
+		contentEnd := cell.end
+		if cell.s.bw > 0 {
+			contentEnd -= 4
+			l.ops[contentEnd+1].box.Bounds = l.ops[contentEnd+1].box.Bounds.Add(image.Pt(0, delta))
+			l.ops[contentEnd+2].box.Bounds.Max.Y = bottom
+			l.ops[contentEnd+3].box.Bounds.Max.Y = bottom
+		}
+		shift := 0
+		switch cell.s.vertical {
+		case "middle":
+			shift = delta / 2
+		case "bottom":
+			shift = delta
+		}
+		for i := cell.start + 1; i < contentEnd; i++ {
+			l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(image.Pt(0, shift))
+		}
 	}
 	if grid != nil {
 		grid.paint(l, x, widths, rowY)
 	}
-	return y
+	return rowY[len(rowY)-1]
 }

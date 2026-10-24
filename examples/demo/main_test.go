@@ -9,7 +9,7 @@ import (
 )
 
 func TestDemoDocuments(t *testing.T) {
-	for _, name := range []string{"overview", "invoice", "field-notes", "status-report", "guide", "typography", "diagrams", "navigation"} {
+	for _, name := range []string{"overview", "invoice", "field-notes", "status-report", "guide", "typography", "diagrams", "navigation", "reports"} {
 		t.Run(name, func(t *testing.T) {
 			source, err := demoSource(name)
 			if err != nil {

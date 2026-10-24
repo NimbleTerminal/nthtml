@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Reports · Nimble Terminal</title>
+<style>
+body { margin:0; padding:24px; background:#f3f5f8; color:#203047; font-family:Go; }
+article.report { max-width:720px; margin:0 auto; padding:20px; background:white; }
+.report h1 { margin:0 0 8px; font-size:28px; }
+.report > p { margin:8px 0; line-height:1.5; }
+table.invoice { width:100%; border-collapse:collapse; margin:16px 0; }
+.invoice td, .invoice th { padding:9px; border:1px solid #a7b5c5; }
+.invoice thead th { background:#203047; color:white; }
+.invoice td.amount { text-align:right; }
+.invoice td.team { background:#e9f1fa; vertical-align:middle; }
+.invoice tfoot td { background:#edf3ef; font-weight:bold; }
+p.status { color:red; }
+.report p.status.ready { color:#187134 !important; }
+.notes { white-space:pre-line; padding:12px; background:#edf3ef; }
+pre.source { white-space:pre-wrap; overflow-wrap:anywhere; margin:8px 0; padding:12px; }
+.reference { white-space:nowrap; font-family:Go Mono; font-size:12px; }
+table.milestones { border-collapse:separate; border-spacing:6px 8px; width:100%; }
+.milestones td { padding:8px; background:#e9f1fa; }
+</style></head><body><article class="report">
+<h1>Delivery report</h1>
+<p>One document, two layouts. Merged cells keep teams and totals together; narrow terminals switch to stacked records.</p>
+<p class="status ready" style="color:red">Ready for review</p>
+<table class="invoice">
+<thead><tr><th rowspan="2">Team</th><th colspan="2">Delivery</th></tr><tr><th>Work</th><th>Hours</th></tr></thead>
+<tbody><tr><td class="team" rowspan="2"><a href="#notes">Platform</a></td><td>Document layout</td><td class="amount">18</td></tr><tr><td>Terminal integration</td><td class="amount">12</td></tr><tr><td class="team">Design</td><td>Review and diagrams</td><td class="amount">8</td></tr></tbody>
+<tfoot><tr><td colspan="2">Total hours</td><td class="amount">38</td></tr></tfoot>
+</table>
+<h2 id="notes">Review notes</h2>
+<div class="notes">Layout review complete.
+    Terminal review complete.
+Browser comparison ready.</div>
+<p>Preserved indentation, with wrapping for long paths:</p>
+<pre class="source">render:
+    input: reports/delivery/2026/quarter-four/platform-and-design-review.html
+    layout: typeset
+    fallback: tty</pre>
+<p class="reference">Reference: NT-2026-Q4-DELIVERY</p>
+<table class="milestones"><tr><td>Draft</td><td>Review</td><td>Publish</td></tr></table>
+</article></body></html>

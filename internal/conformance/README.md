@@ -15,12 +15,12 @@ Open `artifacts/conformance/index.html` for results and failure images. `report.
 
 | Result | Cases | Meaning |
 |---|---:|---|
-| PASS | 9 | Display-none, basic italic/bold/normal-weight, and zero-height overflow reference comparisons match. |
+| PASS | 14 | Display-none, basic typography, zero-height overflow, and child/descendant selector reference comparisons match. |
 | FAIL | 0 | No failures in the runnable subset. |
 | UNSUPPORTED | 7 | Dependencies outside our reviewed subset; never counted as passes. |
 | ERROR | 0 | Harness errors, missing fixtures, or rejected prerequisites. |
 
-The manifest pins revision `ffe56d4420d270941329689aff42d925f615d0b4` and SHA-256 hashes for every vendored file. Original fixture bytes and upstream `LICENSE.md` are retained under `testdata/wpt`. Unsupported cases document gaps in positioning, physical units, floats, Ahem fonts, selectors, and table prerequisites, including prerequisites in their reference documents.
+The manifest pins revision `ffe56d4420d270941329689aff42d925f615d0b4` and SHA-256 hashes for every vendored file. Original fixture bytes and upstream `LICENSE.md` are retained under `testdata/wpt`. Unsupported cases document gaps in positioning, physical units, floats, Ahem fonts, and table prerequisites, including prerequisites in their reference documents.
 
 Default exit status checks the reviewed baseline: an unexpected failure **or improvement** fails until reviewed. Known failures remain labelled FAIL. `-strict` also fails on known failures. Unsupported cases are deliberately skipped, so implementing a feature requires reviewing and enabling those cases explicitly.
 
@@ -40,3 +40,5 @@ Fixtures are audited manually for supported prerequisites in **both** test and r
 4. Run the native and WASM tests and inspect failing image triples. Review every baseline change and update this table.
 
 Fetching/updating upstream fixtures is a separate, intentional maintenance operation. Ordinary tests and report generation never access the network.
+
+Selector/cascade combinations, whitespace modes, and merged-table geometry/TTY output also have native and WASM regression tests in `document`. These local tests are not counted as upstream WPT passes.

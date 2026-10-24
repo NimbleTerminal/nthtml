@@ -187,8 +187,8 @@ lists, alternate numbering styles, and CSS list markers remain unsupported.
 indentation and blank lines, expands tabs to four-column stops, and soft-wraps
 long lines to fit the document. Typeset code blocks have a shaded background;
 TTY is already monospace and retains the whitespace without decoration. A single
-initial newline in `pre` is stripped. There is no syntax highlighting or general
-CSS `white-space` implementation yet.
+initial newline in `pre` is stripped. There is no syntax highlighting or
+full CSS line-breaking implementation. Supported whitespace modes are listed below.
 
 ## Support matrix
 
@@ -202,17 +202,17 @@ specific subset below works; it does not imply browser-compatible behavior.
 | --- | --- | --- |
 | HTML parsing | Partial | Documents and fragments, entities, explicit start/end tags, and tolerant handling of unmatched tags. Bounded token-stack parser; no browser tree repair or implied paragraph/table closures. |
 | Block and inline flow | Partial | Blocks, paragraphs, inline text spans, and `br`. `display: block`, `inline`, and `none`. No inline-block formatting, floats, flexbox, grid, or positioned layout. |
-| Headings and emphasis | Partial | Built-in styles for `h1`, `h2`, and bold `b` / `strong` / `th`. Other headings behave as ordinary blocks unless styled. `code` uses monospace. `em`, `i`, and `small` are inline without automatic italics or smaller type. |
-| Whitespace and line breaks | Partial | Ordinary whitespace collapses; `br` inserts a break; long words wrap. `pre` preserves whitespace and expands tabs, with soft wrapping. No general CSS `white-space` modes, hyphenation, or ellipsis. |
+| Headings and emphasis | Partial | Built-in styles for `h1`, `h2`, and bold `b` / `strong` / `th`. Other headings behave as ordinary blocks unless styled. `code` uses monospace. `em` / `i` are italic; `small` is inline without automatic smaller type. |
+| Whitespace and line breaks | Partial | `white-space: normal`, `nowrap`, `pre`, `pre-wrap`, `pre-line`, and constrained `break-spaces`; `overflow-wrap: normal`, `break-word`, `anywhere` (`word-wrap` alias). Tabs expand to four cells. Defaults retain emergency long-word wrapping and soft-wrapped `pre` for documents; explicit `nowrap` / `pre` disable wrapping. No full Unicode line-breaking, hyphenation, or ellipsis. |
 | Lists | Partial | Bullets, decimal numbering, nested/hanging indentation, `ol start`, and `li value`. No reversed lists, alternative marker styles, `list-style` properties, or CSS counters. |
 | Stylesheet sources | Partial | Embedded `<style>` and inline `style` attributes. No external stylesheets, imports, or media-query evaluation. |
-| Selectors and cascade | Partial | Single tag, `.class`, `#id`, `*`, and comma-separated selectors; specificity and source order for the same property; inline declarations override stylesheets. No compound selectors, combinators, attribute selectors, pseudo-classes/elements, `!important`, or full shorthand cascade rules. |
+| Selectors and cascade | Partial | Tag, `.class`, `#id`, `*`, compounds such as `table.invoice.active`, descendant and child (`>`) combinators, and comma-separated lists. Specificity, source order, inline styles, and author `!important` precedence, including supported shorthand expansion. ASCII identifiers; selectors capped at 1,024 bytes / 64 terms. No sibling combinators, escapes, attribute selectors, pseudo-classes/elements, cascade layers, or full shorthand grammar. |
 | Box spacing and sizing | Partial | One-to-four-value `margin` / `padding`, per-side overrides, `width`, `max-width`, and `height` (definite block height with visible overflow; table heights remain minimums); `box-sizing`. Nonnegative pixels and percentages; unitless lengths mean pixels. Horizontal auto margins center or align constrained boxes. Percentage heights require a definite parent height. Available width constrains boxes; spacing is capped at 256px per side. No negative margins, margin collapse, `min-width`, `min-height`, `max-height`, `em` / `rem`, viewport units, or `calc()`. |
 | Borders and backgrounds | Partial | Uniform solid borders using `border`, `border-width`, and `border-color`; solid `background` / `background-color`. No individual sides, dashed/dotted styles, radius, shadows, gradients, or background images. |
 | Typography | Partial | Go defaults plus seven embedded ntfonts families; `font-family` fallback lists and generic serif/sans-serif/monospace; regular, bold, italic, and bold italic faces. `font-size` in pixels or percent; numeric `font-weight` maps to regular/bold; `font-style`; pixel, percentage, or unitless-multiplier `line-height`; underline/line-through via `text-decoration` or `text-decoration-line`; left/center/right `text-align`. No justification, letter/word spacing, or external font downloads. |
 | Unicode text | Partial | Text is drawn from the bundled fonts; TTY wrapping measures terminal cells. No full complex-script shaping, bidi layout, font fallback, or guaranteed emoji coverage. |
 | Colors | Partial | `#rgb`, `#rrggbb`, `black`, `white`, `red`, `green`, `blue`, `gray`, and `transparent`. No alpha hex, `rgb()` / `hsl()`, `currentColor`, or full named-color set. |
-| Tables | Partial | Shared content-aware Typeset column widths across explicit rows and row groups (`thead`, `tbody`, `tfoot`); top captions, nested tables, bold headers, row/group backgrounds, uniform row heights, and cell `text-align` / `vertical-align: top\|middle\|bottom`. TTY uses content-based column widths and wrapping. Solid `border-collapse: collapse` / `separate`, with shared-edge conflict resolution. No colspan/rowspan, border spacing, `colgroup`, or full CSS intrinsic sizing. |
+| Tables | Partial | Shared content-aware Typeset column widths across explicit rows and row groups (`thead`, `tbody`, `tfoot`); top captions, nested tables, bold headers, row/group backgrounds, uniform row heights, and cell `text-align` / `vertical-align: top\|middle\|bottom`. TTY uses content-based column widths and wrapping. Solid `border-collapse: collapse` / `separate`, with shared-edge conflict resolution. `colspan` / `rowspan` share a bounded grid in both layouts; `rowspan="0"` reaches the end of its row group. Typeset supports one/two pixel lengths for `border-spacing` (0 by default, capped at 256px; ignored when collapsed). TTY keeps compact Unicode borders without pixel gutters. No `colgroup` or full CSS intrinsic sizing. |
 | Images | Partial | Explicit `Options.Images[src]` allowlist; `Document.ImageSources` lists the `src` values to decide on; PNG/JPEG/GIF decode helpers and base64 data URL helper. Images take their own pixel size, the `width`/`height` attributes, or a CSS width, keep their aspect ratio when one side is given, and never exceed the containing box. Missing images show alt text. No automatic file/URL loading, animated playback, or browser-style inline image layout (each image is its own block). |
 | Embedded SVG | Partial | Inline `<svg>` fragments rasterize through ntsvg; shapes, paths, text, basic gradients, and markers in a bounded SVG subset. Aspect ratio is preserved; width/height attributes and CSS sizing are supported. TTY uses aria-label/title/desc. No external resources, use/references inside definitions, SVG stylesheets, scripts, foreignObject, or SVG-internal link navigation. |
 | Mermaid | Partial | `pre.mermaid`, `div.mermaid`, or `pre > code.language-mermaid`; flowchart/graph, sequenceDiagram, stateDiagram-v2, classDiagram, and pie via pure-Go go-mermaid → ntsvg. TTY retains source. Not full Mermaid compatibility; directives and other diagram families are unsupported. |
@@ -234,7 +234,7 @@ HTML engine.
 | --- | --- | --- |
 | Output | RGBA image, structured paint boxes, and link hit regions | Plain text, terminal-cell link spans, and optional OSC 8 hyperlinks |
 | Visual styling | Supported font sizes, weight, colors, backgrounds, borders, and spacing | Omits font/color/box styling; respects `display: none` and table-cell alignment |
-| Tables | Shared content-aware columns, wrapped cells, full-height backgrounds/borders, horizontal and vertical cell alignment | Unicode borders, header separators, wrapped/aligned cells; stacked records when too narrow; nested tables flatten inside cells |
+| Tables | Shared content-aware columns, merged cells, border spacing, full-height backgrounds/borders, horizontal and vertical cell alignment | Merged cells, Unicode borders, header separators, wrapped/aligned cells; stacked records when too narrow; nested tables flatten inside cells |
 | Images | Rasterizes allowlisted images | Alt-text placeholder |
 | Resize / reflow | Call `Document.Render` at a new pixel width; browser demo does this on container resize | Call `Document.TTY` / `Result.TTY` with new columns; widget and browser demo reflow on resize |
 | Zoom / scroll | Widget zooms/crops the existing raster; browser zoom scales it; both scroll | Scrolls wrapped lines; no image zoom |
@@ -490,6 +490,14 @@ the widget consume keys while `SearchInputActive()` is true.
 
 ### Conformance testing
 
-`task conformance` runs a pinned, offline subset of upstream [Web Platform Tests](https://web-platform-tests.org/) and writes `artifacts/conformance/index.html` plus JSON and failure image comparisons. The audited baseline is **9 PASS, 0 FAIL, 7 UNSUPPORTED**, including zero-height background painting. Unsupported prerequisites are explicitly recorded rather than counted as passes.
+`task conformance` runs a pinned, offline subset of upstream [Web Platform Tests](https://web-platform-tests.org/) and writes `artifacts/conformance/index.html` plus JSON and failure image comparisons. The audited baseline is **14 PASS, 0 FAIL, 7 UNSUPPORTED**, including zero-height background painting. Unsupported prerequisites are explicitly recorded rather than counted as passes.
 
 Native and WASM tests enforce the reviewed baseline. Use `task conformance -- -strict` to fail on any rendering failure. This is subset testing, not full browser conformance; see the [harness scope and contribution guide](internal/conformance/README.md).
+
+### Reports and merged-table demo
+
+Run `task demo DEMO=reports`, or select **Reports & merged tables** in the browser gallery (`task serve`). The same document demonstrates compound/descendant/child selectors, `!important`, whitespace modes, merged table headers and totals, row spans, and separated cell spacing. Resize it and toggle Typeset/TTY to compare the layouts.
+
+![Report with merged headers and row spans](examples/demo/previews/reports.png)
+
+Selector matching is cached during parsing and capped at 8 million work units and 100,000 resolved declarations. Tables are limited to 256 logical columns and 100,000 grid slots, in addition to the existing cumulative work and output budgets. Row spans stop at row-group boundaries; malformed overlaps shift a cell to the next free range. On narrow terminals, stacked records emit each source cell once. Cell content is wrapped to the allocated TTY cell width even if it requests nowrap; standalone nowrap text can exceed the terminal width.
