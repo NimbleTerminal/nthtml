@@ -19,6 +19,17 @@ func run(initial *document.Result, source string) {
 	}
 	d := js.Global().Get("document")
 	canvas := d.Call("getElementById", "document")
+	linkValues := func(links []document.Link) []any {
+		out := make([]any, 0, len(links))
+		for _, link := range links {
+			regions := make([]any, 0, len(link.Regions))
+			for _, b := range link.Regions {
+				regions = append(regions, map[string]any{"x": b.Min.X, "y": b.Min.Y, "width": b.Dx(), "height": b.Dy()})
+			}
+			out = append(out, map[string]any{"id": link.ID, "href": link.Href, "text": link.Text, "regions": regions})
+		}
+		return out
+	}
 	paint := func(r *document.Result) {
 		b := r.Image.Bounds()
 		canvas.Set("width", b.Dx())
@@ -27,13 +38,36 @@ func run(initial *document.Result, source string) {
 		data := dc.Call("createImageData", b.Dx(), b.Dy())
 		js.CopyBytesToJS(data.Get("data"), r.Image.Pix)
 		dc.Call("putImageData", data, 0, 0)
+		canvas.Set("nthtmlLinks", js.ValueOf(linkValues(r.Links)))
 	}
 	paint(initial)
-	text, err := doc.TTY(ctx, 80)
+	setTTY := func(result *document.TTYResult) {
+		tty := d.Call("getElementById", "tty")
+		tty.Set("textContent", result.Text)
+		hrefs := map[int]string{}
+		for _, link := range result.Links {
+			hrefs[link.ID] = link.Href
+		}
+		segments := []any{}
+		pos := 0
+		for _, span := range result.Spans {
+			if span.Start > pos {
+				segments = append(segments, map[string]any{"text": result.Text[pos:span.Start]})
+			}
+			segments = append(segments, map[string]any{"text": result.Text[span.Start:span.End], "href": hrefs[span.LinkID], "id": span.LinkID})
+			pos = span.End
+		}
+		if pos < len(result.Text) {
+			segments = append(segments, map[string]any{"text": result.Text[pos:]})
+		}
+		tty.Set("nthtmlSegments", js.ValueOf(segments))
+	}
+	tty, err := doc.TTYLayout(ctx, 80)
 	if err != nil {
 		panic(err)
 	}
-	d.Call("getElementById", "tty").Set("textContent", text)
+	setTTY(tty)
+
 	d.Call("getElementById", "browser-reference").Set("srcdoc", "<!doctype html><meta charset=\"utf-8\">\n"+source)
 	width, columns := 800, 80
 	reflow := js.FuncOf(func(_ js.Value, args []js.Value) any {
@@ -58,14 +92,14 @@ func run(initial *document.Result, source string) {
 				return err.Error()
 			}
 		}
-		text, err := doc.TTY(ctx, nextColumns)
+		tty, err := doc.TTYLayout(ctx, nextColumns)
 		if err != nil {
 			return err.Error()
 		}
 		if result != nil {
 			paint(result)
 		}
-		d.Call("getElementById", "tty").Set("textContent", text)
+		setTTY(tty)
 		width, columns = nextWidth, nextColumns
 		return ""
 	})

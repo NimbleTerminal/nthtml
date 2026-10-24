@@ -29,6 +29,7 @@ type Options struct {
 }
 
 type node struct {
+	id        int
 	tag, text string
 	attrs     map[string]string
 	children  []*node
@@ -94,7 +95,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			if count > l.Nodes {
 				return nil, ErrLimit
 			}
-			n := &node{tag: t.Data, attrs: map[string]string{}}
+			n := &node{id: count, tag: t.Data, attrs: map[string]string{}}
 			for _, a := range t.Attr {
 				n.attrs[a.Key] = a.Val
 			}

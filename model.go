@@ -4,9 +4,11 @@ package nthtml
 import (
 	tea "charm.land/bubbletea/v2"
 	"context"
+	"github.com/charmbracelet/x/ansi"
 	"image"
 	"nimbleterminal.dev/nthtml/document"
 	"nimbleterminal.dev/ntpicture"
+	"strconv"
 	"strings"
 )
 
@@ -26,6 +28,10 @@ type Model struct {
 	result                 *document.Result
 	mode                   LayoutMode
 	ttyLines               []string
+	ttyResult              *document.TTYResult
+	focusID                int
+	origin, pressCell      image.Point
+	pressedLink            int
 	ttyTop                 int
 	err                    error
 	source                 image.Image
@@ -46,7 +52,13 @@ func (m *Model) Init() tea.Cmd { return tea.Batch(m.pic.Init(), m.initial, m.Set
 func (m *Model) View() string {
 	if m.mode == LayoutTTY {
 		end := min(len(m.ttyLines), m.ttyTop+m.rows)
-		return strings.Join(m.ttyLines[m.ttyTop:end], "\n")
+		text := strings.Join(m.ttyLines[m.ttyTop:end], "\n")
+		if link, ok := m.FocusedLink(); ok {
+			start := ansi.SetHyperlink(link.Href, "id=nthtml-"+strconv.Itoa(link.ID))
+			text = strings.ReplaceAll(text, start, start+"\x1b[7m")
+			text = strings.ReplaceAll(text, ansi.ResetHyperlink(), "\x1b[0m"+ansi.ResetHyperlink())
+		}
+		return text
 	}
 	return m.pic.View()
 }
@@ -59,11 +71,15 @@ func (m *Model) SetLayoutMode(mode LayoutMode) tea.Cmd {
 	if m.mode == mode {
 		return nil
 	}
+	m.pressedLink = 0
 	m.mode = mode
 	if mode == LayoutTTY {
 		m.reflowTTY()
 	}
-	return m.pic.SetVisible(mode == LayoutTypeset)
+	if mode == LayoutTypeset {
+		return tea.Batch(m.pic.SetVisible(true), m.showLinkFocus())
+	}
+	return m.pic.SetVisible(false)
 }
 func (m *Model) ToggleLayout() tea.Cmd {
 	if m.mode == LayoutTypeset {
@@ -72,8 +88,13 @@ func (m *Model) ToggleLayout() tea.Cmd {
 	return m.SetLayoutMode(LayoutTypeset)
 }
 func (m *Model) reflowTTY() {
-	text, err := m.result.TTY(context.Background(), m.cols)
+	result, err := m.result.TTYLayout(context.Background(), m.cols)
 	m.err = err
+	m.ttyResult = result
+	text := ""
+	if result != nil {
+		text = result.ANSI()
+	}
 	m.ttyLines = strings.Split(text, "\n")
 	m.scrollTTY(0)
 }
@@ -82,6 +103,7 @@ func (m *Model) scrollTTY(delta int) {
 }
 func (m *Model) Close() tea.Cmd { return m.pic.Close() }
 func (m *Model) SetSize(cols, rows int) tea.Cmd {
+	m.pressedLink = 0
 	m.cols = max(1, min(cols, 1000))
 	m.rows = max(1, min(rows, 1000))
 	if m.mode == LayoutTTY {
@@ -90,6 +112,7 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	return tea.Batch(m.pic.SetSize(m.cols, m.rows), m.viewport())
 }
 func (m *Model) Zoom(delta int) tea.Cmd {
+	m.pressedLink = 0
 	if m.mode == LayoutTTY {
 		return nil
 	}
@@ -97,6 +120,7 @@ func (m *Model) Zoom(delta int) tea.Cmd {
 	return m.viewport()
 }
 func (m *Model) Pan(dx, dy int) tea.Cmd {
+	m.pressedLink = 0
 	if m.mode == LayoutTTY {
 		step := dy / 20
 		if step == 0 && dy != 0 {
@@ -114,6 +138,7 @@ func (m *Model) Pan(dx, dy int) tea.Cmd {
 	return m.viewport()
 }
 func (m *Model) Reset() tea.Cmd {
+	m.pressedLink = 0
 	if m.mode == LayoutTTY {
 		m.ttyTop = 0
 		return nil
@@ -125,21 +150,42 @@ func (m *Model) viewport() tea.Cmd {
 	if m.source == nil {
 		return nil
 	}
+	return m.pic.SetCrop(m.cropRect())
+}
+func (m *Model) cropRect() image.Rectangle {
+	if m.source == nil {
+		return image.Rectangle{}
+	}
 	b := m.source.Bounds()
 	w := max(1, b.Dx()>>m.zoom)
 	h := min(b.Dy(), max(1, w*m.rows*2/m.cols))
 	m.x = max(0, min(m.x, b.Dx()-w))
 	m.y = max(0, min(m.y, b.Dy()-h))
-	return m.pic.SetCrop(image.Rect(b.Min.X+m.x, b.Min.Y+m.y, b.Min.X+m.x+w, b.Min.Y+m.y+h))
+	return image.Rect(b.Min.X+m.x, b.Min.Y+m.y, b.Min.X+m.x+w, b.Min.Y+m.y+h)
 }
 
-// Update handles arrows/hjkl, page up/down, +/- and 0, plus the mouse wheel.
+// Update handles keyboard navigation, link clicks, and mouse-wheel scrolling.
 // Only forward input while focused; always forward non-input messages.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	switch v := msg.(type) {
+	case tea.MouseClickMsg:
+		cmd = m.mousePress(v)
+	case tea.MouseReleaseMsg:
+		cmd = m.mouseRelease(v)
+	case tea.MouseMotionMsg:
+		if image.Pt(v.X, v.Y) != m.pressCell {
+			m.pressedLink = 0
+		}
 	case tea.KeyPressMsg:
+		m.pressedLink = 0
 		switch v.String() {
+		case "tab":
+			cmd = m.NextLink(false)
+		case "shift+tab":
+			cmd = m.NextLink(true)
+		case "enter":
+			cmd = m.ActivateLink()
 		case "t":
 			cmd = m.ToggleLayout()
 		case "+", "=":

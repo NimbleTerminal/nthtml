@@ -160,7 +160,7 @@ func (d *Document) ttyTable(ctx context.Context, n *node, parent style, width in
 		height := 1
 		header := false
 		for j, c := range row {
-			wrapped[j] = strings.Split(ansi.Wrap(c.text, sizes[j], ""), "\n")
+			wrapped[j] = linkedLines(ansi.Wrap(c.text, sizes[j], ""))
 			height = max(height, len(wrapped[j]))
 			header = header || c.header
 		}

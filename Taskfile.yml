@@ -7,7 +7,7 @@ env:
 
 vars:
   EXE: '{{if eq OS "windows"}}.exe{{end}}'
-  DEMOS: [overview, invoice, field-notes, status-report]
+  DEMOS: [overview, invoice, field-notes, status-report, guide]
 
 tasks:
   default:
@@ -28,7 +28,7 @@ tasks:
       - go build -mod=readonly -o bin/demo{{.EXE}} ./examples/demo
 
   demo:
-    desc: 'Run a terminal demo (DEMO=overview|invoice|field-notes|status-report; t toggles layout)'
+    desc: 'Run a terminal demo (DEMO=overview|invoice|field-notes|status-report|guide; t toggles layout)'
     aliases: [run]
     interactive: true
     vars:
@@ -70,9 +70,9 @@ tasks:
       - go run ./cmd/nthtml -width "$NTHTML_WIDTH" -o "$NTHTML_OUTPUT" "$NTHTML_INPUT"
 
   previews:
-    desc: Regenerate the three checked-in demo PNG previews
+    desc: Regenerate the checked-in demo PNG previews
     cmds:
-      - for: [invoice, field-notes, status-report]
+      - for: [invoice, field-notes, status-report, guide]
         task: render
         vars:
           INPUT: 'examples/demo/documents/{{.ITEM}}.html'
@@ -149,7 +149,7 @@ tasks:
       - go test -mod=readonly -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" {{.CLI_ARGS}} ./document ./examples/demo
 
   test-web:
-    desc: Build and smoke-test all four browser demos under Node
+    desc: Build and smoke-test all browser demos under Node
     cmds:
       - task: build-wasm-site
       - for: {var: DEMOS}

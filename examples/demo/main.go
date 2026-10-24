@@ -15,7 +15,7 @@ import (
 var documents embed.FS
 
 func main() {
-	name := flag.String("demo", "overview", "document: overview, invoice, field-notes, status-report")
+	name := flag.String("demo", "overview", "document: overview, invoice, field-notes, status-report, guide")
 	flag.Parse()
 	source, err := demoSource(*name)
 	if err != nil {
@@ -33,10 +33,10 @@ func demoSource(name string) (string, error) {
 	path := "sample.html"
 	switch name {
 	case "overview":
-	case "invoice", "field-notes", "status-report":
+	case "invoice", "field-notes", "status-report", "guide":
 		path = "documents/" + name + ".html"
 	default:
-		return "", fmt.Errorf("unknown demo %q; choose overview, invoice, field-notes, or status-report", name)
+		return "", fmt.Errorf("unknown demo %q; choose overview, invoice, field-notes, status-report, or guide", name)
 	}
 	data, err := documents.ReadFile(path)
 	return string(data), err

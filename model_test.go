@@ -69,3 +69,48 @@ func TestLayoutToggleAndResize(t *testing.T) {
 		t.Fatal(m.Err())
 	}
 }
+
+func TestKeyboardLinkNavigation(t *testing.T) {
+	r, e := document.Render(context.Background(), strings.NewReader(`<p><a href="https://one.example">One</a></p><p><a href="https://two.example">Two</a></p>`), document.Options{Width: 300})
+	if e != nil {
+		t.Fatal(e)
+	}
+	m := New(r)
+	defer m.Close()
+	if m.ActivateLink() != nil {
+		t.Fatal("activated without selection")
+	}
+	m.NextLink(false)
+	link, ok := m.FocusedLink()
+	if !ok || link.Href != "https://one.example" {
+		t.Fatal(link)
+	}
+	msg := m.ActivateLink()().(LinkMsg)
+	if msg.Owner != m || msg.Link.ID != link.ID {
+		t.Fatal(msg)
+	}
+	m.NextLink(false)
+	link, _ = m.FocusedLink()
+	if link.Href != "https://two.example" {
+		t.Fatal(link)
+	}
+	m.NextLink(false)
+	link, _ = m.FocusedLink()
+	if link.Href != "https://one.example" {
+		t.Fatal("did not wrap")
+	}
+	m.SetLayoutMode(LayoutTTY)
+	if !strings.Contains(m.View(), "\x1b]8;") {
+		t.Fatal("TTY links missing")
+	}
+	m.NextLink(true)
+	link, _ = m.FocusedLink()
+	if link.Href != "https://two.example" {
+		t.Fatal("backward navigation failed")
+	}
+	m.SetSize(12, 4)
+	link, _ = m.FocusedLink()
+	if link.Href != "https://two.example" {
+		t.Fatal("selection lost on reflow")
+	}
+}

@@ -34,10 +34,24 @@ globalThis.document = { getElementById(id) { return id === 'document' ? canvas :
   assert.ok(tty.textContent.length > 100);
   assert.ok(!tty.textContent.includes("<style>"));
   assert.match(status.textContent, /Go WebAssembly/);
+  assert.equal(tty.nthtmlSegments.map(s => s.text).join(''),tty.textContent);
+  const linkIDs = canvas.nthtmlLinks.map(l => l.id);
+  if (demo === 'guide') {
+    assert.equal(linkIDs.length,4);
+    assert.ok(tty.nthtmlSegments.some(s => s.href === 'https://nimbleterminal.dev/'));
+    assert.ok(tty.textContent.includes('1. Build'));
+    assert.ok(tty.textContent.includes('    println(message)'));
+    for (const link of canvas.nthtmlLinks) {
+      assert.ok(link.regions.length > 0);
+      assert.ok(link.regions.every(r => r.width > 0 && r.height > 0 && r.x >= 0 && r.x+r.width <= canvas.width));
+    }
+  }
   const initialHeight = canvas.height;
   const initialLines = tty.textContent.split('\n').length;
   assert.equal(nthtmlDemo.reflow(400,40),'');
   assert.equal(canvas.width,400);
+  assert.deepEqual(canvas.nthtmlLinks.map(l => l.id),linkIDs);
+  assert.equal(tty.nthtmlSegments.map(s => s.text).join(''),tty.textContent);
   assert.ok(canvas.height > initialHeight, 'narrower typeset layout must grow vertically');
   assert.ok(tty.textContent.split('\n').length > initialLines, 'TTY must rewrap');
   const stablePaints = paints;

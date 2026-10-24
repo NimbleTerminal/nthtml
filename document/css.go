@@ -18,6 +18,8 @@ type style struct {
 	margin, padding, bw, width, height int
 	display, align                     string
 	bold                               bool
+	mono, pre                          bool
+	linkID                             int
 }
 
 func declarations(s string) map[string]string {
@@ -137,7 +139,7 @@ func paint(s string) color.RGBA {
 	return color.RGBA{}
 }
 func (d *Document) styled(n *node, parent style) style {
-	s := style{size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
+	s := style{mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
 	switch n.tag {
 	case "span", "a", "em", "strong", "b", "i", "code", "small":
 		s.display = "inline"
@@ -155,6 +157,23 @@ func (d *Document) styled(n *node, parent style) style {
 		s.margin = 10
 	case "p", "ul", "ol":
 		s.margin = 8
+	}
+	if n.tag == "pre" {
+		s.mono = true
+		s.pre = true
+		s.padding = 12
+		s.margin = 8
+		s.bg = color.RGBA{238, 241, 246, 255}
+	}
+	if n.tag == "code" {
+		s.mono = true
+	}
+	if n.tag == "a" {
+		s.linkID = 0
+		if SafeURL(n.attrs["href"]) != "" {
+			s.linkID = n.id
+			s.fg = color.RGBA{40, 92, 186, 255}
+		}
 	}
 	if n.tag == "strong" || n.tag == "b" || n.tag == "th" {
 		s.bold = true

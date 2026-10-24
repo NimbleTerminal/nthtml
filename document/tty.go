@@ -11,10 +11,11 @@ import (
 const maxTTYBytes = 4 << 20
 
 type ttyFlow struct {
-	pending strings.Builder
-	parts   []string
-	bytes   int
-	width   int
+	pending   strings.Builder
+	parts     []string
+	bytes     int
+	width     int
+	preColumn int
 }
 
 func (f *ttyFlow) append(s string) error {
@@ -50,6 +51,13 @@ func (f *ttyFlow) flush() error {
 // narrow tables fall back to stacked records. Terminal controls are removed.
 // Width is clamped to 2–1000 cells; generated output is capped at 4 MiB.
 func (d *Document) TTY(ctx context.Context, width int) (string, error) {
+	result, err := d.TTYLayout(ctx, width)
+	if err != nil {
+		return "", err
+	}
+	return result.Text, nil
+}
+func (d *Document) tty(ctx context.Context, width int) (string, error) {
 	if d == nil || d.root == nil {
 		return "", nil
 	}
@@ -61,12 +69,96 @@ func (d *Document) TTY(ctx context.Context, width int) (string, error) {
 		}
 		b := &f.pending
 		if n.tag == "" {
-			b.WriteString(cleanText(n.text))
+			if parent.pre {
+				text, col := preTextAt(n.text, f.preColumn)
+				f.preColumn = col
+				b.WriteString(text)
+			} else {
+				b.WriteString(cleanText(n.text))
+			}
 			return nil
 		}
 		s := d.styled(n, parent)
 		if s.display == "none" {
 			return nil
+		}
+		if n.tag == "a" && s.linkID != 0 {
+			b.WriteString(linkStart(s.linkID))
+			for _, child := range n.children {
+				if err := walk(child, s, f, inCell); err != nil {
+					return err
+				}
+			}
+			b.WriteString(linkEnd)
+			if parent.linkID != 0 {
+				b.WriteString(linkStart(parent.linkID))
+			}
+			return nil
+		}
+		if n.tag == "pre" {
+			if err := f.flush(); err != nil {
+				return err
+			}
+			code := &ttyFlow{width: f.width}
+			for _, child := range n.children {
+				if err := walk(child, s, code, true); err != nil {
+					return err
+				}
+			}
+			text := strings.TrimPrefix(code.pending.String(), "\n")
+			// Preserve whitespace; soft-wrap long lines without collapsing indentation.
+			return f.append(strings.Join(linkedLines(ansi.Hardwrap(text, f.width, true)), "\n"))
+		}
+		if n.tag == "ul" || n.tag == "ol" {
+			if err := f.flush(); err != nil {
+				return err
+			}
+			index := listStart(n)
+			var items []string
+			listBytes := 0
+			for _, child := range n.children {
+				if child.tag != "li" {
+					continue
+				}
+				if d.styled(child, s).display == "none" {
+					continue
+				}
+				if n.tag == "ol" {
+					index = listNumber(child.attrs["value"], index)
+				}
+				marker := listMarker(n, index) + " "
+				index++
+				indent := ansi.StringWidth(marker)
+				innerWidth := max(2, f.width-indent)
+				item := &ttyFlow{width: innerWidth}
+				if err := walk(child, s, item, inCell); err != nil {
+					return err
+				}
+				if err := item.flush(); err != nil {
+					return err
+				}
+				lines := linkedLines(strings.Join(item.parts, "\n\n"))
+				var formatted []string
+				if f.width-indent < 2 {
+					formatted = append(formatted, ansi.Hardwrap(strings.TrimSpace(marker), f.width, true))
+					marker = ""
+					indent = 0
+				}
+				for i, line := range lines {
+					prefix := strings.Repeat(" ", indent)
+					if i == 0 {
+						prefix = marker
+					}
+					formatted = append(formatted, prefix+line)
+				}
+				itemText := strings.Join(formatted, "\n")
+				listBytes += len(itemText) + 1
+				if listBytes > maxTTYBytes {
+					return limitError("TTY list output")
+				}
+				items = append(items, itemText)
+			}
+			return f.append(strings.Join(items, "\n"))
 		}
 		if n.tag == "br" {
 			b.WriteByte('\n')
@@ -85,7 +177,10 @@ func (d *Document) TTY(ctx context.Context, width int) (string, error) {
 				if err := walk(c, st, cell, true); err != nil {
 					return "", err
 				}
-				return normalizeTTY(cell.pending.String()), nil
+				if err := cell.flush(); err != nil {
+					return "", err
+				}
+				return strings.Join(cell.parts, "\n\n"), nil
 			}
 			text, err := d.ttyTable(ctx, n, s, f.width, cellText)
 			if err != nil {
@@ -110,7 +205,10 @@ func (d *Document) TTY(ctx context.Context, width int) (string, error) {
 				if err := walk(c, s, cell, true); err != nil {
 					return err
 				}
-				b.WriteString(strings.Join(strings.Fields(cell.pending.String()), " "))
+				if err := cell.flush(); err != nil {
+					return err
+				}
+				b.WriteString(strings.Join(strings.Fields(strings.Join(cell.parts, " ")), " "))
 				first = false
 			}
 			b.WriteByte('\n')
@@ -136,7 +234,7 @@ func (d *Document) TTY(ctx context.Context, width int) (string, error) {
 	if err := f.flush(); err != nil {
 		return "", err
 	}
-	return strings.Join(f.parts, "\n\n"), ctx.Err()
+	return strings.Join(linkedLines(strings.Join(f.parts, "\n\n")), "\n"), ctx.Err()
 }
 func normalizeTTY(text string) string {
 	var lines []string

@@ -26,7 +26,13 @@ button:disabled{opacity:.4;cursor:default}[hidden]{display:none!important}
 #reflow-controls input{width:80px;font:inherit;color:#e2e8f0;background:#101827;border:1px solid #536883;border-radius:4px;padding:4px}
 #reflow-controls button{font-size:12px;padding:4px 8px}
 #cell-measure{position:absolute;visibility:hidden;white-space:pre;font:16px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace}
-canvas{display:block;transform-origin:top left;box-shadow:0 12px 40px #0005}
+#canvas-stage{position:relative;width:800px}
+#link-layer{position:absolute;inset:0;pointer-events:none}
+#link-layer a{position:absolute;pointer-events:auto;border-radius:2px}
+#link-layer a:hover{background:#438aff26;outline:1px solid #438aff}
+#link-layer a:focus-visible{outline:2px solid #e99b23;background:#e99b2333}
+#tty a:focus-visible{outline:2px solid #e99b23}
+canvas{height:auto;display:block;transform-origin:top left;box-shadow:0 12px 40px #0005}
 #browser-reference{display:block;width:800px;height:100%;border:0;background:white}
 footer{padding:12px 24px;color:#a7b7ce;font-size:12px}
 @media(max-width:900px){#workspace.comparing{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(2,minmax(0,1fr))}}
@@ -36,7 +42,7 @@ footer{padding:12px 24px;color:#a7b7ce;font-size:12px}
 <span class="brand">nthtml</span>
 <a href="https://github.com/NimbleTerminal/nthtml">GitHub</a>
 <label for="demo">Document</label>
-<select id="demo"><option value="overview">Platform overview</option><option value="invoice">Studio invoice</option><option value="field-notes">Field notes</option><option value="status-report">Delivery status</option></select>
+<select id="demo"><option value="overview">Platform overview</option><option value="invoice">Studio invoice</option><option value="field-notes">Field notes</option><option value="status-report">Delivery status</option><option value="guide">Documentation guide</option></select>
 <div class="controls"><button id="layout" aria-pressed="false">Layout: Typeset</button><button id="out" aria-label="Zoom out">−</button><button id="in" aria-label="Zoom in">+</button><button id="reset">Reset</button><button id="compare" aria-expanded="false" aria-controls="reference-pane">Show browser reference</button></div>
 </header>
 <div id="status" role="status">Loading Go WebAssembly…</div>
@@ -44,14 +50,14 @@ footer{padding:12px 24px;color:#a7b7ce;font-size:12px}
 <section class="pane" aria-labelledby="render-heading">
 <div class="pane-heading"><h2 id="render-heading">nthtml · Go WASM</h2><span id="render-description">Typeset · 800 px document</span></div>
 <div id="reflow-controls"><label for="container-width">Container width</label><input id="container-width" type="number" min="280" max="1600" step="20" value="800" aria-label="Container width in pixels"><span>px</span><button id="fit-container">Fit pane</button><span>Drag the lower-right corner to reflow.</span></div>
-<div id="terminal-container"><div id="viewport" class="viewport"><canvas id="document" aria-label="Rendered HTML document preview"></canvas><pre id="tty" hidden aria-label="Plain text document"></pre></div></div>
+<div id="terminal-container"><div id="viewport" class="viewport"><div id="canvas-stage"><canvas id="document" aria-label="Rendered HTML document preview"></canvas><div id="link-layer" aria-label="Document links"></div></div><pre id="tty" hidden aria-label="Plain text document"></pre></div></div>
 </section>
 <section id="reference-pane" class="pane" aria-labelledby="reference-heading" hidden>
 <div class="pane-heading"><h2 id="reference-heading">Browser · same HTML</h2><span>800 px viewport</span><button id="close-reference" aria-label="Close browser reference">Close</button></div>
 <div class="viewport"><iframe id="browser-reference" title="Browser rendering of the selected HTML document" sandbox="" referrerpolicy="no-referrer"></iframe></div>
 </section>
 </main>
-<footer>Browser reference uses native browser defaults; differences are expected. Scroll each pane independently; press t to switch layout, + / − to zoom, and 0 to reset.</footer>
+<footer>Browser reference uses native browser defaults; differences are expected. Scroll each pane independently; Tab to focus links; press t to switch layout, + / − to zoom, and 0 to reset.</footer>
 <span id="cell-measure" aria-hidden="true">0000000000</span>
 <script src="wasm_exec.js"></script>
 <script>
@@ -82,6 +88,22 @@ document.getElementById('close-reference').onclick=()=>{setComparison(false);com
 const tty=document.getElementById("tty");
 const layoutButton=document.getElementById("layout");
 const canvas=document.getElementById('document');
+const canvasStage=document.getElementById('canvas-stage');
+const linkLayer=document.getElementById('link-layer');
+let previousLinks,previousSegments;
+function safeHref(href){try{const url=new URL(href,document.baseURI);return ['http:','https:','mailto:'].includes(url.protocol)?url.href:null}catch{return null}}
+function refreshLinks(){
+ if(previousLinks!==canvas.nthtmlLinks){
+  previousLinks=canvas.nthtmlLinks;linkLayer.replaceChildren();
+  for(const link of canvas.nthtmlLinks||[]){const href=safeHref(link.href);if(!href)continue;
+   link.regions.forEach((r,i)=>{const a=document.createElement('a');a.href=href;a.target='_blank';a.rel='noopener noreferrer';a.title=link.href;a.setAttribute('aria-label',link.text);a.style.left=(100*r.x/canvas.width)+'%';a.style.top=(100*r.y/canvas.height)+'%';a.style.width=(100*r.width/canvas.width)+'%';a.style.height=(100*r.height/canvas.height)+'%';if(i>0){a.tabIndex=-1;a.setAttribute('aria-hidden','true')};linkLayer.append(a)});
+  }
+ }
+ if(previousSegments!==tty.nthtmlSegments){
+  previousSegments=tty.nthtmlSegments;tty.replaceChildren();const seen=new Set();
+  for(const segment of tty.nthtmlSegments||[]){const href=segment.href&&safeHref(segment.href);if(!href){tty.append(document.createTextNode(segment.text));continue};const a=document.createElement('a');a.textContent=segment.text;a.href=href;a.target='_blank';a.rel='noopener noreferrer';a.title=segment.href;if(seen.has(segment.id))a.tabIndex=-1;seen.add(segment.id);tty.append(a)}
+ }
+}
 const viewport=document.getElementById('viewport');
 const terminalContainer=document.getElementById('terminal-container');
 const widthInput=document.getElementById('container-width');
@@ -97,7 +119,7 @@ function reflow(){
  if(error){document.getElementById('status').textContent=error;return}
  currentWidth=pixels;currentColumns=columns;
  if(document.activeElement!==widthInput)widthInput.value=Math.round(terminalContainer.getBoundingClientRect().width);
- describeLayout();scale();
+ describeLayout();scale();refreshLinks();
  document.getElementById('status').textContent='Rendered by nthtml · Go WebAssembly';
 }
 function scheduleReflow(){clearTimeout(reflowTimer);reflowTimer=setTimeout(reflow,100)}
@@ -105,10 +127,10 @@ const observer=new ResizeObserver(scheduleReflow);observer.observe(viewport);
 widthInput.addEventListener('change',()=>{const width=widthInput.valueAsNumber;if(!Number.isFinite(width))return;terminalContainer.style.width=Math.max(280,Math.min(1600,width))+'px';scheduleReflow()});
 document.getElementById('fit-container').onclick=()=>{terminalContainer.style.width='100%';scheduleReflow()};
 setComparison(new URLSearchParams(location.search).get('compare')==='1');
-function scale(){canvas.style.width=(canvas.width*zoom)+'px'}
+function scale(){canvasStage.style.width=(canvas.width*zoom)+'px';canvas.style.width='100%'}
 function toggleLayout(){
  const previous=ttyMode?"tty":"typeset";positions[previous]=[viewport.scrollLeft,viewport.scrollTop];
- ttyMode=!ttyMode;canvas.hidden=ttyMode;tty.hidden=!ttyMode;
+ ttyMode=!ttyMode;canvasStage.hidden=ttyMode;tty.hidden=!ttyMode;
  describeLayout();scheduleReflow();
  layoutButton.textContent="Layout: "+(ttyMode?"TTY":"Typeset");layoutButton.setAttribute("aria-pressed",String(ttyMode));
  document.getElementById("in").disabled=ttyMode;document.getElementById("out").disabled=ttyMode;

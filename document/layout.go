@@ -11,6 +11,8 @@ import (
 	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/gomono"
+	"golang.org/x/image/font/gofont/gomonobold"
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
@@ -23,12 +25,15 @@ type Box struct {
 	Tag, Text string
 	FontSize  int
 	Bold      bool
+	Monospace bool
+	LinkID    int
 	Color     color.RGBA
 }
 type Result struct {
 	document *Document
 	Image    *image.RGBA
 	Boxes    []Box
+	Links    []Link
 }
 type operation struct {
 	box    Box
@@ -37,25 +42,33 @@ type operation struct {
 type faceKey struct {
 	size int
 	bold bool
+	mono bool
 }
 type layout struct {
-	ctx           context.Context
-	d             *Document
-	opts          Options
-	ops           []operation
-	faces         map[faceKey]font.Face
-	regular, bold *opentype.Font
-	err           error
+	ctx            context.Context
+	d              *Document
+	opts           Options
+	ops            []operation
+	faces          map[faceKey]font.Face
+	regular, bold  *opentype.Font
+	mono, monoBold *opentype.Font
+	err            error
 }
 
 func (l *layout) face(s style) font.Face {
-	k := faceKey{s.size, s.bold}
+	k := faceKey{s.size, s.bold, s.mono}
 	if f := l.faces[k]; f != nil {
 		return f
 	}
 	t := l.regular
 	if s.bold {
 		t = l.bold
+	}
+	if s.mono {
+		t = l.mono
+		if s.bold {
+			t = l.monoBold
+		}
 	}
 	f, e := opentype.NewFace(t, &opentype.FaceOptions{Size: float64(s.size), DPI: 72, Hinting: font.HintingFull})
 	if e != nil {
@@ -105,6 +118,8 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	l := &layout{ctx: ctx, d: d, opts: o, faces: map[faceKey]font.Face{}}
 	l.regular, _ = opentype.Parse(goregular.TTF)
 	l.bold, _ = opentype.Parse(gobold.TTF)
+	l.mono, _ = opentype.Parse(gomono.TTF)
+	l.monoBold, _ = opentype.Parse(gomonobold.TTF)
 	defer func() {
 		for _, f := range l.faces {
 			f.Close()
@@ -121,20 +136,43 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	img := image.NewRGBA(image.Rect(0, 0, o.Width, h))
 	draw.Draw(img, img.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
 	result := &Result{document: d, Image: img, Boxes: make([]Box, 0, len(l.ops))}
+	links, err := d.Links(ctx)
+	if err != nil {
+		return nil, err
+	}
+	linkIndex := map[int]int{}
+	for i, link := range links {
+		linkIndex[link.ID] = i
+	}
 	for _, op := range l.ops {
 		if e := ctx.Err(); e != nil {
 			return nil, e
 		}
 		b := op.box
 		result.Boxes = append(result.Boxes, b)
+		if i, ok := linkIndex[b.LinkID]; ok && b.LinkID != 0 {
+			region := b.Bounds.Intersect(img.Bounds())
+			if !region.Empty() {
+				appendLinkRegion(&links[i], region)
+			}
+		}
 		if op.source != nil {
 			xdraw.ApproxBiLinear.Scale(img, b.Bounds, op.source, op.source.Bounds(), draw.Over, nil)
 		} else if b.Text != "" {
-			f := l.face(style{size: b.FontSize, bold: b.Bold})
+			f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace})
 			dr := font.Drawer{Dst: img, Src: image.NewUniform(b.Color), Face: f, Dot: fixed.P(b.Bounds.Min.X, b.Bounds.Min.Y+f.Metrics().Ascent.Ceil())}
 			dr.DrawString(b.Text)
+			if b.LinkID != 0 {
+				under := image.Rect(b.Bounds.Min.X, b.Bounds.Min.Y+f.Metrics().Ascent.Ceil()+1, b.Bounds.Max.X, b.Bounds.Min.Y+f.Metrics().Ascent.Ceil()+2)
+				draw.Draw(img, under, image.NewUniform(b.Color), image.Point{}, draw.Over)
+			}
 		} else {
 			draw.Draw(img, b.Bounds, image.NewUniform(b.Color), image.Point{}, draw.Over)
+		}
+	}
+	for _, link := range links {
+		if len(link.Regions) > 0 {
+			result.Links = append(result.Links, link)
 		}
 	}
 	return result, nil
@@ -163,7 +201,34 @@ func (l *layout) block(n *node, x, y, w int, parent style) int {
 	l.add(Box{Tag: n.tag}, nil) // reserve background below descendants
 	inset := s.padding + s.bw
 	cx, cy, cw := x+inset, y+inset, max(1, w-2*inset)
-	if n.tag == "img" {
+	if n.tag == "ul" || n.tag == "ol" {
+		index := listStart(n)
+		for _, child := range n.children {
+			if child.tag != "li" {
+				continue
+			}
+			if l.d.styled(child, s).display == "none" {
+				continue
+			}
+			if n.tag == "ol" {
+				index = listNumber(child.attrs["value"], index)
+			}
+			marker := listMarker(n, index)
+			index++
+			indent := min(max(0, cw-1), max(24, font.MeasureString(l.face(s), marker+" ").Ceil()))
+			markerY := cy
+			firstOp := len(l.ops)
+			cy = l.block(child, cx+indent, cy, max(1, cw-indent), s)
+			for _, op := range l.ops[firstOp:] {
+				if op.box.Tag == "text" {
+					markerY = op.box.Bounds.Min.Y
+					break
+				}
+			}
+			l.add(Box{Bounds: image.Rect(cx, markerY, cx+indent, markerY+s.line), Tag: "marker", Text: marker, FontSize: s.size, Bold: s.bold, Color: s.fg}, nil)
+			cy = max(cy, markerY+s.line)
+		}
+	} else if n.tag == "img" {
 		src := l.opts.Images[n.attrs["src"]]
 		if src != nil && !src.Bounds().Empty() {
 			h := s.height
@@ -171,7 +236,7 @@ func (l *layout) block(n *node, x, y, w int, parent style) int {
 				h = int(float64(cw) * float64(src.Bounds().Dy()) / float64(src.Bounds().Dx()))
 			}
 			h = min(h, l.d.limits.Height)
-			l.add(Box{Bounds: image.Rect(cx, cy, cx+cw, cy+h), Tag: "img"}, src)
+			l.add(Box{Bounds: image.Rect(cx, cy, cx+cw, cy+h), Tag: "img", LinkID: s.linkID}, src)
 			cy += h
 		} else {
 			cy = l.flow([]*node{{text: "[image: " + n.attrs["alt"] + "]"}}, cx, cy, cw, s)
@@ -237,6 +302,8 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 	lineStart := len(l.ops)
 	hasText := false
 	pendingSpace := false
+	preStart := true
+	preColumn := 0
 	newline := func() {
 		used := px - x
 		shift := 0
@@ -274,6 +341,34 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			return
 		}
 		f := l.face(st)
+		if st.pre {
+			text, nextColumn := preTextAt(n.text, preColumn)
+			preColumn = nextColumn
+			if preStart {
+				text = strings.TrimPrefix(text, "\n")
+				preStart = false
+			}
+			for _, r := range text {
+				if e := l.ctx.Err(); e != nil {
+					l.err = e
+					return
+				}
+				if r == '\n' {
+					newline()
+					continue
+				}
+				a, _ := f.GlyphAdvance(r)
+				adv := max(1, a.Ceil())
+				if px > x && px+adv > x+w {
+					newline()
+				}
+				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), FontSize: st.size, Bold: st.bold, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
+				px += adv
+				hasText = true
+				lineHeight = max(lineHeight, st.line)
+			}
+			return
+		}
 		// Words wrap at whitespace; oversized words break at rune boundaries.
 		text := n.text
 		for len(text) > 0 {
@@ -301,7 +396,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				runX := px
 				emit := func() {
 					if run.Len() > 0 {
-						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), FontSize: st.size, Bold: st.bold, Color: st.fg}, nil)
+						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), FontSize: st.size, Bold: st.bold, Color: st.fg, Monospace: st.mono, LinkID: st.linkID}, nil)
 						run.Reset()
 						hasText = true
 					}

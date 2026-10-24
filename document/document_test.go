@@ -134,10 +134,16 @@ func TestImageBudget(t *testing.T) {
 func FuzzRender(f *testing.F) {
 	f.Add("<p>Hello <b>world</b></p>")
 	f.Add("<table><tr><td>x")
+	f.Add("<ul><li><a href=\"https://example.com\">linked item</a><pre>\n  code\n\tmore</pre></li></ul>")
 	f.Fuzz(func(t *testing.T, s string) {
 		if len(s) > 4096 {
 			t.Skip()
 		}
-		_, _ = Render(context.Background(), strings.NewReader(s), Options{Width: 200, Limits: Limits{Bytes: 4096, Nodes: 100, Depth: 16, Rules: 16, Height: 1000, Pixels: 200000}})
+		d, err := Parse(context.Background(), strings.NewReader(s), Limits{Bytes: 4096, Nodes: 100, Depth: 16, Rules: 16, Height: 1000, Pixels: 200000})
+		if err != nil {
+			return
+		}
+		_, _ = d.Render(context.Background(), Options{Width: 200})
+		_, _ = d.TTYLayout(context.Background(), 20)
 	})
 }

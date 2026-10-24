@@ -63,7 +63,7 @@ Use `task fmt` and `task go-tidy` to update formatting and module files.
 
 ## Demo gallery
 
-Four embedded documents run through the same renderer on native Go and WASM:
+Five embedded documents run through the same renderer on native Go and WASM:
 
 | Demo | What it shows | Terminal command |
 | --- | --- | --- |
@@ -71,6 +71,7 @@ Four embedded documents run through the same renderer on native Go and WASM:
 | Studio invoice | Nested blocks, itemized table, right-aligned totals | `go run ./examples/demo -demo invoice` |
 | Field notes | Editorial typography, pull quote, long-page scrolling | `go run ./examples/demo -demo field-notes` |
 | Delivery status | Dark palette, metric cards, service report | `go run ./examples/demo -demo status-report` |
+| Documentation guide | Interactive links, nested lists, inline code and preformatted blocks | `go run ./examples/demo -demo guide` |
 
 The browser gallery has a document picker and shareable URLs such as
 `http://localhost:8080/?demo=invoice`. **Show browser reference** opens a
@@ -96,7 +97,8 @@ go run ./cmd/nthtml -o invoice.png examples/demo/documents/invoice.html
 
 Preview images: [invoice](examples/demo/previews/invoice.png),
 [field notes](examples/demo/previews/field-notes.png),
-[status report](examples/demo/previews/status-report.png).
+[status report](examples/demo/previews/status-report.png),
+[documentation guide](examples/demo/previews/guide.png).
 
 ## Terminal component
 
@@ -104,7 +106,7 @@ The component follows ntpicture's pointer-mutating convention:
 
 - Return `viewer.Init()` from the parent's `Init`.
 - Forward all messages through `viewer.Update(msg)` and run returned commands.
-- Call `SetSize(columns, rows)` on resize and compose `viewer.View()` into the parent's view.
+- Call `SetSize(columns, rows)` on resize and compose `viewer.View()` into the parent's view. For a nonzero origin, use `SetBounds(x, y, columns, rows)` so mouse coordinates match the composed widget.
 - Forward input only while focused; the parent owns focus and quit handling.
 - Enable `tea.MouseModeCellMotion` for mouse-wheel scrolling.
 - On exit run `tea.Sequence(viewer.Close(), tea.Quit)`; also defer `viewer.Close()` for resource cleanup.
@@ -137,6 +139,56 @@ Zoom crops the raster; it does not reflow or regenerate higher-resolution text.
 The example uses a full-screen component; multiple positioned Kitty widgets are
 not exposed by this first wrapper.
 
+## Links, lists, and code
+
+Use `<a href="https://example.com">label</a>` for hyperlinks. Typeset links are
+colored and underlined. `Result.Links` exposes safe destinations, stable IDs, and
+pixel rectangles; `Result.LinkAt(image.Point)` performs hit testing. Wrapped links
+can have several rectangles. `Document.Links(ctx)` returns visible link metadata
+without rasterizing.
+
+In the component, **Tab / Shift-Tab** select the next/previous link and scroll it
+into view. **Left-click** activates links in Typeset and TTY modes; **Enter**
+activates the keyboard selection. Both emit `nthtml.LinkMsg{Owner, Link}`. The component never opens
+URLs itself. Handle that message in the parent to choose an opener or custom
+navigation. The terminal demo opens absolute HTTP(S)/mailto destinations using
+`open` on macOS or `xdg-open` on Linux; other targets report the URL. Mouse hit testing accounts for the widget origin, TTY scroll offset, raster
+zoom/pan, and Kitty/glyph letterboxing. Use `Model.LinkAtCell(image.Point)` for
+screen-cell hit testing. A press/release must stay on the same link and cell;
+dragging cancels activation. Clicks are ignored while a replacement raster is
+pending so they cannot activate a target from an undisplayed layout.
+
+`Document.TTYLayout(ctx, columns)` (also available on `Result`) returns plain
+`Text`, cell-based `Links`, and UTF-8 byte-offset `Spans`. Use `.ANSI()` to opt into
+OSC 8 hyperlinks; the widget does this automatically. Every line closes its
+hyperlinks, so scrolling cannot leak them into neighboring rows. Unsupported
+terminals still show readable text. `TTY()` remains escape-free. ANSI generation
+falls back to plain text if escape expansion would exceed its 4 MiB budget.
+
+The browser demo uses real, keyboard-focusable anchors over the canvas hit
+regions and around TTY spans. Clicking or pressing Enter opens a new tab. The
+links are rebuilt when the document reflows; source HTML is never inserted into
+the main page.
+
+Only HTTP(S), mailto, and relative references are exposed as links. Controls,
+backslashes, embedded whitespace, URLs longer than 2,048 bytes, and schemes such
+as `javascript:`, `data:`, and `file:` are rejected; their visible text still
+renders. Relative references are retained for the host: use
+`document.ResolveURL(base, href)` before external activation. The browser demo
+resolves them against its own page URL. Internal fragment scrolling is not yet
+implemented, and no resources are fetched while laying out links.
+
+`ul` / `ol` / `li` produce bullets or decimal numbering with hanging indentation,
+including nested lists. Ordered lists honor `start` and item `value`. Reversed
+lists, alternate numbering styles, and CSS list markers remain unsupported.
+
+`code` selects bundled Go monospace regular/bold faces. `pre` preserves spaces,
+indentation and blank lines, expands tabs to four-column stops, and soft-wraps
+long lines to fit the document. Typeset code blocks have a shaded background;
+TTY is already monospace and retains the whitespace without decoration. A single
+initial newline in `pre` is stripped. There is no syntax highlighting or general
+CSS `white-space` implementation yet.
+
 ## Support matrix
 
 This describes the current implementation, not a roadmap. **Partial** means the
@@ -149,20 +201,21 @@ specific subset below works; it does not imply browser-compatible behavior.
 | --- | --- | --- |
 | HTML parsing | Partial | Documents and fragments, entities, explicit start/end tags, and tolerant handling of unmatched tags. Bounded token-stack parser; no browser tree repair or implied paragraph/table closures. |
 | Block and inline flow | Partial | Blocks, paragraphs, inline text spans, and `br`. `display: block`, `inline`, and `none`. No inline-block formatting, floats, flexbox, grid, or positioned layout. |
-| Headings and emphasis | Partial | Built-in styles for `h1`, `h2`, and bold `b` / `strong` / `th`. Other headings behave as ordinary blocks unless styled. `em`, `i`, `code`, and `small` are inline, without automatic italics, monospace, or smaller type. |
-| Whitespace and line breaks | Partial | Whitespace collapses; `br` inserts a break; long words wrap. No `white-space` modes, preserved `pre` formatting, hyphenation, or ellipsis. |
-| Lists | Partial | List content flows as blocks. No generated bullets, numbering, nesting indentation, or CSS counters. |
+| Headings and emphasis | Partial | Built-in styles for `h1`, `h2`, and bold `b` / `strong` / `th`. Other headings behave as ordinary blocks unless styled. `code` uses monospace. `em`, `i`, and `small` are inline without automatic italics or smaller type. |
+| Whitespace and line breaks | Partial | Ordinary whitespace collapses; `br` inserts a break; long words wrap. `pre` preserves whitespace and expands tabs, with soft wrapping. No general CSS `white-space` modes, hyphenation, or ellipsis. |
+| Lists | Partial | Bullets, decimal numbering, nested/hanging indentation, `ol start`, and `li value`. No reversed lists, alternative marker styles, `list-style` properties, or CSS counters. |
 | Stylesheet sources | Partial | Embedded `<style>` and inline `style` attributes. No external stylesheets, imports, or media-query evaluation. |
 | Selectors and cascade | Partial | Single tag, `.class`, `#id`, `*`, and comma-separated selectors; specificity and source order for the same property; inline declarations override stylesheets. No compound selectors, combinators, attribute selectors, pseudo-classes/elements, `!important`, or full shorthand cascade rules. |
 | Box spacing and sizing | Partial | Single-value `margin` / `padding`, `width`, and `height` (minimum content height). Nonnegative pixels; unitless lengths also mean pixels, not multipliers. Available width constrains boxes. No percentages, `em` / `rem`, viewport units, `calc()`, per-side spacing, margin collapse, or min/max sizing properties. |
 | Borders and backgrounds | Partial | Uniform solid borders using `border`, `border-width`, and `border-color`; solid `background` / `background-color`. No individual sides, dashed/dotted styles, radius, shadows, gradients, or background images. |
-| Typography | Partial | Bundled Go regular/bold fonts; `font-size`, `font-weight` (`bold` / `700` or regular), pixel `line-height`, and left/center/right `text-align`. No `font-family` selection, ntfonts provider, italic face, text decoration, justification, or letter/word spacing. |
+| Typography | Partial | Bundled Go regular/bold and monospace faces; `font-size`, `font-weight` (`bold` / `700` or regular), pixel `line-height`, and left/center/right `text-align`. No `font-family` selection, ntfonts provider, italic face, text decoration, justification, or letter/word spacing. |
 | Unicode text | Partial | Text is drawn from the bundled fonts; TTY wrapping measures terminal cells. No full complex-script shaping, bidi layout, font fallback, or guaranteed emoji coverage. |
 | Colors | Partial | `#rgb`, `#rrggbb`, `black`, `white`, `red`, `green`, `blue`, `gray`, and `transparent`. No alpha hex, `rgb()` / `hsl()`, `currentColor`, or full named-color set. |
 | Tables | Partial | Explicit rows/cells with nested content. Typeset uses equal-width columns per row; TTY uses content-based column widths and wrapping. No colspan/rowspan, shared intrinsic column sizing in Typeset, border collapse, or full CSS table layout. |
 | Images | Partial | Explicit `Options.Images[src]` allowlist; PNG/JPEG/GIF decode helpers and base64 data URL helper. Missing images show alt text. No automatic file/URL loading, animated playback, or browser-style inline image layout. |
 | SVG and other embedded media | Not supported | No SVG fragment renderer, video/audio playback, embedded browser frames, or canvas execution in the document engine. |
-| Links and forms | Not supported | Link text can render, but there is no navigation, hit testing, editable input, form state, or submission. |
+| Hyperlinks | Partial | Safe destinations, raster hit regions, TTY spans/OSC 8, Tab/Enter widget navigation, and browser anchors. Hosts own activation; no built-in fragment navigation. Terminal mouse clicks account for crop, zoom, and cell geometry. |
+| Forms | Not supported | No editable controls, form state, or submission. |
 | JavaScript and dynamic CSS | Not supported | No script execution, DOM/event system, animations, transitions, transforms, filters, or CSS variables. |
 
 Unknown elements generally flow as blocks. Unsupported properties and selectors
@@ -176,7 +229,7 @@ HTML engine.
 
 | Capability | Typeset | TTY |
 | --- | --- | --- |
-| Output | RGBA image and structured paint boxes | Plain text with terminal-cell wrapping |
+| Output | RGBA image, structured paint boxes, and link hit regions | Plain text, terminal-cell link spans, and optional OSC 8 hyperlinks |
 | Visual styling | Supported font sizes, weight, colors, backgrounds, borders, and spacing | Omits font/color/box styling; respects `display: none` and table-cell alignment |
 | Tables | Equal-width cells per row | Unicode borders, header separators, wrapped/aligned cells; stacked records when too narrow; nested tables flatten inside cells |
 | Images | Rasterizes allowlisted images | Alt-text placeholder |

@@ -1,0 +1,32 @@
+<style>
+body { padding: 24px; background: #f4f6fb; color: #233148; }
+h1 { color: #2948a0; }
+h2 { color: #2948a0; }
+pre { background: #e6ecf5; padding: 16px; }
+th { padding: 10px; background: #dce5fa; }
+td { padding: 10px; border: 1px solid #d3dced; }
+</style>
+<body>
+<h1>A small guide to nthtml</h1>
+<p>Read the <a href="https://nimbleterminal.dev/">Nimble Terminal website</a> or browse the <a href="https://github.com/NimbleTerminal/nthtml">nthtml source and examples</a>. Use Tab and Enter to follow links.</p>
+<h2>What you can build</h2>
+<ul>
+<li>Readable terminal documentation with links and code.</li>
+<li>Portable document previews:
+<ul><li>Typeset pixels in a terminal or browser.</li><li>TTY text with wrapped tables and clickable links.</li></ul>
+</li>
+<li>A bounded renderer for your own Go application.</li>
+</ul>
+<h2>Try it</h2>
+<ol start="1"><li>Build the command-line tool with <code>task build</code>.</li><li>Open the documentation demo with <code>task demo DEMO=guide</code>.</li><li>Press <code>t</code> to switch layouts, then resize the browser container.</li></ol>
+<pre><code>package main
+
+func main() {
+    // Indentation and blank lines are preserved.
+    message := "Hello, Nimble Terminal"
+    println(message)
+}
+</code></pre>
+<p>Inline <code>code &lt;like this&gt;</code> uses a monospace face. Long code lines soft-wrap to fit the available width without discarding spaces.</p>
+<table><tr><th>Project</th><th>Resource</th></tr><tr><td>nthtml</td><td><a href="https://github.com/NimbleTerminal/nthtml">Source repository</a></td></tr><tr><td>ntpicture</td><td><a href="https://github.com/NimbleTerminal/ntpicture">Terminal graphics component</a></td></tr></table>
+</body>
