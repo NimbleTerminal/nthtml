@@ -12,7 +12,7 @@ type tableBorder struct {
 
 func borderOf(s style, priority int) tableBorder {
 	c := s.border
-	if c.A == 0 {
+	if !s.borderSet {
 		c = s.fg
 	}
 	return tableBorder{s.bw, priority, c}

@@ -180,6 +180,7 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 			cs := row.styles[i]
 			cs.width = cssLength{}
 			cs.maxWidth = cssLength{}
+			cs.minWidth = cssLength{}
 			cs.margin = [4]cssLength{}
 			padding := resolveEdges(cs.padding, width)
 			if grid != nil {
@@ -248,8 +249,8 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 		if cell.s.bw > 0 {
 			contentEnd -= 4
 			l.ops[contentEnd+1].box.Bounds = l.ops[contentEnd+1].box.Bounds.Add(image.Pt(0, delta))
-			l.ops[contentEnd+2].box.Bounds.Max.Y = bottom
-			l.ops[contentEnd+3].box.Bounds.Max.Y = bottom
+			l.ops[contentEnd+2].box.Bounds.Max.Y = bottom - cell.s.bw
+			l.ops[contentEnd+3].box.Bounds.Max.Y = bottom - cell.s.bw
 		}
 		shift := 0
 		switch cell.s.vertical {

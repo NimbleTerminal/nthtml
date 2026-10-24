@@ -33,7 +33,7 @@ func (d *Document) collectTable(n *node, s style, step func() bool) ([]tableRow,
 					rows[start].anchorIDs = append(rows[start].anchorIDs, child.id)
 				}
 			case "tr":
-				if cs.bg.A == 0 {
+				if cs.bg.A == 0 && parent.tag != "table" {
 					cs.bg = ps.bg
 				}
 				row := tableRow{style: cs}

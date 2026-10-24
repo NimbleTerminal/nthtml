@@ -141,6 +141,8 @@ func FuzzRender(f *testing.F) {
 	f.Add(`<table><thead><tr><th>Header</th><th>Qty</th></tr></thead><tr><td style="padding:4px;border:1px solid blue"><table><tr><td>Nested</td></tr></table></td><td style="vertical-align:bottom"><a href="https://example.com">2</a></td></tr></table>`)
 	f.Add("<ul><li><a href=\"https://example.com\">linked item</a><pre>\n  code\n\tmore</pre></li></ul>")
 	f.Add(spanExample)
+	f.Add(`<html style="font-size:1.25rem"><div style="width:2.54cm;min-height:1em;max-height:2in;padding:.5rem;border:rgba(20,30,40,.5) solid .1em;color:rebeccapurple;background:currentColor">units</div></html>`)
+	f.Add(`<table style="background:rgb(100% 0% 0% / 20%)"><tr><td style="border:transparent solid 2pt;min-width:2cm">alpha</td></tr></table>`)
 	f.Add(`<style>table.report > tbody td.amount{color:red!important} .a .b{white-space:pre-line}</style><table class="report"><tbody><tr><td colspan="2" rowspan="0" class="amount">merged</td></tr><tr><td>x</td></tr></tbody></table>`)
 	f.Add("<p>Before <a href='https://example.com' style='white-space:nowrap'>one two three</a> after</p><pre style='white-space:pre-line'>a\n\n b</pre>")
 	f.Fuzz(func(t *testing.T, s string) {

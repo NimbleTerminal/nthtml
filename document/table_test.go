@@ -71,7 +71,7 @@ func TestTableRowHeightAlignmentAndLinks(t *testing.T) {
 			t.Fatal("link hit region did not follow alignment")
 		}
 		borders := boxesWithTag(r, "border")
-		if len(borders) != 8 || borders[5].Bounds.Max.Y != cells[1].Bounds.Max.Y || borders[6].Bounds.Max.Y != cells[1].Bounds.Max.Y {
+		if len(borders) != 8 || borders[5].Bounds.Max.Y != cells[1].Bounds.Max.Y || borders[6].Bounds.Max.Y != cells[1].Bounds.Max.Y-1 {
 			t.Fatal("borders do not stretch", borders)
 		}
 	}

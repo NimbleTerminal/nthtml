@@ -139,5 +139,21 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 		}
 		preferred = max(preferred, min(4096, width))
 	}
-	return max(1, minimum), max(1, preferred)
+	if s.maxWidth.definite(basis) {
+		v := s.maxWidth.resolve(basis, 4096)
+		if !s.borderBox {
+			v += extra
+		}
+		minimum = min(minimum, v)
+		preferred = min(preferred, v)
+	}
+	if s.minWidth.definite(basis) {
+		v := s.minWidth.resolve(basis, 4096)
+		if !s.borderBox {
+			v += extra
+		}
+		minimum = max(minimum, v)
+		preferred = max(preferred, v)
+	}
+	return max(1, min(4096, minimum)), max(1, min(4096, preferred))
 }

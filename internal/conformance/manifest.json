@@ -42,7 +42,36 @@
     "css/CSS2/selectors/descendent-selector-002.xht": "304937ef4759b342b421a3c0d05ba0958827268b811440506b7a0b898d15e621",
     "css/CSS2/selectors/descendent-selector-002-ref.xht": "31cfcb5adadd9e0b2b72b45180c1d1b0f66c29aea16a0116a49b0cfc74756286",
     "css/CSS2/selectors/descendent-selector-004.xht": "c2f711243a98c2cf5c924b8622ba5f30422a34110e7d96cfd96648cfd04a3a4e",
-    "css/CSS2/selectors/descendent-selector-004-ref.xht": "c9eb4a42cfdb703e381fa62897e93c68e1a81af178b811536af5d3858e0be412"
+    "css/CSS2/selectors/descendent-selector-004-ref.xht": "c9eb4a42cfdb703e381fa62897e93c68e1a81af178b811536af5d3858e0be412",
+    "css/CSS2/normal-flow/min-height-002.xht": "9030c95b3caea0430bbcfa651cbde2468b1b482a99c57ee0b40e9ecc91eabc7c",
+    "css/CSS2/normal-flow/min-height-013.xht": "dd0851d036c666d67c0222666675be29e0eaaad473ba8b69ed96458cbd9bab1d",
+    "css/CSS2/normal-flow/min-height-024.xht": "6a210c707d9944f97cde31efca4e4c4a81d1aba7552e1c7c31d7308969513553",
+    "css/CSS2/normal-flow/max-height-002.xht": "d16f2b8561e1a5077bc5724351bbc5f5ea6423075b0904cf22697916e5b59316",
+    "css/CSS2/normal-flow/max-height-013.xht": "341697fc7ad04444c9ecc71c708dc2baf90f42f4a01694a7d38e6d7f469dece4",
+    "css/CSS2/normal-flow/min-width-002.xht": "fd17c0583e759799c7370f0e9bc925b11b6758775862804a15c7917d62ad1421",
+    "css/CSS2/normal-flow/min-width-013.xht": "39b2b3ac8e6acf006b51a7b5547658dacdcf031d0994240afbb381855da44274",
+    "css/CSS2/normal-flow/max-height-025.xht": "25832ad637bdaf3455e81914b8eeac093b4714e585a080158ae21360f1464ae7",
+    "css/CSS2/normal-flow/max-height-025-ref.xht": "422a86c378705f4bfe7827d082d5eade49089f810ec006b35d3a9997508e1b53",
+    "css/css-color/rgb-001.html": "ceea9f6c155846abefdab7b1bea6b795d18b34844828fd803233b4e2f68070bd",
+    "css/css-color/greensquare-ref.html": "ee5aed0f5b0ad234da0c8c2be8991f6edc8775d11015e9ec33727db4b7e476e5",
+    "css/css-color/rgb-002.html": "eb3498bbad5967091b9092b9a01c661a797453fbd4785b4b491045fb6573137e",
+    "css/css-color/rgba-001.html": "31765e250b9d4faa54d8ab3f3bd780df6bf7fa3ec3d6a169b113f499090d2d9f",
+    "css/css-color/hex-003.html": "844048a65335554881e698d7e9e008dc74c5a7b6c7424687c3558cfc106b9c0f",
+    "css/css-color/hex-003-ref.html": "97cf158bb6824ea747ab6dbbd246ce145fb8db9cbdf46b2328646594f766bbc6",
+    "css/css-color/named-001.html": "a885eedce1c56a30bb821e8d8eabc2ac49b7edb864aff33444091d27d2d7de47",
+    "css/css-color/rebeccapurple-ref.html": "ffac5857bbe0ca4d47a58d1cfa8a5745f647e756779a9f46fcab82ba2fd18d37",
+    "css/css-color/currentcolor-003.html": "41729a3a42764dc2bb5c7a33c3e463b51dd2893d0773df57c647ecf916faab08",
+    "css/css-color/currentcolor-003-ref.html": "f9dd2d6d7c4497931a2e3b7743b3dcf57ca6e94a5e572535de17b46f45020af8",
+    "css/css-color/t44-currentcolor-background-b.xht": "329254e2886b534eb4cf5943c924aabde76470e5a96bd859aee75307c6002c60",
+    "css/css-color/t44-currentcolor-background-b-ref.html": "2a841571c5b3349df2ffedd9bcb43c641b027216bc2b337ba2aab58e8d0621cd",
+    "css/css-color/t44-currentcolor-border-b.xht": "cdb49b9aed39c301d7eaadee13227f0838ca6ecaef7af0e010f6856c032658f9",
+    "css/css-color/t44-currentcolor-border-b-ref.html": "c654efca212a634f09f5925ff68dde594c7d74d5ec5af3287da0e69971c1e667",
+    "css/css-color/t422-rgba-a1.0-a.xht": "23e04721bf9d91fc2d9a60fc13df571dba4bddcfdbdec112ec44209dcc0c1719",
+    "css/css-color/t422-rgba-a1.0-a-ref.html": "0e8a8bf69c510ca1bb9f8c044ea684033d4e3cbd8c23f0de61bebd5eb978f48d",
+    "css/css-color/t421-rgb-hex3-expand-b.xht": "cf8cacadca7bbc212ed0def33dc338d3a630600a5b84f466cecd4f2adf966da1",
+    "css/css-color/t421-rgb-hex3-expand-b-ref.html": "0daed90efa3a4a688fb9936df55a136a5a4b85f4a5f34353650d5aa123e2e1b6",
+    "css/css-values/absolute-length-units-001.html": "10be9f5be4dbea6bf91b8aa7b08da29548dcfd3288f4d1c2963ba4de46551421",
+    "css/css-values/rem-unit-root-element.html": "c634036a28760c7ce1aaa19019c29339599df763c19e3bd306797a284a93c090"
   },
   "cases": [
     {
@@ -98,7 +127,7 @@
     {
       "path": "css/CSS2/margin-padding-clear/margin-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires absolute positioning plus physical cm/in length units."
+      "reason": "Requires absolute positioning and offsets."
     },
     {
       "path": "css/css-sizing/box-sizing-border-box-001.xht",
@@ -108,17 +137,17 @@
     {
       "path": "css/CSS2/borders/border-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Reference requires external Ahem stylesheet/font, em units, word-spacing."
+      "reason": "Reference requires external Ahem stylesheet/font and word-spacing."
     },
     {
       "path": "css/CSS2/tables/border-collapse-offset-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires absolute positioning, additional named colors, and unrestricted border shorthand order."
+      "reason": "Requires absolute positioning and offsets."
     },
     {
       "path": "css/CSS2/tables/border-conflict-element-001d.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires Ahem, external image assets, per-side border colors, em units, XHTML CSS CDATA."
+      "reason": "Requires Ahem, external image assets, per-side border colors and XHTML CSS CDATA."
     },
     {
       "path": "css/CSS2/tables/border-collapse-001.xht",
@@ -149,6 +178,106 @@
       "path": "css/CSS2/selectors/descendent-selector-004.xht",
       "expected": "PASS",
       "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-height-002.xht",
+      "expected": "PASS",
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-height-013.xht",
+      "expected": "PASS",
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-height-024.xht",
+      "expected": "PASS",
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-height-002.xht",
+      "expected": "PASS",
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-height-013.xht",
+      "expected": "PASS",
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-width-002.xht",
+      "expected": "PASS",
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-width-013.xht",
+      "expected": "PASS",
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-height-025.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires relative positioning, external images, and XHTML CDATA in the reference."
+    },
+    {
+      "path": "css/css-color/rgb-001.html",
+      "expected": "FAIL",
+      "reason": "Known gap: paragraph default margins and absent margin collapse shift the two half-squares relative to the div reference; color and em sizing are implemented."
+    },
+    {
+      "path": "css/css-color/rgb-002.html",
+      "expected": "FAIL",
+      "reason": "Known gap: paragraph default margins and absent margin collapse shift the two half-squares relative to the div reference; color and em sizing are implemented."
+    },
+    {
+      "path": "css/css-color/rgba-001.html",
+      "expected": "FAIL",
+      "reason": "Known gap: paragraph default margins and absent margin collapse shift the two half-squares relative to the div reference; color and em sizing are implemented."
+    },
+    {
+      "path": "css/css-color/hex-003.html",
+      "expected": "FAIL",
+      "reason": "Known gap: paragraph default margins and absent margin collapse shift the two half-squares relative to the div reference; color and em sizing are implemented."
+    },
+    {
+      "path": "css/css-color/named-001.html",
+      "expected": "PASS",
+      "reason": "RebeccaPurple and hexadecimal equivalents paint the same 10em square."
+    },
+    {
+      "path": "css/css-color/currentcolor-003.html",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires first-line pseudo-elements, inline box decorations, gradients, shadows, and filters."
+    },
+    {
+      "path": "css/css-color/t44-currentcolor-background-b.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires XHTML CSS CDATA processing; the harness uses the HTML tokenizer."
+    },
+    {
+      "path": "css/css-color/t44-currentcolor-border-b.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires XHTML CSS CDATA processing; the harness uses the HTML tokenizer."
+    },
+    {
+      "path": "css/css-color/t422-rgba-a1.0-a.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires XHTML CSS CDATA processing; the harness uses the HTML tokenizer."
+    },
+    {
+      "path": "css/css-color/t421-rgb-hex3-expand-b.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires XHTML CSS CDATA processing; the harness uses the HTML tokenizer."
+    },
+    {
+      "path": "css/css-values/absolute-length-units-001.html",
+      "expected": "UNSUPPORTED",
+      "reason": "JavaScript testharness/getComputedStyle test, not a visual reference test. Equivalent length ratios have local native/WASM regression coverage."
+    },
+    {
+      "path": "css/css-values/rem-unit-root-element.html",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires JavaScript testharness, dynamic restyling, :root, and initial values; not a visual reference test."
     }
   ]
 }

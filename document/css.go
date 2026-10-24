@@ -13,6 +13,9 @@ type rule struct {
 	specificity int
 }
 type style struct {
+	borderSet                       bool
+	rootSize                        int
+	minWidth, minHeight, maxHeight  cssLength
 	whiteSpace, overflowWrap        string
 	spacing                         [2]int
 	collapse                        bool
@@ -53,6 +56,21 @@ func declarations(s string) map[string]string {
 		}
 		k = strings.ToLower(strings.TrimSpace(k))
 		v, important = importance(strings.TrimSpace(v))
+		if k == "color" || k == "background" || k == "background-color" || k == "border-color" {
+			if _, ok := cssColor(v, color.RGBA{}); !ok {
+				continue
+			}
+		}
+		if k == "font-size" {
+			if _, ok := parseLength(v, false, false); !ok {
+				continue
+			}
+		}
+		if k == "line-height" && v != "normal" {
+			if _, ok := parseLength(v, false, false); !ok {
+				continue
+			}
+		}
 		if k == "white-space" {
 			v = strings.ToLower(v)
 			if v != "normal" && v != "nowrap" && v != "pre" && v != "pre-wrap" && v != "pre-line" && v != "break-spaces" {
@@ -70,7 +88,7 @@ func declarations(s string) map[string]string {
 			valid := len(parts) == 1 || len(parts) == 2
 			for _, p := range parts {
 				l, ok := parseLength(p, false, false)
-				valid = valid && ok && l.unit == lengthPX
+				valid = valid && ok && l.absolute()
 			}
 			if !valid {
 				continue
@@ -106,14 +124,18 @@ func declarations(s string) map[string]string {
 				put(k+"-"+side, sides[j])
 			}
 		case "border":
-			parts := strings.Fields(v)
-			if len(parts) > 0 {
-				if _, ok := parseLength(parts[0], false, false); ok {
-					put("border-width", parts[0])
+			if values, ok := borderValues(v); ok {
+				for key, value := range values {
+					put(key, value)
 				}
 			}
-			if len(parts) > 2 {
-				put("border-color", parts[2])
+		case "border-width":
+			if _, ok := borderWidth(v); ok {
+				put(k, v)
+			}
+		case "border-style":
+			if strings.EqualFold(v, "solid") || strings.EqualFold(v, "none") {
+				put(k, strings.ToLower(v))
 			}
 		case "word-wrap":
 			put("overflow-wrap", v)
@@ -122,8 +144,8 @@ func declarations(s string) map[string]string {
 		case "text-decoration":
 			put("text-decoration-line", v)
 		default:
-			if strings.HasPrefix(k, "margin-") || strings.HasPrefix(k, "padding-") || k == "width" || k == "height" || k == "max-width" {
-				if _, ok := parseLength(v, strings.HasPrefix(k, "margin-") || k == "width" || k == "height", k == "max-width"); !ok {
+			if strings.HasPrefix(k, "margin-") || strings.HasPrefix(k, "padding-") || k == "width" || k == "height" || k == "max-width" || k == "min-width" || k == "min-height" || k == "max-height" {
+				if _, ok := parseLength(v, strings.HasPrefix(k, "margin-") || k == "width" || k == "height", k == "max-width" || k == "max-height"); !ok {
 					continue
 				}
 			}
@@ -182,32 +204,11 @@ func parseCSS(s string, budget int) ([]rule, error) {
 	}
 	return out, nil
 }
-func number(s string) int {
-	l, ok := parseLength(s, false, false)
-	if !ok || l.unit != lengthPX {
-		return 0
-	}
-	return l.resolve(0, 16384)
-}
-func paint(s string) color.RGBA {
-	names := map[string]string{"black": "#000000", "white": "#ffffff", "red": "#ff0000", "green": "#008000", "blue": "#0000ff", "gray": "#808080", "transparent": ""}
-	s = strings.ToLower(s)
-	if v, ok := names[s]; ok {
-		s = v
-	}
-	if len(s) == 4 && s[0] == '#' {
-		s = "#" + strings.Repeat(s[1:2], 2) + strings.Repeat(s[2:3], 2) + strings.Repeat(s[3:4], 2)
-	}
-	if len(s) == 7 && s[0] == '#' {
-		v, e := strconv.ParseUint(s[1:], 16, 32)
-		if e == nil {
-			return color.RGBA{uint8(v >> 16), uint8(v >> 8), uint8(v), 255}
-		}
-	}
-	return color.RGBA{}
-}
 func (d *Document) styled(n *node, parent style) style {
-	s := style{whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
+	s := style{rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
+	if s.rootSize == 0 {
+		s.rootSize = 16
+	}
 	if n.tag == "svg" {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
 		s.height, _ = parseLength(n.attrs["height"], true, false)
@@ -266,6 +267,18 @@ func (d *Document) styled(n *node, parent style) style {
 		s.bold = true
 	}
 	values := n.decl
+	if c, ok := cssColor(values["color"], parent.fg); ok {
+		s.fg = c
+	}
+	if value, ok := parseLength(values["font-size"], false, false); ok {
+		value = value.computed(max(1, parent.size), s.rootSize)
+		if size := value.resolve(parent.size, 128); size > 0 {
+			s.size = size
+		}
+	}
+	if n.tag == "html" {
+		s.rootSize = s.size
+	}
 	keys := make([]string, 0, len(values))
 	for k := range values {
 		keys = append(keys, k)
@@ -274,12 +287,8 @@ func (d *Document) styled(n *node, parent style) style {
 	for _, k := range keys {
 		v := values[k]
 		switch k {
-		case "font-size":
-			if value, ok := parseLength(v, false, false); ok {
-				if size := value.resolve(parent.size, 128); size > 0 {
-					s.size = size
-				}
-			}
+		case "font-size": // Resolved before all font-relative properties.
+
 		case "font-family":
 			s.family = v
 			s.mono = false
@@ -301,12 +310,12 @@ func (d *Document) styled(n *node, parent style) style {
 		case "line-height":
 			if v == "normal" {
 				s.lineMultiplier = 1.375
-			} else if !strings.HasSuffix(v, "px") && !strings.HasSuffix(v, "%") {
+			} else if cssNumber.MatchString(v) {
 				if l, ok := parseLength(v, false, false); ok && l.value > 0 {
 					s.lineMultiplier = min(l.value, 16)
 				}
 			} else if l, ok := parseLength(v, false, false); ok {
-				if line := l.resolve(s.size, 256); line > 0 {
+				if line := l.computed(s.size, s.rootSize).resolve(s.size, 256); line > 0 {
 					s.line = line
 					s.lineMultiplier = 0
 				}
@@ -335,11 +344,12 @@ func (d *Document) styled(n *node, parent style) style {
 				s.underline, s.strike = underline, strike
 			}
 		case "color":
-			s.fg = paint(v)
+			// Color resolves first so currentColor is independent of key order.
 		case "background-color":
-			s.bg = paint(v)
+			s.bg, _ = cssColor(v, s.fg)
 		case "border-color":
-			s.border = paint(v)
+			s.border, _ = cssColor(v, s.fg)
+			s.borderSet = true
 		case "border-collapse":
 			if v == "collapse" {
 				s.collapse = true
@@ -347,13 +357,21 @@ func (d *Document) styled(n *node, parent style) style {
 				s.collapse = false
 			}
 		case "border-width":
-			s.bw = min(number(v), 32)
+			if l, ok := borderWidth(v); ok {
+				s.bw = l.computed(s.size, s.rootSize).resolve(0, 32)
+			}
 		case "width":
 			s.width, _ = parseLength(v, true, false)
 		case "height":
 			s.height, _ = parseLength(v, true, false)
 		case "max-width":
 			s.maxWidth, _ = parseLength(v, false, true)
+		case "min-width":
+			s.minWidth, _ = parseLength(v, false, false)
+		case "min-height":
+			s.minHeight, _ = parseLength(v, false, false)
+		case "max-height":
+			s.maxHeight, _ = parseLength(v, false, true)
 		case "box-sizing":
 			if v == "border-box" {
 				s.borderBox = true
@@ -380,13 +398,13 @@ func (d *Document) styled(n *node, parent style) style {
 			if len(parts) == 1 || len(parts) == 2 {
 				a, ok := parseLength(parts[0], false, false)
 				b := a
-				valid := ok && a.unit == lengthPX
+				valid := ok && a.absolute()
 				if len(parts) == 2 {
 					b, ok = parseLength(parts[1], false, false)
-					valid = valid && ok && b.unit == lengthPX
+					valid = valid && ok && b.absolute()
 				}
 				if valid {
-					s.spacing = [2]int{a.resolve(0, 256), b.resolve(0, 256)}
+					s.spacing = [2]int{a.computed(s.size, s.rootSize).resolve(0, 256), b.computed(s.size, s.rootSize).resolve(0, 256)}
 				}
 			}
 		case "vertical-align":
@@ -405,6 +423,18 @@ func (d *Document) styled(n *node, parent style) style {
 				}
 			}
 		}
+	}
+	if values["border-style"] == "none" {
+		s.bw = 0
+	} else if values["border-style"] == "solid" && values["border-width"] == "" {
+		s.bw = 3
+	}
+	for _, p := range []*cssLength{&s.width, &s.height, &s.maxWidth, &s.minWidth, &s.minHeight, &s.maxHeight} {
+		*p = p.computed(s.size, s.rootSize)
+	}
+	for i := range s.margin {
+		s.margin[i] = s.margin[i].computed(s.size, s.rootSize)
+		s.padding[i] = s.padding[i].computed(s.size, s.rootSize)
 	}
 	if s.lineMultiplier > 0 {
 		s.line = min(256, int(float64(s.size)*s.lineMultiplier))

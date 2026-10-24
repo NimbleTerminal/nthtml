@@ -207,7 +207,14 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		}
 		target = min(target, cap)
 	}
-	target = max(1, min(available, target))
+	if s.minWidth.definite(w) {
+		floor := s.minWidth.resolve(w, 16384)
+		if !s.borderBox {
+			floor += extra
+		}
+		target = max(target, floor)
+	}
+	target = max(0, min(available, target))
 	spare := max(0, available-target)
 	if s.margin[3].unit == lengthAuto {
 		if s.margin[1].unit == lengthAuto {
@@ -225,6 +232,27 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		if s.borderBox {
 			height = max(0, height-padding[0]-padding[2]-2*s.bw)
 		}
+	}
+	kind, _ := diagramSource(n)
+	constrainHeight := kind == "" && n.tag != "img" && n.tag != "table" && n.tag != "tr" && n.tag != "td" && n.tag != "th" && n.tag != "thead" && n.tag != "tbody" && n.tag != "tfoot"
+	clampHeight := func(h int) int {
+		content := func(v cssLength) int {
+			size := v.resolve(parentHeight, l.d.limits.Height)
+			if s.borderBox {
+				size = max(0, size-padding[0]-padding[2]-2*s.bw)
+			}
+			return size
+		}
+		if s.maxHeight.definite(parentHeight) {
+			h = min(h, content(s.maxHeight))
+		}
+		if s.minHeight.definite(parentHeight) {
+			h = max(h, content(s.minHeight))
+		}
+		return h
+	}
+	if height >= 0 && constrainHeight {
+		height = clampHeight(height)
 	}
 	start := y
 	opStart := len(l.ops)
@@ -309,11 +337,13 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	// Definite block heights size the box even when content overflows.
 	// Tables/cells retain their minimum-height rules; replaced content keeps
 	// the size chosen by its image/diagram layout.
-	kind, _ := diagramSource(n)
-	if height >= 0 && kind == "" && n.tag != "img" && n.tag != "table" && n.tag != "tr" && n.tag != "td" && n.tag != "th" && n.tag != "thead" && n.tag != "tbody" && n.tag != "tfoot" {
+	if height >= 0 && constrainHeight {
 		cy = contentY + height
 	} else {
 		cy = max(cy, contentY+max(0, height))
+	}
+	if constrainHeight {
+		cy = contentY + clampHeight(cy-contentY)
 	}
 	cy += padding[2] + s.bw
 	if l.err != nil {
@@ -325,14 +355,15 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	if s.bw > 0 {
 		r := image.Rect(x, start, x+w, cy)
 		c := s.border
-		if c.A == 0 {
+		if !s.borderSet {
 			c = s.fg
 		}
-		b := s.bw
-		l.rect(image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+b), c, "border")
-		l.rect(image.Rect(r.Min.X, r.Max.Y-b, r.Max.X, r.Max.Y), c, "border")
-		l.rect(image.Rect(r.Min.X, r.Min.Y, r.Min.X+b, r.Max.Y), c, "border")
-		l.rect(image.Rect(r.Max.X-b, r.Min.Y, r.Max.X, r.Max.Y), c, "border")
+		borderRect := func(r image.Rectangle, c color.RGBA, tag string) { l.add(Box{Bounds: r, Color: c, Tag: tag}, nil) }
+		b := min(s.bw, r.Dx()/2, r.Dy()/2)
+		borderRect(image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+b), c, "border")
+		borderRect(image.Rect(r.Min.X, r.Max.Y-b, r.Max.X, r.Max.Y), c, "border")
+		borderRect(image.Rect(r.Min.X, r.Min.Y+b, r.Min.X+b, r.Max.Y-b), c, "border")
+		borderRect(image.Rect(r.Max.X-b, r.Min.Y+b, r.Max.X, r.Max.Y-b), c, "border")
 	}
 	if cy+margin[2] > l.d.limits.Height {
 		l.err = limitError("height")
