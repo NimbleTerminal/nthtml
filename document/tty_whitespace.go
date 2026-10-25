@@ -66,7 +66,7 @@ func wrapTTYRuns(runs []ttyRun, width int) string {
 		if pendingSpace && lineWidth > 0 {
 			space = 1
 		}
-		wrap := false
+		wrap := pendingSpace
 		for _, u := range word {
 			wrap = wrap || u.wrap
 		}

@@ -86,13 +86,17 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 			l.err = err
 			return 1, 1
 		}
+		sx := s.spacing[0]
+		if s.collapse {
+			sx = 0
+		}
 		mins, prefs := make([]int, cols), make([]int, cols)
 		for _, row := range rows {
 			for i, cell := range row.cells {
 				a, b := l.preferredCell(cell, row.styles[i], basis)
 				sp := row.spans[i]
-				spreadRequirement(mins, sp.col, sp.cols, a)
-				spreadRequirement(prefs, sp.col, sp.cols, b)
+				spreadRequirement(mins, sp.col, sp.cols, max(1, a-sx*(sp.cols-1)))
+				spreadRequirement(prefs, sp.col, sp.cols, max(1, b-sx*(sp.cols-1)))
 			}
 		}
 		for i := range mins {
@@ -121,7 +125,11 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 		flushLine()
 	}
 	p := resolveEdges(s.padding, basis)
-	extra := p[1] + p[3] + 2*s.bw
+	bw := s.bw
+	if n.tag == "table" && s.collapse {
+		bw = 0
+	}
+	extra := p[1] + p[3] + 2*bw
 	if n.tag != "td" && n.tag != "th" {
 		m := resolveEdges(s.margin, basis)
 		extra += m[1] + m[3]

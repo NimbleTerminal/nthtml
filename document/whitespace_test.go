@@ -101,3 +101,18 @@ func TestAnchoredPreInitialNewline(t *testing.T) {
 		t.Fatal("anchor lost")
 	}
 }
+
+func TestAdjacentNowrapSpanWrapping(t *testing.T) {
+	r := renderCSS(t, `<div style="width:90px;white-space:normal"><span style="white-space:nowrap">alpha </span> <span style="white-space:nowrap">bravo </span> <span style="white-space:nowrap">charlie </span></div>`)
+	boxes := boxesWithTag(r, "text")
+	if len(boxes) < 3 || boxes[len(boxes)-1].Bounds.Min.Y <= boxes[0].Bounds.Min.Y {
+		t.Fatalf("expected adjacent nowrap spans separated by normal spaces to wrap: %v", boxes)
+	}
+	text, err := r.TTY(context.Background(), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(text, "\n") {
+		t.Fatalf("expected TTY wrapping between nowrap spans: %q", text)
+	}
+}

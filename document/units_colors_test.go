@@ -129,7 +129,7 @@ func TestZeroWidthDoesNotPaintBackground(t *testing.T) {
 }
 
 func TestTranslucentTableBackgroundPaintsOnce(t *testing.T) {
-	r := renderCSS(t, `<table style="background:rgba(255,0,0,.5)"><tr><td style="height:20px"></td></tr></table>`)
+	r := renderCSS(t, `<table style="background:rgba(255,0,0,.5)"><tr><td style="width:20px;height:20px"></td></tr></table>`)
 	if c := r.Image.RGBAAt(5, 5); c != (color.RGBA{255, 127, 127, 255}) {
 		t.Fatal("table background applied again on row", c)
 	}
@@ -144,11 +144,22 @@ func TestPhysicalAndPixelLayoutEquivalent(t *testing.T) {
 }
 
 func TestAlphaBorderCornersPaintOnce(t *testing.T) {
-	for _, source := range []string{`<article style="width:20px;height:20px;border:rgba(255,0,0,.5) solid 2px"></article>`, `<table><tr><td style="height:20px;border:rgba(255,0,0,.5) solid 2px"></td></tr></table>`} {
+	for _, source := range []string{`<article style="width:20px;height:20px;border:rgba(255,0,0,.5) solid 2px"></article>`, `<table><tr><td style="width:20px;height:20px;border:rgba(255,0,0,.5) solid 2px"></td></tr></table>`} {
 		r := renderCSS(t, source)
 		corner, edge := r.Image.RGBAAt(0, 0), r.Image.RGBAAt(5, 0)
 		if corner != edge || corner != (color.RGBA{255, 127, 127, 255}) {
 			t.Fatal("overlapping border corners", corner, edge)
 		}
+	}
+}
+
+func TestDefaultForegroundIsCSSBlack(t *testing.T) {
+	r := renderCSS(t, `<div style="width:20px;height:20px;border:2px solid">text</div>`)
+	black := color.RGBA{0, 0, 0, 255}
+	if got := r.Image.RGBAAt(0, 0); got != black {
+		t.Fatalf("expected default border currentColor black, got %v", got)
+	}
+	if got := tagged(r, "text").Color; got != black {
+		t.Fatalf("expected default text color black, got %v", got)
 	}
 }

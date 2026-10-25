@@ -490,9 +490,9 @@ the widget consume keys while `SearchInputActive()` is true.
 
 ### Conformance testing
 
-`task conformance` runs a pinned, offline subset of upstream [Web Platform Tests](https://web-platform-tests.org/) and writes `artifacts/conformance/index.html` plus JSON and failure image comparisons. The audited baseline is **118 PASS, 7 FAIL, 75 UNSUPPORTED** across 200 selected HTML/CSS cases. Reports break results down by feature area. The failures expose four default-foreground mismatches, two auto-width table sizing differences, and wrapping across adjacent `nowrap` spans. Unsupported prerequisites are explicitly recorded rather than counted as passes.
+`task conformance` runs a pinned, offline subset of upstream [Web Platform Tests](https://web-platform-tests.org/) and writes `artifacts/conformance/index.html` plus JSON and failure image comparisons. The audited baseline is **125 PASS, 0 FAIL, 75 UNSUPPORTED** across 200 selected HTML/CSS cases. Reports break results down by feature area. Unsupported prerequisites are explicitly recorded rather than counted as passes.
 
-The harness uses a pinned regular Ahem font for deterministic typography references; it never downloads fonts while testing. Of the 125 runnable cases, 118 pass (**94.4%**); across all 200 selected cases, **59%** pass. These are selected-corpus percentages, not a percentage of the full HTML/CSS suite.
+The harness uses a pinned regular Ahem font for deterministic typography references; it never downloads fonts while testing. All 125 runnable cases pass (**100%**); across all 200 selected cases, **62.5%** pass. These are selected-corpus percentages, not a percentage of the full HTML/CSS suite.
 
 Native and WASM tests enforce the reviewed baseline. Use `task conformance -- -strict` to fail on any rendering failure. This is subset testing, not full browser conformance; see the [harness scope and contribution guide](internal/conformance/README.md).
 

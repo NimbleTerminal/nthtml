@@ -327,14 +327,14 @@
     },
     {
       "path": "css/CSS2/margin-padding-clear/padding-001.xht",
-      "expected": "FAIL",
-      "reason": "Known gap: positioning matches the intended boxes, but the reference auto-width table fills its container instead of using intrinsic width.",
+      "expected": "PASS",
+      "reason": "Single-value padding, positioned blocks, and shrink-to-fit auto-width table reference.",
       "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/margin-padding-clear/margin-001.xht",
-      "expected": "FAIL",
-      "reason": "Known gap: positioning matches the intended boxes, but the reference auto-width table fills its container instead of using intrinsic width.",
+      "expected": "PASS",
+      "reason": "Single-value physical-unit margin, positioned blocks, and shrink-to-fit auto-width table reference.",
       "area": "boxes and positioning"
     },
     {
@@ -345,8 +345,8 @@
     },
     {
       "path": "css/CSS2/borders/border-001.xht",
-      "expected": "FAIL",
-      "reason": "Known gap: default dark foreground colors the test border and reference Ahem side stripes, while reference top/bottom backgrounds are CSS black. Geometry agrees.",
+      "expected": "PASS",
+      "reason": "Border shorthand width with default CSS black foreground and Ahem reference stripes.",
       "area": "boxes and positioning",
       "ahem": true
     },
@@ -499,8 +499,8 @@
     },
     {
       "path": "css/css-color/t422-rgba-a1.0-a.xht",
-      "expected": "FAIL",
-      "reason": "Known gap: explicit black text differs from nthtml default dark foreground in the reference.",
+      "expected": "PASS",
+      "reason": "Fully opaque rgba(0, 0, 0, 1.0) matches rgb(0, 0, 0) and default CSS black foreground.",
       "area": "colors"
     },
     {
@@ -715,8 +715,8 @@
     },
     {
       "path": "css/CSS2/cascade/specificity-007.xht",
-      "expected": "FAIL",
-      "reason": "Known gap: paragraph text is explicitly CSS black in the test but uses the default dark foreground in the reference. Green selector result agrees.",
+      "expected": "PASS",
+      "reason": "Element selector specificity overrides universal selector; default CSS black foreground matches reference.",
       "area": "selectors and cascade"
     },
     {
@@ -877,8 +877,8 @@
     },
     {
       "path": "css/CSS2/text/white-space-007.xht",
-      "expected": "FAIL",
-      "reason": "Known gap: wrapping opportunities between adjacent nowrap spans are lost, producing one overflowing line rather than two lines.",
+      "expected": "PASS",
+      "reason": "Normal whitespace between adjacent nowrap spans preserves line-breaking opportunities across collapsed spaces.",
       "area": "typography and whitespace",
       "ahem": true
     },
@@ -1476,8 +1476,8 @@
     },
     {
       "path": "css/CSS2/fonts/font-051.xht",
-      "expected": "FAIL",
-      "reason": "Known gap: the Ahem rectangle has correct geometry but uses the default dark foreground; the reference background is CSS black.",
+      "expected": "PASS",
+      "reason": "Invalid single-token font shorthand is ignored; inherited Ahem glyphs with default CSS black foreground match the reference rectangle.",
       "area": "typography and whitespace",
       "ahem": true
     },

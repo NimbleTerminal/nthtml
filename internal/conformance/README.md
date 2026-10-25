@@ -15,23 +15,23 @@ Open `artifacts/conformance/index.html` for results and failure images. `report.
 
 | Result | Cases | Meaning |
 |---|---:|---|
-| PASS | 118 | Audited selectors/cascade, colors, dimensions, zero font sizes, Ahem typography, and other core document cases. |
-| FAIL | 7 | Four default-foreground mismatches, two auto-width table differences, and adjacent-nowrap wrapping. |
+| PASS | 125 | Audited selectors/cascade, colors, dimensions, zero font sizes, Ahem typography, auto-width tables, and core document cases. |
+| FAIL | 0 | Known rendering discrepancies in runnable cases. |
 | UNSUPPORTED | 75 | Required features outside the subset, including dependencies in references; never counted as passes. |
 | ERROR | 0 | Harness errors, missing fixtures, or rejected prerequisites. |
 
 | Feature area | PASS | FAIL | UNSUPPORTED |
 |---|---:|---:|---:|
-| Boxes and positioning | 32 | 3 | 15 |
-| Colors | 40 | 1 | 1 |
-| Selectors and cascade | 31 | 1 | 12 |
+| Boxes and positioning | 35 | 0 | 15 |
+| Colors | 41 | 0 | 1 |
+| Selectors and cascade | 32 | 0 | 12 |
 | Tables | 1 | 0 | 2 |
-| Typography and whitespace | 14 | 2 | 43 |
+| Typography and whitespace | 16 | 0 | 43 |
 | Units (JavaScript testharness cases) | 0 | 0 | 2 |
 
 The corpus contains **200 selected HTML/CSS cases**, expanded from 41. It samples consecutive numeric ranges for class/ID/descendant selectors, cascade, font/spacing syntax, min/max dimensions, and RGB/HSL/hex colors, plus explicit gap cases. Only upstream tests with reference documents were added; cases with unsupported prerequisites were retained. Many cases exercise syntax variants of the same feature, so case counts do not measure feature completeness. Selection and prerequisites were reviewed before pixel baselines were recorded.
 
-**118/125 runnable cases pass (94.4%)**, or **118/200 selected cases (59%)** including unsupported cases. Neither percentage measures the full HTML/CSS suite. Native and WASM run the same corpus. HTML, JSON, and CLI reports include counts by feature area.
+**125/125 runnable cases pass (100%)**, or **125/200 selected cases (62.5%)** including unsupported cases. Neither percentage measures the full HTML/CSS suite. Native and WASM run the same corpus. HTML, JSON, and CLI reports include counts by feature area.
 
 The manifest pins revision `ffe56d4420d270941329689aff42d925f615d0b4` and SHA-256 hashes for every vendored file. Original fixture bytes and upstream `LICENSE.md` are retained under `testdata/wpt`. Unsupported cases document gaps such as inline box geometry, attribute/pseudo selectors, generated content, per-side borders, synthetic Ahem variants, and JavaScript testharness execution.
 
@@ -60,6 +60,4 @@ Selector/cascade combinations, whitespace modes, and merged-table geometry/TTY o
 
 Cases opt into `ahem: true` to use the original pinned `fonts/Ahem.ttf` through `document.Options.Fonts`. Only the accompanying `/fonts/ahem.css` stylesheet is accepted, and only when explicitly enabled. No stylesheet fetching or general `@font-face` implementation is involved. Other fonts use the renderer's usual embedded source. Synthetic bold/italic Ahem variants are rejected. See [Ahem provenance and license](AHEM-LICENSE.md). Local tests independently assert exact Ahem square pixels and advances, half-leading, zero/short line heights, and positive/negative word spacing; those tests do not count as upstream passes.
 
-Images require explicit per-case `assets` paths, pinned hashes, and bounded decoding. Paths cannot resolve to network URLs or escape the fixture tree. Missing, unpinned, or corrupt images fail instead of silently rendering alt text. Per-document decoding is limited to 16 images, 4MiB encoded bytes, and four million pixels. Fonts are limited to 1MiB in this harness. Ordinary tests and reports perform no network access.
-
-The two table failures remain visible because their references expand auto-width tables to the container width instead of using intrinsic widths. Four other failures compare explicit CSS black to nthtml's dark default foreground; Ahem rectangle geometry itself agrees. The remaining failure demonstrates lost line-break opportunities between adjacent nowrap spans. Original documents are never rewritten to hide those differences.
+Images require explicit per-case `assets` paths, pinned hashes, and bounded decoding. Paths cannot resolve to network URLs or escape the fixture tree. Missing, unpinned, or corrupt images fail instead of silently rendering alt text. Per-document decoding is limited to 16 images, 4MiB encoded bytes, and four million pixels. Fonts are limited to 1MiB in this harness. Ordinary tests and reports perform no network access. Original documents are never rewritten to hide rendering differences.

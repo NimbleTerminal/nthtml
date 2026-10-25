@@ -120,3 +120,15 @@ func TestIntrinsicImageWidth(t *testing.T) {
 		t.Fatal("image intrinsic width ignored")
 	}
 }
+func TestAutoWidthTableShrinksAndCenters(t *testing.T) {
+	r := renderCSS(t, `<table style="border:10px solid green;border-spacing:12px;margin:0 auto"><tr><td style="border:4px solid green;padding:8px 16px"></td></tr></table>`)
+	tb := tagged(r, "table")
+	td := tagged(r, "td")
+	// td outer width = 2*16 + 2*4 = 40; table outer width = 2*10 + 2*12 + 40 = 84.
+	if td.Bounds.Dx() != 40 || tb.Bounds.Dx() != 84 {
+		t.Fatalf("unexpected auto-table bounds: table=%v td=%v", tb.Bounds, td.Bounds)
+	}
+	if tb.Bounds.Min.X != (r.Image.Bounds().Dx()-84)/2 {
+		t.Fatalf("expected centered auto-width table, got %v", tb.Bounds)
+	}
+}

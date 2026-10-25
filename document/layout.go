@@ -113,7 +113,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 			f.Close()
 		}
 	}()
-	h := l.block(d.root, 0, 0, o.Width, -1, style{rootSize: 16, size: 16, line: 22, fg: color.RGBA{30, 36, 46, 255}})
+	h := l.block(d.root, 0, 0, o.Width, -1, style{rootSize: 16, size: 16, line: 22, fg: color.RGBA{0, 0, 0, 255}})
 	if l.err != nil {
 		return nil, l.err
 	}
@@ -279,7 +279,26 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	if kind, source := diagramSource(n); kind != "" {
 		cy = l.diagram(n, kind, source, cx, cy, cw, height, s)
 	} else if n.tag == "table" {
-		cy = l.table(n, cx, cy, cw, height, tableStyle)
+		minContent := 0
+		if s.minWidth.definite(basisWidth) {
+			minContent = s.minWidth.resolve(basisWidth, 16384)
+			if s.borderBox {
+				minContent = max(0, minContent-extra)
+			}
+		}
+		cy, cw = l.table(n, cx, cy, cw, height, !tableStyle.width.definite(basisWidth), minContent, tableStyle)
+		used := min(w, cw+extra)
+		if !tableStyle.width.definite(basisWidth) && s.margin[3].unit == lengthAuto {
+			spare := max(0, w-used)
+			if s.margin[1].unit == lengthAuto {
+				spare /= 2
+			}
+			x += spare
+			for i := opStart + 1; i < len(l.ops); i++ {
+				l.ops[i].box.translate(image.Pt(spare, 0))
+			}
+		}
+		w = used
 	} else if n.tag == "ul" || n.tag == "ol" {
 		index := listStart(n)
 		for _, child := range n.children {
@@ -456,6 +475,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		lineReady = true
 	}
 	pendingSpace := false
+	spaceWraps := false
 	preStart := true
 	preColumn := 0
 	prefix := "\n"
@@ -483,6 +503,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		lineReady = false
 		lineStart = len(l.ops)
 		hasText = false
+		spaceWraps = false
 	}
 	var visit func(*node, style)
 	visit = func(n *node, st style) {
@@ -626,7 +647,11 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					space = glyphAdvance(f, ' ', st.wordSpacing)
 				}
 				ww := measureText(f, word, st.wordSpacing)
-				if st.whiteSpace != "nowrap" && px > x && px+space+ww > x+w {
+				checkW := ww
+				if st.whiteSpace == "nowrap" && spaceWraps {
+					checkW = measureText(f, strings.Join(strings.Fields(text), " "), st.wordSpacing)
+				}
+				if (st.whiteSpace != "nowrap" || spaceWraps) && px > x && px+space+checkW > x+w {
 					newline()
 					prepareLine()
 					space = 0
@@ -656,6 +681,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				}
 				emit()
 				pendingSpace = false
+				spaceWraps = false
 			}
 			if i < 0 {
 				break
@@ -668,6 +694,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					pendingSpace = false
 				} else {
 					pendingSpace = true
+					if st.whiteSpace != "nowrap" {
+						spaceWraps = true
+					}
 				}
 				text = text[1:]
 			}

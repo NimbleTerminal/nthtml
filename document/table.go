@@ -98,23 +98,23 @@ func tableWidths(minimum, preferred []int, width int) []int {
 	return base
 }
 
-func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
-	for _, child := range n.children {
-		if child.tag == "caption" {
-			y = l.block(child, x, y, w, parentHeight, s)
-		}
-	}
+func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWidth int, s style) (int, int) {
 	rows, columns, err := l.d.collectTable(n, s, l.tableStep)
 	if err != nil {
 		l.err = err
-		return y
+		return y, w
 	}
 	if columns > 256 || columns > w {
 		l.err = limitError("table columns")
-		return y
+		return y, w
 	}
 	if columns == 0 {
-		return y
+		for _, child := range n.children {
+			if child.tag == "caption" {
+				y = l.block(child, x, y, w, parentHeight, s)
+			}
+		}
+		return y, w
 	}
 	minimum, preferred := make([]int, columns), make([]int, columns)
 	sx, sy := s.spacing[0], s.spacing[1]
@@ -132,7 +132,28 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 		}
 	}
 	if l.err != nil {
-		return y
+		return y, w
+	}
+	if autoWidth {
+		pref := sx * (columns + 1)
+		for _, v := range preferred {
+			pref += v
+		}
+		for _, child := range n.children {
+			if child.tag == "caption" {
+				cs := l.d.styled(child, s)
+				if cs.display != "none" {
+					_, b := l.preferredCell(child, cs, w)
+					pref = max(pref, b)
+				}
+			}
+		}
+		w = max(columns+sx*(columns+1), min(w, max(minWidth, pref)))
+	}
+	for _, child := range n.children {
+		if child.tag == "caption" {
+			y = l.block(child, x, y, w, parentHeight, s)
+		}
 	}
 	widths := tableWidths(minimum, preferred, w-sx*(columns+1))
 	xs := []int{x + sx}
@@ -143,7 +164,7 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 	if s.collapse {
 		grid = l.collapseGrid(rows, columns, s)
 		if l.err != nil {
-			return y
+			return y, w
 		}
 	}
 	type laidCell struct {
@@ -173,7 +194,7 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 	for ri, row := range rows {
 		for i, cell := range row.cells {
 			if !l.tableStep() {
-				return y
+				return y, w
 			}
 			sp := row.spans[i]
 			width := xs[sp.col+sp.cols] - xs[sp.col] - sx
@@ -190,8 +211,8 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 				}
 				cs.bw = 0
 			}
-			cs.bw = min(cs.bw, max(0, (width-1)/2))
-			room := max(0, width-2*cs.bw-1)
+			cs.bw = min(cs.bw, max(0, width/2))
+			room := max(0, width-2*cs.bw)
 			if padding[1]+padding[3] > room {
 				sides := apportion([]int{padding[3], padding[1]}, room)
 				padding[3], padding[1] = sides[0], sides[1]
@@ -216,10 +237,10 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 	}
 	if rowY[len(rowY)-1] > l.d.limits.Height {
 		l.err = limitError("table height")
-		return y
+		return y, w
 	}
 	if l.err != nil {
-		return y
+		return y, w
 	}
 	for ri, row := range rows {
 		top, bottom := rowY[ri], rowY[ri+1]-sy
@@ -266,5 +287,5 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 	if grid != nil {
 		grid.paint(l, x, widths, rowY)
 	}
-	return rowY[len(rowY)-1]
+	return rowY[len(rowY)-1], w
 }
