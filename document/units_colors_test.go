@@ -144,7 +144,7 @@ func TestPhysicalAndPixelLayoutEquivalent(t *testing.T) {
 }
 
 func TestAlphaBorderCornersPaintOnce(t *testing.T) {
-	for _, source := range []string{`<article style="width:20px;height:20px;border:rgba(255,0,0,.5) solid 2px"></article>`, `<table><tr><td style="width:20px;height:20px;border:rgba(255,0,0,.5) solid 2px"></td></tr></table>`} {
+	for _, source := range []string{`<article style="width:20px;height:20px;border:rgba(255,0,0,.5) solid 2px"></article>`, `<table style="border-spacing:0"><tr><td style="width:20px;height:20px;border:rgba(255,0,0,.5) solid 2px"></td></tr></table>`} {
 		r := renderCSS(t, source)
 		corner, edge := r.Image.RGBAAt(0, 0), r.Image.RGBAAt(5, 0)
 		if corner != edge || corner != (color.RGBA{255, 127, 127, 255}) {

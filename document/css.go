@@ -38,6 +38,33 @@ type style struct {
 	lineMultiplier                  float64
 }
 
+func isCSSKeyword(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "inherit", "initial", "unset":
+		return true
+	}
+	return false
+}
+
+func isInheritedProperty(k string) bool {
+	switch k {
+	case "color", "font-family", "font-size", "font-style", "font-weight", "line-height", "word-spacing", "white-space", "overflow-wrap", "word-wrap", "border-collapse", "border-spacing", "text-align":
+		return true
+	}
+	return false
+}
+
+func resolveCSSKeyword(k, v string) string {
+	kw := strings.ToLower(strings.TrimSpace(v))
+	if kw == "unset" {
+		if isInheritedProperty(k) {
+			return "inherit"
+		}
+		return "initial"
+	}
+	return kw
+}
+
 func declarations(s string) map[string]string {
 	m := map[string]string{}
 	important := false
@@ -61,6 +88,32 @@ func declarations(s string) map[string]string {
 		}
 		k = strings.ToLower(strings.TrimSpace(k))
 		v, important = importance(strings.TrimSpace(v))
+		if isCSSKeyword(v) {
+			kw := strings.ToLower(v)
+			switch k {
+			case "font":
+				for _, sub := range []string{"font-family", "font-size", "font-style", "font-weight", "line-height"} {
+					put(sub, kw)
+				}
+			case "margin", "padding":
+				for _, side := range []string{"top", "right", "bottom", "left"} {
+					put(k+"-"+side, kw)
+				}
+			case "border":
+				for _, sub := range []string{"border-width", "border-style", "border-color"} {
+					put(sub, kw)
+				}
+			case "word-wrap":
+				put("overflow-wrap", kw)
+			case "background":
+				put("background-color", kw)
+			case "text-decoration":
+				put("text-decoration-line", kw)
+			default:
+				put(k, kw)
+			}
+			continue
+		}
 		if k == "color" || k == "background" || k == "background-color" || k == "border-color" {
 			if _, ok := cssColor(v, color.RGBA{}); !ok {
 				continue
@@ -252,8 +305,15 @@ func (d *Document) styled(n *node, parent style) style {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
 		s.height, _ = parseLength(n.attrs["height"], true, false)
 	}
+	if n.tag == "table" {
+		if cs := strings.TrimSpace(n.attrs["cellspacing"]); cs != "" {
+			if v, err := strconv.Atoi(strings.TrimSuffix(cs, "px")); err == nil && v >= 0 && v <= 256 {
+				s.spacing = [2]int{v, v}
+			}
+		}
+	}
 	switch n.tag {
-	case "span", "a", "em", "strong", "b", "i", "code", "small", "u", "s", "del":
+	case "span", "a", "em", "strong", "b", "i", "code", "small", "u", "s", "del", "img":
 		s.display = "inline"
 	case "script", "style", "head", "meta", "link", "title", "template":
 		s.display = "none"
@@ -292,9 +352,7 @@ func (d *Document) styled(n *node, parent style) style {
 		s.mono = true
 		s.pre = true
 		s.whiteSpace = "pre-wrap"
-		s.padding = uniform(12)
 		s.margin = uniform(8)
-		s.bg = color.RGBA{238, 241, 246, 255}
 	}
 	if n.tag == "code" {
 		s.family = "Go Mono"
@@ -312,10 +370,22 @@ func (d *Document) styled(n *node, parent style) style {
 		s.bold = true
 	}
 	values := n.decl
-	if c, ok := cssColor(values["color"], parent.fg); ok {
+	if cv := values["color"]; isCSSKeyword(cv) {
+		if resolveCSSKeyword("color", cv) == "inherit" {
+			s.fg = parent.fg
+		} else {
+			s.fg = color.RGBA{0, 0, 0, 255}
+		}
+	} else if c, ok := cssColor(cv, parent.fg); ok {
 		s.fg = c
 	}
-	if value, ok := parseLength(values["font-size"], false, false); ok {
+	if fsv := values["font-size"]; isCSSKeyword(fsv) {
+		if resolveCSSKeyword("font-size", fsv) == "inherit" {
+			s.size = parent.size
+		} else {
+			s.size = 16
+		}
+	} else if value, ok := parseLength(fsv, false, false); ok {
 		value = value.computed(parent.size, s.rootSize)
 		s.size = value.resolve(parent.size, 128)
 	}
@@ -329,21 +399,41 @@ func (d *Document) styled(n *node, parent style) style {
 	sort.Strings(keys)
 	for _, k := range keys {
 		v := values[k]
+		kw := ""
+		if isCSSKeyword(v) {
+			kw = resolveCSSKeyword(k, v)
+		}
 		switch k {
 		case "font-size": // Resolved before all font-relative properties.
 
 		case "font-family":
-			s.family = v
-			s.mono = false
+			if kw == "inherit" {
+				s.family, s.mono = parent.family, parent.mono
+			} else if kw == "initial" {
+				s.family, s.mono = "", false
+			} else {
+				s.family = v
+				s.mono = false
+			}
 		case "font-style":
-			switch strings.ToLower(v) {
-			case "italic", "oblique":
-				s.italic = true
-			case "normal":
+			if kw == "inherit" {
+				s.italic = parent.italic
+			} else if kw == "initial" {
 				s.italic = false
+			} else {
+				switch strings.ToLower(v) {
+				case "italic", "oblique":
+					s.italic = true
+				case "normal":
+					s.italic = false
+				}
 			}
 		case "font-weight":
-			if v == "bold" {
+			if kw == "inherit" {
+				s.bold = parent.bold
+			} else if kw == "initial" {
+				s.bold = false
+			} else if v == "bold" {
 				s.bold = true
 			} else if v == "normal" {
 				s.bold = false
@@ -351,7 +441,9 @@ func (d *Document) styled(n *node, parent style) style {
 				s.bold = weight >= 600
 			}
 		case "line-height":
-			if v == "normal" {
+			if kw == "inherit" {
+				s.line, s.lineMode, s.lineMultiplier = parent.line, parent.lineMode, parent.lineMultiplier
+			} else if kw == "initial" || v == "normal" {
 				s.lineMultiplier = 1.375
 				s.lineMode = 2
 			} else if cssNumber.MatchString(v) {
@@ -365,10 +457,21 @@ func (d *Document) styled(n *node, parent style) style {
 				s.lineMode = 1
 			}
 		case "word-spacing":
-			if l, ok := wordSpacingValue(v); ok {
+			if kw == "inherit" {
+				s.wordSpacing = parent.wordSpacing
+			} else if kw == "initial" {
+				s.wordSpacing = 0
+			} else if l, ok := wordSpacingValue(v); ok {
 				s.wordSpacing = max(-256, min(256, l.computed(s.size, s.rootSize).offset(0)))
 			}
 		case "text-decoration-line":
+			if kw == "inherit" {
+				s.underline, s.strike = parent.underline, parent.strike
+				continue
+			} else if kw == "initial" {
+				s.underline, s.strike = false, false
+				continue
+			}
 			underline, strike, valid := false, false, true
 			tokens := strings.Fields(v)
 			if len(tokens) == 0 {
@@ -394,92 +497,216 @@ func (d *Document) styled(n *node, parent style) style {
 		case "color":
 			// Color resolves first so currentColor is independent of key order.
 		case "background-color":
-			s.bg, _ = cssColor(v, s.fg)
+			if kw == "inherit" {
+				s.bg = parent.bg
+			} else if kw == "initial" {
+				s.bg = color.RGBA{}
+			} else {
+				s.bg, _ = cssColor(v, s.fg)
+			}
 		case "border-color":
-			s.border, _ = cssColor(v, s.fg)
-			s.borderSet = true
+			if kw == "inherit" {
+				s.border, s.borderSet = parent.border, parent.borderSet
+			} else if kw == "initial" {
+				s.border, s.borderSet = color.RGBA{}, false
+			} else {
+				s.border, _ = cssColor(v, s.fg)
+				s.borderSet = true
+			}
 		case "border-collapse":
-			if v == "collapse" {
-				s.collapse = true
-			} else if v == "separate" {
+			if kw == "inherit" {
+				s.collapse = parent.collapse
+			} else if kw == "initial" || v == "separate" {
 				s.collapse = false
+			} else if v == "collapse" {
+				s.collapse = true
 			}
 		case "border-width":
-			if l, ok := borderWidth(v); ok {
+			if kw == "inherit" {
+				s.bw = parent.bw
+			} else if kw == "initial" {
+				s.bw = 0
+			} else if l, ok := borderWidth(v); ok {
 				s.bw = l.computed(s.size, s.rootSize).resolve(0, 32)
 			}
 		case "width":
-			s.width, _ = parseLength(v, true, false)
+			if kw == "inherit" {
+				s.width = parent.width
+			} else if kw == "initial" {
+				s.width = cssLength{}
+			} else {
+				s.width, _ = parseLength(v, true, false)
+			}
 		case "height":
-			s.height, _ = parseLength(v, true, false)
+			if kw == "inherit" {
+				s.height = parent.height
+			} else if kw == "initial" {
+				s.height = cssLength{}
+			} else {
+				s.height, _ = parseLength(v, true, false)
+			}
 		case "max-width":
-			s.maxWidth, _ = parseLength(v, false, true)
+			if kw == "inherit" {
+				s.maxWidth = parent.maxWidth
+			} else if kw == "initial" {
+				s.maxWidth = cssLength{}
+			} else {
+				s.maxWidth, _ = parseLength(v, false, true)
+			}
 		case "min-width":
-			s.minWidth, _ = parseLength(v, false, false)
+			if kw == "inherit" {
+				s.minWidth = parent.minWidth
+			} else if kw == "initial" {
+				s.minWidth = cssLength{}
+			} else {
+				s.minWidth, _ = parseLength(v, false, false)
+			}
 		case "min-height":
-			s.minHeight, _ = parseLength(v, false, false)
+			if kw == "inherit" {
+				s.minHeight = parent.minHeight
+			} else if kw == "initial" {
+				s.minHeight = cssLength{}
+			} else {
+				s.minHeight, _ = parseLength(v, false, false)
+			}
 		case "max-height":
-			s.maxHeight, _ = parseLength(v, false, true)
+			if kw == "inherit" {
+				s.maxHeight = parent.maxHeight
+			} else if kw == "initial" {
+				s.maxHeight = cssLength{}
+			} else {
+				s.maxHeight, _ = parseLength(v, false, true)
+			}
 		case "float":
-			s.floatSide = v
+			if kw == "inherit" {
+				s.floatSide = parent.floatSide
+			} else if kw == "initial" {
+				s.floatSide = "none"
+			} else {
+				s.floatSide = v
+			}
 		case "clear":
-			s.clear = v
+			if kw == "inherit" {
+				s.clear = parent.clear
+			} else if kw == "initial" {
+				s.clear = "none"
+			} else {
+				s.clear = v
+			}
 		case "position":
-			s.position = v
+			if kw == "inherit" {
+				s.position = parent.position
+			} else if kw == "initial" {
+				s.position = "static"
+			} else {
+				s.position = v
+			}
 		case "top", "right", "bottom", "left":
 			for i, side := range []string{"top", "right", "bottom", "left"} {
 				if k == side {
-					s.inset[i], _ = parseInset(v)
+					if kw == "inherit" {
+						s.inset[i] = parent.inset[i]
+					} else if kw == "initial" {
+						s.inset[i] = cssLength{}
+					} else {
+						s.inset[i], _ = parseInset(v)
+					}
 				}
 			}
 		case "box-sizing":
-			if v == "border-box" {
-				s.borderBox = true
-			} else if v == "content-box" {
+			if kw == "inherit" {
+				s.borderBox = parent.borderBox
+			} else if kw == "initial" || v == "content-box" {
 				s.borderBox = false
+			} else if v == "border-box" {
+				s.borderBox = true
 			}
 		case "display":
-			if v == "none" || v == "block" || v == "inline" {
+			if kw == "inherit" {
+				s.display = parent.display
+			} else if kw == "initial" {
+				s.display = "inline"
+			} else if v == "none" || v == "block" || v == "inline" || v == "inline-block" {
 				s.display = v
 			}
 		case "white-space":
-			switch v {
-			case "normal", "nowrap", "pre", "pre-wrap", "pre-line", "break-spaces":
-				s.whiteSpace = v
-				s.pre = v == "pre" || v == "pre-wrap" || v == "break-spaces"
+			if kw == "inherit" {
+				s.whiteSpace, s.pre = parent.whiteSpace, parent.pre
+			} else if kw == "initial" {
+				s.whiteSpace, s.pre = "normal", false
+			} else {
+				switch v {
+				case "normal", "nowrap", "pre", "pre-wrap", "pre-line", "break-spaces":
+					s.whiteSpace = v
+					s.pre = v == "pre" || v == "pre-wrap" || v == "break-spaces"
+				}
 			}
 		case "overflow-wrap", "word-wrap":
-			switch v {
-			case "normal", "break-word", "anywhere":
-				s.overflowWrap = v
+			if kw == "inherit" {
+				s.overflowWrap = parent.overflowWrap
+			} else if kw == "initial" {
+				s.overflowWrap = "normal"
+			} else {
+				switch v {
+				case "normal", "break-word", "anywhere":
+					s.overflowWrap = v
+				}
 			}
 		case "border-spacing":
-			parts := strings.Fields(v)
-			if len(parts) == 1 || len(parts) == 2 {
-				a, ok := parseLength(parts[0], false, false)
-				b := a
-				valid := ok && a.absolute()
-				if len(parts) == 2 {
-					b, ok = parseLength(parts[1], false, false)
-					valid = valid && ok && b.absolute()
-				}
-				if valid {
-					s.spacing = [2]int{a.computed(s.size, s.rootSize).resolve(0, 256), b.computed(s.size, s.rootSize).resolve(0, 256)}
+			if kw == "inherit" {
+				s.spacing = parent.spacing
+			} else if kw == "initial" {
+				s.spacing = [2]int{2, 2}
+			} else {
+				parts := strings.Fields(v)
+				if len(parts) == 1 || len(parts) == 2 {
+					a, ok := parseLength(parts[0], false, false)
+					b := a
+					valid := ok && a.absolute()
+					if len(parts) == 2 {
+						b, ok = parseLength(parts[1], false, false)
+						valid = valid && ok && b.absolute()
+					}
+					if valid {
+						s.spacing = [2]int{a.computed(s.size, s.rootSize).resolve(0, 256), b.computed(s.size, s.rootSize).resolve(0, 256)}
+					}
 				}
 			}
 		case "vertical-align":
-			if v == "top" || v == "middle" || v == "bottom" {
+			if kw == "inherit" {
+				s.vertical = parent.vertical
+			} else if kw == "initial" {
+				s.vertical = ""
+			} else if v == "top" || v == "middle" || v == "bottom" {
 				s.vertical = v
 			}
 		case "text-align":
-			s.align = v
+			if kw == "inherit" {
+				s.align = parent.align
+			} else if kw == "initial" {
+				s.align = ""
+			} else {
+				s.align = v
+			}
 		default:
 			for i, side := range []string{"top", "right", "bottom", "left"} {
 				if k == "margin-"+side {
-					s.margin[i], _ = parseLength(v, true, false)
+					if kw == "inherit" {
+						s.margin[i] = parent.margin[i]
+					} else if kw == "initial" {
+						s.margin[i] = cssLength{}
+					} else {
+						s.margin[i], _ = parseLength(v, true, false)
+					}
 				}
 				if k == "padding-"+side {
-					s.padding[i], _ = parseLength(v, false, false)
+					if kw == "inherit" {
+						s.padding[i] = parent.padding[i]
+					} else if kw == "initial" {
+						s.padding[i] = cssLength{}
+					} else {
+						s.padding[i], _ = parseLength(v, false, false)
+					}
 				}
 			}
 		}
@@ -491,7 +718,7 @@ func (d *Document) styled(n *node, parent style) style {
 		s.position = "static"
 		s.floatSide = "none"
 	}
-	if s.position == "relative" && s.display == "inline" {
+	if s.position == "relative" && s.display == "inline" && n.tag != "img" {
 		s.position = "static"
 	}
 	if s.position == "absolute" {
@@ -500,9 +727,13 @@ func (d *Document) styled(n *node, parent style) style {
 	if (s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right") && s.display != "none" {
 		s.display = "block"
 	}
-	if values["border-style"] == "none" {
+	bs := values["border-style"]
+	if isCSSKeyword(bs) && resolveCSSKeyword("border-style", bs) == "initial" {
+		bs = "none"
+	}
+	if bs == "none" {
 		s.bw = 0
-	} else if values["border-style"] == "solid" && values["border-width"] == "" {
+	} else if bs == "solid" && (values["border-width"] == "" || (isCSSKeyword(values["border-width"]) && resolveCSSKeyword("border-width", values["border-width"]) == "initial")) {
 		s.bw = 3
 	}
 	for _, p := range []*cssLength{&s.width, &s.height, &s.maxWidth, &s.minWidth, &s.minHeight, &s.maxHeight} {

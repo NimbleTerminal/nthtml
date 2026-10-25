@@ -9,9 +9,9 @@ import (
 // at the renderer's maximum width; traversal shares the table work budget.
 func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 	line, word, minimum, preferred := 0, 0, 0, 0
-	pending := false
+	pending, hasContent := false, false
 	flushWord := func() { minimum = max(minimum, word); word = 0 }
-	flushLine := func() { flushWord(); preferred = max(preferred, line); line = 0; pending = false }
+	flushLine := func() { flushWord(); preferred = max(preferred, line); line = 0; pending = false; hasContent = false }
 	var visit func(*node, style)
 	visit = func(n *node, st style) {
 		if !l.tableStep() {
@@ -26,6 +26,25 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				flushLine()
 				return
 			}
+			if n.tag == "img" || st.display == "inline-block" {
+				if st.display != "inline" && st.display != "inline-block" {
+					flushLine()
+					a, b := l.preferredCell(n, st, basis)
+					minimum = max(minimum, a)
+					preferred = max(preferred, b)
+					return
+				}
+				a, b := l.preferredCell(n, st, basis)
+				if pending {
+					line = min(4096, line+glyphAdvance(l.face(st), ' ', st.wordSpacing))
+					pending = false
+					flushWord()
+				}
+				line = min(4096, line+b)
+				word = min(4096, word+a)
+				hasContent = true
+				return
+			}
 			if st.display != "inline" {
 				flushLine()
 				a, b := l.preferredCell(n, st, basis)
@@ -33,6 +52,10 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				preferred = max(preferred, b)
 				return
 			}
+			m, p := resolveEdges(st.margin, basis), resolveEdges(st.padding, basis)
+			inlineExtra := m[1] + m[3] + p[1] + p[3] + 2*st.bw
+			line = min(4096, line+inlineExtra)
+			word = min(4096, word+inlineExtra)
 		}
 		if n.tag == "" {
 			if st.size == 0 {
@@ -53,7 +76,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				}
 				if !st.pre && cssSpace(r) {
 					flushWord()
-					pending = line > 0
+					pending = hasContent
 					continue
 				}
 				if pending {
@@ -62,6 +85,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				}
 				w := glyphAdvance(f, r, st.wordSpacing)
 				line = min(4096, line+w)
+				hasContent = true
 				if unicode.IsSpace(r) {
 					flushWord()
 				} else {
@@ -76,9 +100,12 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 	if kind, _ := diagramSource(n); kind != "" {
 		minimum, preferred = 32, 300
 	} else if n.tag == "img" {
-		if src := l.opts.Images[n.attrs["src"]]; src != nil {
-			preferred = min(4096, src.Bounds().Dx())
+		if src := l.opts.Images[n.attrs["src"]]; src != nil && !src.Bounds().Empty() {
+			iw, _ := imageSize(n, src.Bounds().Size(), s.width.definite(basis), max(1, basis), -1)
+			preferred = min(4096, iw)
 			minimum = preferred
+		} else {
+			return l.preferredCell(&node{children: []*node{{text: "[image: " + n.attrs["alt"] + "]"}}}, s, basis)
 		}
 	} else if n.tag == "table" {
 		rows, cols, err := l.d.collectTable(n, s, l.tableStep)

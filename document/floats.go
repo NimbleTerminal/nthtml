@@ -159,7 +159,7 @@ func (a *floatArea) place(n *node, s style, x, y, w, parentHeight int) {
 	a.lastTop = y
 }
 func floatContext(n *node, s style) bool {
-	if s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" {
+	if s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" || s.display == "inline-block" {
 		return true
 	}
 	switch n.tag {

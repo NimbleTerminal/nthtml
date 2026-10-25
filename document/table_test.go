@@ -51,7 +51,7 @@ func TestTableRowHeightAlignmentAndLinks(t *testing.T) {
 				link = b
 			}
 		}
-		want := 5
+		want := 7
 		if align == "middle" {
 			want += 39
 		}

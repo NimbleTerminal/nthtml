@@ -129,7 +129,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			}
 			return nil
 		}
-		if n.tag == "pre" || s.display != "inline" && (s.whiteSpace != parent.whiteSpace || s.overflowWrap != parent.overflowWrap) && n.tag != "table" {
+		if n.tag == "pre" || s.display != "inline" && s.display != "inline-block" && (s.whiteSpace != parent.whiteSpace || s.overflowWrap != parent.overflowWrap) && n.tag != "table" {
 			if err := f.flush(); err != nil {
 				return err
 			}
@@ -264,7 +264,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			b.WriteByte('\n')
 			return nil
 		}
-		block := s.display != "inline"
+		block := s.display != "inline" && s.display != "inline-block"
 		if block {
 			b.WriteByte('\n')
 		}
@@ -303,6 +303,9 @@ func normalizeTTY(text string) string {
 }
 func cleanText(s string) string {
 	return strings.Map(func(r rune) rune {
+		if zeroWidth(r) {
+			return -1
+		}
 		if cssSpace(r) {
 			return ' '
 		}

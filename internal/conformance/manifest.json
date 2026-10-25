@@ -841,39 +841,45 @@
     },
     {
       "path": "css/CSS2/text/white-space-001.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited white-space collapsing and inline-block reference layout match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-002.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited white-space tab collapsing and inline-block reference layout match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-003.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited white-space linefeed collapsing and inline-block reference layout match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-004.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited white-space normal override on pre and inline-block reference layout match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-005.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited white-space normal cascade override and inline-block reference layout match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited white-space inherit keyword and inline-block reference layout match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-007.xht",
@@ -891,74 +897,79 @@
     {
       "path": "css/CSS2/text/white-space-normal-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/text/white-space-normal-002.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/text/white-space-normal-003.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/text/white-space-normal-004.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/text/white-space-normal-005.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited zero-width space handling, inline background painting, and font: inherit reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-nowrap-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/text/white-space-nowrap-005.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited zero-width space handling, inline background painting, and font: inherit reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-nowrap-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited non-breaking space inline background painting and font: inherit reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-pre-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/text/white-space-pre-002.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/text/white-space-pre-005.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited preformatted zero-width space handling, inline background painting, and font: inherit reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-pre-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited preformatted inline background painting and font: inherit reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/word-spacing-004.xht",
@@ -983,15 +994,17 @@
     },
     {
       "path": "css/CSS2/text/word-spacing-007.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited positive word-spacing and inline horizontal span margin reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/word-spacing-008.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited signed positive word-spacing and inline horizontal span margin reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/word-spacing-016.xht",
@@ -1016,15 +1029,17 @@
     },
     {
       "path": "css/CSS2/text/word-spacing-019.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited point-unit word-spacing and inline horizontal span margin reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/word-spacing-020.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited signed point-unit word-spacing and inline horizontal span margin reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/word-spacing-028.xht",
@@ -1049,15 +1064,17 @@
     },
     {
       "path": "css/CSS2/text/word-spacing-031.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited pica-unit word-spacing and inline horizontal span margin reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/word-spacing-032.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited signed pica-unit word-spacing and inline horizontal span margin reference match with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/normal-flow/height-003.xht",

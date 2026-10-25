@@ -72,7 +72,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 	if s.display == "none" {
 		return blockMargins{through: true}
 	}
-	if marginBoundary(n) || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" || s.clear != "" && s.clear != "none" {
+	if marginBoundary(n) || s.display == "inline-block" || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" || s.clear != "" && s.clear != "none" {
 		return info
 	}
 	cw := max(1, width-padding[1]-padding[3]-2*s.bw)
@@ -122,7 +122,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 		if cs.display == "none" || cs.position == "absolute" || cs.floatSide == "left" || cs.floatSide == "right" {
 			continue
 		}
-		if child.tag == "" || cs.display == "inline" || child.tag == "br" {
+		if child.tag == "" || cs.display == "inline" || cs.display == "inline-block" || child.tag == "br" {
 			inline = append(inline, child)
 			continue
 		}
@@ -203,7 +203,7 @@ func (l *layout) inlineLine(nodes []*node, parent style) bool {
 		if s.display == "none" || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" {
 			continue
 		}
-		if n.tag == "br" {
+		if n.tag == "br" || n.tag == "img" || s.display == "inline-block" {
 			return true
 		}
 		if kind, _ := diagramSource(n); kind != "" {

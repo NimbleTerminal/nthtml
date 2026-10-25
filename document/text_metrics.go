@@ -20,7 +20,19 @@ func (l *layout) baseline(s style) int {
 	return baseline
 }
 func wordSeparator(r rune) bool { return r == ' ' || r == '\u00a0' }
+func zeroWidth(r rune) bool     { return r == '\u200b' || r == '\ufeff' }
+func stripZeroWidth(s string) string {
+	return strings.Map(func(r rune) rune {
+		if zeroWidth(r) {
+			return -1
+		}
+		return r
+	}, s)
+}
 func glyphAdvance(f font.Face, r rune, spacing int) int {
+	if zeroWidth(r) {
+		return 0
+	}
 	advance, _ := f.GlyphAdvance(r)
 	if wordSeparator(r) {
 		return max(0, advance.Ceil()+spacing)
@@ -35,6 +47,10 @@ func measureText(f font.Face, text string, spacing int) int {
 	return width
 }
 func drawText(drawer *font.Drawer, text string, spacing int) {
+	text = stripZeroWidth(text)
+	if text == "" {
+		return
+	}
 	if spacing == 0 {
 		drawer.DrawString(text)
 		return
@@ -53,11 +69,15 @@ func drawText(drawer *font.Drawer, text string, spacing int) {
 	drawer.DrawString(text[start:])
 }
 func textInk(face font.Face, b Box) image.Rectangle {
-	ink, _ := font.BoundString(face, b.Text)
+	text := stripZeroWidth(b.Text)
+	if text == "" {
+		return image.Rectangle{}
+	}
+	ink, _ := font.BoundString(face, text)
 	rect := image.Rect(ink.Min.X.Floor(), ink.Min.Y.Floor(), ink.Max.X.Ceil(), ink.Max.Y.Ceil()).Add(image.Pt(b.Bounds.Min.X, b.Bounds.Min.Y+b.Baseline))
 	// Enclose horizontal spacing changes; vertical ink bounds are exact and
 	// keep short/zero line heights from clipping glyph overflow on export.
-	extra := b.WordSpacing * (strings.Count(b.Text, " ") + strings.Count(b.Text, "\u00a0"))
+	extra := b.WordSpacing * (strings.Count(text, " ") + strings.Count(text, "\u00a0"))
 	if extra >= 0 {
 		rect.Max.X += extra
 	} else {

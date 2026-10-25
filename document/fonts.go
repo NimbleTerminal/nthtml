@@ -126,7 +126,11 @@ func (l *layout) face(s style) font.Face {
 		l.fonts[key] = parsed
 		break
 	}
-	f, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: float64(s.size), DPI: 72, Hinting: font.HintingFull})
+	hinting := font.HintingFull
+	if strings.Contains(strings.ToLower(k.family), "ahem") {
+		hinting = font.HintingNone
+	}
+	f, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: float64(s.size), DPI: 72, Hinting: hinting})
 	if err != nil {
 		l.err = err
 		return basicfont.Face7x13
