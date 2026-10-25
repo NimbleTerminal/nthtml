@@ -174,3 +174,103 @@ func TestLinksCancellation(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+func TestPhase5ElementsAndTypography(t *testing.T) {
+	d := parseFeature(t, `<h3>H3</h3><h4>H4</h4><h5>H5</h5><h6>H6</h6>`+
+		`<blockquote>Quote</blockquote><hr><dl><dt>Term</dt><dd>Def</dd></dl>`+
+		`<p><small>Small</small> <sub>Sub</sub> <sup>Sup</sup> <mark>Mark</mark></p>`+
+		`<div style="text-indent:24px;letter-spacing:4px;text-transform:uppercase;font-variant:small-caps">ab cd</div>`)
+	r, err := d.Render(context.Background(), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tty, err := d.TTY(context.Background(), 40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(tty, "────────") || !strings.Contains(tty, "AB CD") {
+		t.Fatalf("expected horizontal rule and uppercase text in TTY, got:\n%s", tty)
+	}
+	var h3Size, h6Size, smallSize int
+	var indentedX int
+	for _, b := range r.Boxes {
+		switch b.Text {
+		case "H3":
+			h3Size = b.FontSize
+		case "H6":
+			h6Size = b.FontSize
+		case "Small":
+			smallSize = b.FontSize
+		case "AB":
+			indentedX = b.Bounds.Min.X
+		}
+	}
+	if h3Size != 20 || h6Size != 12 || smallSize >= 16 || indentedX < 24 {
+		t.Fatalf("unexpected element/typography metrics: h3=%d h6=%d small=%d indentX=%d", h3Size, h6Size, smallSize, indentedX)
+	}
+}
+
+func TestPhase5ListsAndTables(t *testing.T) {
+	d := parseFeature(t, `<ol reversed><li>First</li><li>Second</li></ol>`+
+		`<ol type="I"><li>Roman1</li><li>Roman2</li></ol>`+
+		`<ul style="list-style-type:square"><li>Sq</li><li style="list-style:none">HiddenMarker</li></ul>`+
+		`<table style="caption-side:bottom"><caption>BottomCap</caption><colgroup><col width="120" style="background:rgb(255, 0, 0)"><col width="80"></colgroup><tr><td>A</td><td>B</td></tr></table>`)
+	tty, err := d.TTY(context.Background(), 60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"2. First", "1. Second", "I. Roman1", "II. Roman2", "▪ Sq"} {
+		if !strings.Contains(tty, want) {
+			t.Fatalf("missing %q in TTY:\n%s", want, tty)
+		}
+	}
+	if strings.Index(tty, "BottomCap") < strings.Index(tty, "│ A") {
+		t.Fatalf("expected bottom caption after table rows in TTY:\n%s", tty)
+	}
+	r, err := d.Render(context.Background(), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tdA, capBox Box
+	for _, b := range r.Boxes {
+		if b.Tag == "td" && tdA.Tag == "" {
+			tdA = b
+		}
+		if b.Text == "BottomCap" {
+			capBox = b
+		}
+	}
+	if tdA.Color.R != 255 || tdA.Bounds.Dx() < 120 || capBox.Bounds.Min.Y < tdA.Bounds.Max.Y {
+		t.Fatalf("unexpected colgroup/caption layout: td=%+v cap=%+v", tdA, capBox)
+	}
+}
+
+func TestPhase5FlexboxAndOverflow(t *testing.T) {
+	d := parseFeature(t, `<div style="display:flex;gap:10px;width:310px">`+
+		`<div id="f1" style="flex:1;height:20px;background:red"></div>`+
+		`<div id="f2" style="flex:2;height:40px;background:blue"></div>`+
+		`</div>`+
+		`<div style="width:60px;height:20px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:16px monospace">LongUnbrokenIdentifierText</div>`+
+		`<div style="width:40px;height:20px;overflow:hidden"><div style="width:40px;height:80px;background:rgb(255,0,0)"></div></div>`)
+	r, err := d.Render(context.Background(), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f1 := r.Anchors["f1"]
+	f2 := r.Anchors["f2"]
+	if f1.X != 0 || f2.X != 110 {
+		t.Fatalf("unexpected flex item positions: f1=%v f2=%v", f1, f2)
+	}
+	hasEllipsis := false
+	for _, b := range r.Boxes {
+		if strings.Contains(b.Text, "…") {
+			hasEllipsis = true
+		}
+	}
+	if !hasEllipsis {
+		t.Fatalf("expected ellipsis truncation, boxes=%+v", r.Boxes)
+	}
+	if r.Image.Bounds().Dy() > 90 {
+		t.Fatalf("expected overflow:hidden child not to enlarge canvas beyond clipped box, got height %d", r.Image.Bounds().Dy())
+	}
+}

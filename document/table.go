@@ -131,6 +131,15 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 			spreadRequirement(preferred, sp.col, sp.cols, max(1, b-sx*(sp.cols-1)))
 		}
 	}
+	if colSpecs := l.d.collectColSpecs(n, s); len(colSpecs) > 0 {
+		for c := 0; c < columns && c < len(colSpecs); c++ {
+			if colSpecs[c].width.definite(w) {
+				cw := max(1, colSpecs[c].width.resolve(w, w))
+				preferred[c] = max(preferred[c], cw)
+				minimum[c] = max(minimum[c], min(cw, preferred[c]))
+			}
+		}
+	}
 	if l.err != nil {
 		return y, w
 	}
@@ -150,8 +159,12 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 		}
 		w = max(columns+sx*(columns+1), min(w, max(minWidth, pref)))
 	}
+	isBottomCaption := func(c *node) bool {
+		cs := l.d.styled(c, s)
+		return cs.captionSide == "bottom" || (cs.captionSide == "" && s.captionSide == "bottom")
+	}
 	for _, child := range n.children {
-		if child.tag == "caption" {
+		if child.tag == "caption" && !isBottomCaption(child) {
 			y = l.block(child, x, y, w, parentHeight, s)
 		}
 	}
@@ -290,5 +303,11 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 	if grid != nil {
 		grid.paint(l, x, widths, rowY)
 	}
-	return rowY[len(rowY)-1], w
+	endY := rowY[len(rowY)-1]
+	for _, child := range n.children {
+		if child.tag == "caption" && isBottomCaption(child) {
+			endY = l.block(child, x, endY, w, parentHeight, s)
+		}
+	}
+	return endY, w
 }

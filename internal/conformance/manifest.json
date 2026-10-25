@@ -757,8 +757,8 @@
     },
     {
       "path": "css/CSS2/fonts/font-003.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "expected": "PASS",
+      "reason": "Audited font shorthand with small-caps font-variant matches the reference.",
       "area": "typography and whitespace"
     },
     {
@@ -799,45 +799,52 @@
     },
     {
       "path": "css/CSS2/fonts/font-size-002.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or invalid negative font-size fallback matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/fonts/font-size-004.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or invalid negative font-size fallback matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/fonts/font-size-005.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or invalid negative font-size fallback matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/fonts/font-size-012.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or invalid negative font-size fallback matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/fonts/font-size-013.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or invalid negative font-size fallback matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/fonts/font-size-015.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or invalid negative font-size fallback matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/fonts/font-size-016.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or invalid negative font-size fallback matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
     },
     {
       "path": "css/CSS2/text/white-space-001.xht",

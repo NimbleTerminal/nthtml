@@ -22,7 +22,7 @@ func TestFontShorthandCascade(t *testing.T) {
 	if d["font-size"] != "14px !important" || d["font-weight"] != "normal !important" {
 		t.Fatal(d)
 	}
-	for _, bad := range []string{"serif", "italic serif", "20px", "20px/ serif", "-2px serif", "20px/-1 serif", "20px a,", `20px "unclosed`, "bold bold 20px serif", "small-caps 20px serif", strings.Repeat("normal ", 65) + "20px serif"} {
+	for _, bad := range []string{"serif", "italic serif", "20px", "20px/ serif", "-2px serif", "20px/-1 serif", "20px a,", `20px "unclosed`, "bold bold 20px serif", "small-caps small-caps 20px serif", strings.Repeat("normal ", 65) + "20px serif"} {
 		if _, ok := fontValues(bad); ok {
 			t.Errorf("accepted %q", bad)
 		}

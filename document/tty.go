@@ -79,12 +79,13 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 		b := &f.pending
 		b.policy = parent
 		if n.tag == "" {
+			raw := applyTextTransform(n.text, parent.textTransform)
 			if parent.pre {
-				text, col := preTextAt(n.text, f.preColumn)
+				text, col := preTextAt(raw, f.preColumn)
 				f.preColumn = col
 				b.WriteString(text)
 			} else if parent.whiteSpace == "pre-line" {
-				text := strings.ReplaceAll(strings.ReplaceAll(n.text, "\r\n", "\n"), "\r", "\n")
+				text := strings.ReplaceAll(strings.ReplaceAll(raw, "\r\n", "\n"), "\r", "\n")
 				for i, line := range strings.Split(text, "\n") {
 					if i > 0 {
 						b.WriteString("\n")
@@ -92,7 +93,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 					b.WriteString(cleanText(line))
 				}
 			} else {
-				b.WriteString(cleanText(n.text))
+				b.WriteString(cleanText(raw))
 			}
 			return nil
 		}
@@ -162,20 +163,26 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				return err
 			}
 			index := listStart(n)
+			step := listStep(n)
 			var items []string
 			listBytes := 0
 			for _, child := range n.children {
 				if child.tag != "li" {
 					continue
 				}
-				if d.styled(child, s).display == "none" {
+				cs := d.styled(child, s)
+				if cs.display == "none" {
 					continue
 				}
 				if n.tag == "ol" {
 					index = listNumber(child.attrs["value"], index)
 				}
-				marker := listMarker(n, index) + " "
-				index++
+				mStr := formatListMarker(resolveListStyleType(n, child, cs), index)
+				marker := ""
+				if mStr != "" {
+					marker = mStr + " "
+				}
+				index += step
 				indent := ansi.StringWidth(marker)
 				innerWidth := max(2, f.width-indent)
 				item := &ttyFlow{width: innerWidth}
@@ -207,6 +214,12 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				items = append(items, itemText)
 			}
 			return f.append(marker + strings.Join(items, "\n"))
+		}
+		if n.tag == "hr" {
+			if err := f.flush(); err != nil {
+				return err
+			}
+			return f.append(marker + strings.Repeat("─", f.width))
 		}
 		if n.tag == "br" {
 			b.WriteString(marker)
@@ -264,7 +277,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			b.WriteByte('\n')
 			return nil
 		}
-		block := s.display != "inline" && s.display != "inline-block"
+		block := s.display != "inline" && s.display != "inline-block" && s.display != "inline-flex"
 		if block {
 			b.WriteByte('\n')
 		}

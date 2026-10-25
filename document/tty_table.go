@@ -35,8 +35,12 @@ func (d *Document) ttyTable(ctx context.Context, n *node, parent style, width in
 		out.WriteString(s)
 		return nil
 	}
+	isBottomCaption := func(c *node) bool {
+		cs := d.styled(c, parent)
+		return cs.captionSide == "bottom" || (cs.captionSide == "" && parent.captionSide == "bottom")
+	}
 	for _, child := range n.children {
-		if child.tag == "caption" && d.styled(child, parent).display != "none" {
+		if child.tag == "caption" && d.styled(child, parent).display != "none" && !isBottomCaption(child) {
 			text, err := cellText(child, parent)
 			if err != nil {
 				return "", err
@@ -47,6 +51,17 @@ func (d *Document) ttyTable(ctx context.Context, n *node, parent style, width in
 		}
 	}
 	if columns == 0 {
+		for _, child := range n.children {
+			if child.tag == "caption" && d.styled(child, parent).display != "none" && isBottomCaption(child) {
+				text, err := cellText(child, parent)
+				if err != nil {
+					return "", err
+				}
+				if err = write(ansi.Wrap(text, width, "") + "\n"); err != nil {
+					return "", err
+				}
+			}
+		}
 		return strings.TrimRight(out.String(), "\n"), nil
 	}
 	var cells []ttyCell
@@ -271,6 +286,17 @@ func (d *Document) ttyTable(ctx context.Context, n *node, parent style, width in
 		}
 		if err := separator(r + 1); err != nil {
 			return "", err
+		}
+	}
+	for _, child := range n.children {
+		if child.tag == "caption" && d.styled(child, parent).display != "none" && isBottomCaption(child) {
+			text, err := cellText(child, parent)
+			if err != nil {
+				return "", err
+			}
+			if err = write(ansi.Wrap(text, width, "") + "\n"); err != nil {
+				return "", err
+			}
 		}
 	}
 	return strings.TrimRight(out.String(), "\n"), nil

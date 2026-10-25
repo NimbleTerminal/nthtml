@@ -56,8 +56,8 @@ func fontValues(value string) (map[string]string, bool) {
 			return nil, false
 		}
 	}
-	result := map[string]string{"font-style": "normal", "font-weight": "normal", "line-height": "normal"}
-	styleSet, weightSet := false, false
+	result := map[string]string{"font-style": "normal", "font-variant": "normal", "font-weight": "normal", "line-height": "normal"}
+	styleSet, variantSet, weightSet := false, false, false
 	i := 0
 	for ; i < len(tokens); i++ {
 		t := strings.ToLower(tokens[i].text)
@@ -74,6 +74,12 @@ func fontValues(value string) (map[string]string, bool) {
 			}
 			styleSet = true
 			result["font-style"] = t
+		case "small-caps":
+			if variantSet {
+				return nil, false
+			}
+			variantSet = true
+			result["font-variant"] = t
 		case "bold":
 			if weightSet {
 				return nil, false
@@ -139,4 +145,36 @@ func wordSpacingValue(v string) (cssLength, bool) {
 	}
 	l, ok := parseInset(v)
 	return l, ok && l.absolute()
+}
+
+func smallCapSize(size int) int {
+	if size <= 1 {
+		return size
+	}
+	return max(1, (size*80+50)/100)
+}
+
+func applyTextTransform(s, mode string) string {
+	switch mode {
+	case "uppercase":
+		return strings.ToUpper(s)
+	case "lowercase":
+		return strings.ToLower(s)
+	case "capitalize":
+		var out strings.Builder
+		capNext := true
+		for _, r := range s {
+			if cssSpace(r) {
+				capNext = true
+				out.WriteRune(r)
+			} else if capNext {
+				out.WriteString(strings.ToUpper(string(r)))
+				capNext = false
+			} else {
+				out.WriteRune(r)
+			}
+		}
+		return out.String()
+	}
+	return s
 }

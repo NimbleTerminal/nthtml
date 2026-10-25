@@ -14,32 +14,39 @@ type rule struct {
 	pseudo      string
 }
 type style struct {
-	lineMode                        uint8 // 0: document default; 1: absolute; 2: font-size multiplier
-	wordSpacing                     int
-	zIndex                          int
-	floatSide, clear                string
-	position                        string
-	inset                           [4]cssLength
-	borderSet                       [4]bool
-	borderStyle                     [4]string
-	rootSize                        int
-	minWidth, minHeight, maxHeight  cssLength
-	whiteSpace, overflowWrap        string
-	spacing                         [2]int
-	collapse                        bool
-	size, line                      int
-	fg, bg                          color.RGBA
-	border                          [4]color.RGBA
-	margin, padding                 [4]cssLength // top, right, bottom, left
-	bw                              [4]int       // top, right, bottom, left
-	width, height, maxWidth         cssLength
-	borderBox                       bool
-	vertical                        string
-	display, align, family          string
-	bold, italic, underline, strike bool
-	mono, pre                       bool
-	linkID                          int
-	lineMultiplier                  float64
+	lineMode                                   uint8 // 0: document default; 1: absolute; 2: font-size multiplier
+	wordSpacing, letterSpacing                 int
+	zIndex                                     int
+	floatSide, clear                           string
+	position                                   string
+	inset                                      [4]cssLength
+	borderSet                                  [4]bool
+	borderStyle                                [4]string
+	rootSize                                   int
+	minWidth, minHeight, maxHeight             cssLength
+	textIndent                                 cssLength
+	whiteSpace, overflowWrap, textTransform    string
+	listStyleType, captionSide                 string
+	overflow, textOverflow                     string
+	flexDirection, flexWrap                    string
+	justifyContent, alignItems                 string
+	flexGrow, flexShrink                       float64
+	flexBasis, rowGap, colGap                  cssLength
+	spacing                                    [2]int
+	collapse                                   bool
+	size, line                                 int
+	fg, bg                                     color.RGBA
+	border                                     [4]color.RGBA
+	margin, padding                            [4]cssLength // top, right, bottom, left
+	bw                                         [4]int       // top, right, bottom, left
+	width, height, maxWidth                    cssLength
+	borderBox                                  bool
+	vertical                                   string
+	display, align, family                     string
+	bold, italic, underline, strike, smallCaps bool
+	mono, pre                                  bool
+	linkID                                     int
+	lineMultiplier                             float64
 }
 
 func (s style) borderH() int { return s.bw[1] + s.bw[3] }
@@ -66,7 +73,7 @@ func isCSSKeyword(v string) bool {
 
 func isInheritedProperty(k string) bool {
 	switch k {
-	case "color", "font-family", "font-size", "font-style", "font-weight", "line-height", "word-spacing", "white-space", "overflow-wrap", "word-wrap", "border-collapse", "border-spacing", "text-align":
+	case "color", "font-family", "font-size", "font-style", "font-variant", "font-weight", "line-height", "word-spacing", "letter-spacing", "text-indent", "text-transform", "list-style-type", "caption-side", "white-space", "overflow-wrap", "word-wrap", "border-collapse", "border-spacing", "text-align":
 		return true
 	}
 	return false
@@ -110,9 +117,18 @@ func declarations(s string) map[string]string {
 			kw := strings.ToLower(v)
 			switch k {
 			case "font":
-				for _, sub := range []string{"font-family", "font-size", "font-style", "font-weight", "line-height"} {
+				for _, sub := range []string{"font-family", "font-size", "font-style", "font-variant", "font-weight", "line-height"} {
 					put(sub, kw)
 				}
+			case "list-style":
+				put("list-style-type", kw)
+			case "gap":
+				put("row-gap", kw)
+				put("column-gap", kw)
+			case "flex":
+				put("flex-grow", kw)
+				put("flex-shrink", kw)
+				put("flex-basis", kw)
 			case "margin", "padding":
 				for _, side := range borderSides {
 					put(k+"-"+side, kw)
@@ -171,8 +187,13 @@ func declarations(s string) map[string]string {
 				continue
 			}
 		}
-		if k == "word-spacing" {
+		if k == "word-spacing" || k == "letter-spacing" {
 			if _, ok := wordSpacingValue(v); !ok {
+				continue
+			}
+		}
+		if k == "text-indent" {
+			if _, ok := parseInset(v); !ok {
 				continue
 			}
 		}
@@ -316,6 +337,72 @@ func declarations(s string) map[string]string {
 			put("background-color", v)
 		case "text-decoration":
 			put("text-decoration-line", v)
+		case "list-style":
+			for _, tok := range strings.Fields(strings.ToLower(v)) {
+				switch tok {
+				case "none", "disc", "circle", "square", "decimal", "decimal-leading-zero", "lower-alpha", "lower-latin", "upper-alpha", "upper-latin", "lower-roman", "upper-roman":
+					put("list-style-type", tok)
+				}
+			}
+		case "gap":
+			parts := strings.Fields(v)
+			if len(parts) == 1 {
+				if _, ok := parseLength(parts[0], false, false); ok {
+					put("row-gap", parts[0])
+					put("column-gap", parts[0])
+				}
+			} else if len(parts) == 2 {
+				_, ok1 := parseLength(parts[0], false, false)
+				_, ok2 := parseLength(parts[1], false, false)
+				if ok1 && ok2 {
+					put("row-gap", parts[0])
+					put("column-gap", parts[1])
+				}
+			}
+		case "flex":
+			lv := strings.ToLower(strings.TrimSpace(v))
+			if lv == "none" {
+				put("flex-grow", "0")
+				put("flex-shrink", "0")
+				put("flex-basis", "auto")
+			} else if lv == "auto" {
+				put("flex-grow", "1")
+				put("flex-shrink", "1")
+				put("flex-basis", "auto")
+			} else {
+				parts := strings.Fields(lv)
+				if len(parts) == 1 {
+					if _, err := strconv.ParseFloat(parts[0], 64); err == nil {
+						put("flex-grow", parts[0])
+						put("flex-shrink", "1")
+						put("flex-basis", "0px")
+					} else if _, ok := parseLength(parts[0], true, false); ok {
+						put("flex-grow", "1")
+						put("flex-shrink", "1")
+						put("flex-basis", parts[0])
+					}
+				} else if len(parts) == 2 {
+					if _, err := strconv.ParseFloat(parts[0], 64); err == nil {
+						put("flex-grow", parts[0])
+						if _, err2 := strconv.ParseFloat(parts[1], 64); err2 == nil {
+							put("flex-shrink", parts[1])
+							put("flex-basis", "0px")
+						} else if _, ok := parseLength(parts[1], true, false); ok {
+							put("flex-shrink", "1")
+							put("flex-basis", parts[1])
+						}
+					}
+				} else if len(parts) == 3 {
+					_, err1 := strconv.ParseFloat(parts[0], 64)
+					_, err2 := strconv.ParseFloat(parts[1], 64)
+					_, ok3 := parseLength(parts[2], true, false)
+					if err1 == nil && err2 == nil && ok3 {
+						put("flex-grow", parts[0])
+						put("flex-shrink", parts[1])
+						put("flex-basis", parts[2])
+					}
+				}
+			}
 		case "z-index":
 			if strings.EqualFold(v, "auto") {
 				put(k, "auto")
@@ -331,8 +418,8 @@ func declarations(s string) map[string]string {
 				if _, ok := parseInset(v); !ok {
 					continue
 				}
-			} else if strings.HasPrefix(k, "padding-") || k == "width" || k == "height" || k == "max-width" || k == "min-width" || k == "min-height" || k == "max-height" {
-				if _, ok := parseLength(v, k == "width" || k == "height", k == "max-width" || k == "max-height"); !ok {
+			} else if strings.HasPrefix(k, "padding-") || k == "width" || k == "height" || k == "max-width" || k == "min-width" || k == "min-height" || k == "max-height" || k == "row-gap" || k == "column-gap" || k == "flex-basis" {
+				if _, ok := parseLength(v, k == "width" || k == "height" || k == "flex-basis", k == "max-width" || k == "max-height"); !ok {
 					continue
 				}
 			} else if strings.HasPrefix(k, "border-") {
@@ -455,7 +542,7 @@ func parseCSS(s string, budget int) ([]rule, error) {
 	return out, nil
 }
 func (d *Document) styled(n *node, parent style) style {
-	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
 	if n.tag == "svg" {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
 		s.height, _ = parseLength(n.attrs["height"], true, false)
@@ -468,9 +555,9 @@ func (d *Document) styled(n *node, parent style) style {
 		}
 	}
 	switch n.tag {
-	case "span", "a", "em", "strong", "b", "i", "code", "small", "u", "s", "del", "img":
+	case "span", "a", "em", "strong", "b", "i", "code", "small", "sub", "sup", "mark", "u", "s", "del", "img":
 		s.display = "inline"
-	case "script", "style", "head", "meta", "link", "title", "template":
+	case "script", "style", "head", "meta", "link", "title", "template", "colgroup", "col":
 		s.display = "none"
 	case "h1":
 		s.size = 32
@@ -486,12 +573,61 @@ func (d *Document) styled(n *node, parent style) style {
 		s.lineMode = 0
 		s.bold = true
 		s.margin = uniform(10)
+	case "h3":
+		s.size = 20
+		s.line = 28
+		s.lineMultiplier = 0
+		s.lineMode = 0
+		s.bold = true
+		s.margin = uniform(8)
+	case "h4":
+		s.size = 16
+		s.line = 22
+		s.lineMultiplier = 0
+		s.lineMode = 0
+		s.bold = true
+		s.margin = uniform(8)
+	case "h5":
+		s.size = 14
+		s.line = 20
+		s.lineMultiplier = 0
+		s.lineMode = 0
+		s.bold = true
+		s.margin = uniform(8)
+	case "h6":
+		s.size = 12
+		s.line = 18
+		s.lineMultiplier = 0
+		s.lineMode = 0
+		s.bold = true
+		s.margin = uniform(8)
 	case "body":
 		s.margin = uniform(8)
-	case "p":
+	case "p", "dl":
 		s.margin = [4]cssLength{{value: 1, unit: lengthEM}, {}, {value: 1, unit: lengthEM}, {}}
+	case "blockquote":
+		s.margin = [4]cssLength{{value: 1, unit: lengthEM}, px(40), {value: 1, unit: lengthEM}, px(40)}
+	case "dt":
+		s.bold = true
+	case "dd":
+		s.margin = [4]cssLength{{}, {}, {}, px(40)}
+	case "hr":
+		s.margin = [4]cssLength{px(8), {}, px(8), {}}
+		s.height = px(1)
+		s.bg = color.RGBA{180, 188, 200, 255}
 	case "ul", "ol":
 		s.margin = uniform(8)
+	}
+	if n.tag == "small" && parent.size > 0 {
+		s.size = max(1, (parent.size*85+50)/100)
+	}
+	if (n.tag == "sub" || n.tag == "sup") && parent.size > 0 {
+		s.size = max(1, (parent.size*80+50)/100)
+		s.vertical = n.tag
+	}
+	if n.tag == "mark" {
+		s.bg = color.RGBA{255, 243, 163, 255}
+		s.fg = color.RGBA{0, 0, 0, 255}
 	}
 	if n.tag == "em" || n.tag == "i" {
 		s.italic = true
@@ -584,6 +720,19 @@ func (d *Document) styled(n *node, parent style) style {
 					s.italic = false
 				}
 			}
+		case "font-variant":
+			if kw == "inherit" {
+				s.smallCaps = parent.smallCaps
+			} else if kw == "initial" {
+				s.smallCaps = false
+			} else {
+				switch strings.ToLower(v) {
+				case "small-caps":
+					s.smallCaps = true
+				case "normal":
+					s.smallCaps = false
+				}
+			}
 		case "font-weight":
 			if kw == "inherit" {
 				s.bold = parent.bold
@@ -619,6 +768,163 @@ func (d *Document) styled(n *node, parent style) style {
 				s.wordSpacing = 0
 			} else if l, ok := wordSpacingValue(v); ok {
 				s.wordSpacing = max(-256, min(256, l.computed(s.size, s.rootSize).offset(0)))
+			}
+		case "letter-spacing":
+			if kw == "inherit" {
+				s.letterSpacing = parent.letterSpacing
+			} else if kw == "initial" {
+				s.letterSpacing = 0
+			} else if l, ok := wordSpacingValue(v); ok {
+				s.letterSpacing = max(-256, min(256, l.computed(s.size, s.rootSize).offset(0)))
+			}
+		case "text-indent":
+			if kw == "inherit" {
+				s.textIndent = parent.textIndent
+			} else if kw == "initial" {
+				s.textIndent = cssLength{}
+			} else if l, ok := parseInset(v); ok && l.unit != lengthAuto {
+				s.textIndent = l.computed(s.size, s.rootSize)
+			}
+		case "text-transform":
+			if kw == "inherit" {
+				s.textTransform = parent.textTransform
+			} else if kw == "initial" {
+				s.textTransform = ""
+			} else {
+				switch strings.ToLower(v) {
+				case "uppercase", "lowercase", "capitalize":
+					s.textTransform = strings.ToLower(v)
+				case "none":
+					s.textTransform = ""
+				}
+			}
+		case "list-style-type":
+			if kw == "inherit" {
+				s.listStyleType = parent.listStyleType
+			} else if kw == "initial" {
+				s.listStyleType = ""
+			} else {
+				switch strings.ToLower(v) {
+				case "none", "disc", "circle", "square", "decimal", "decimal-leading-zero", "lower-alpha", "lower-latin", "upper-alpha", "upper-latin", "lower-roman", "upper-roman":
+					s.listStyleType = strings.ToLower(v)
+				}
+			}
+		case "caption-side":
+			if kw == "inherit" {
+				s.captionSide = parent.captionSide
+			} else if kw == "initial" {
+				s.captionSide = ""
+			} else {
+				switch strings.ToLower(v) {
+				case "top", "bottom":
+					s.captionSide = strings.ToLower(v)
+				}
+			}
+		case "overflow", "overflow-x", "overflow-y":
+			if kw == "inherit" {
+				s.overflow = parent.overflow
+			} else if kw == "initial" {
+				s.overflow = ""
+			} else {
+				switch strings.ToLower(v) {
+				case "visible", "hidden", "clip", "auto", "scroll":
+					s.overflow = strings.ToLower(v)
+				}
+			}
+		case "text-overflow":
+			if kw == "inherit" {
+				s.textOverflow = parent.textOverflow
+			} else if kw == "initial" {
+				s.textOverflow = ""
+			} else {
+				switch strings.ToLower(v) {
+				case "clip", "ellipsis":
+					s.textOverflow = strings.ToLower(v)
+				}
+			}
+		case "flex-direction":
+			if kw == "inherit" {
+				s.flexDirection = parent.flexDirection
+			} else if kw == "initial" {
+				s.flexDirection = "row"
+			} else {
+				switch strings.ToLower(v) {
+				case "row", "row-reverse", "column", "column-reverse":
+					s.flexDirection = strings.ToLower(v)
+				}
+			}
+		case "flex-wrap":
+			if kw == "inherit" {
+				s.flexWrap = parent.flexWrap
+			} else if kw == "initial" {
+				s.flexWrap = "nowrap"
+			} else {
+				switch strings.ToLower(v) {
+				case "nowrap", "wrap":
+					s.flexWrap = strings.ToLower(v)
+				}
+			}
+		case "justify-content":
+			if kw == "inherit" {
+				s.justifyContent = parent.justifyContent
+			} else if kw == "initial" {
+				s.justifyContent = "flex-start"
+			} else {
+				switch strings.ToLower(v) {
+				case "flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly", "start", "end":
+					s.justifyContent = strings.ToLower(v)
+				}
+			}
+		case "align-items":
+			if kw == "inherit" {
+				s.alignItems = parent.alignItems
+			} else if kw == "initial" {
+				s.alignItems = "stretch"
+			} else {
+				switch strings.ToLower(v) {
+				case "stretch", "flex-start", "flex-end", "center", "baseline", "start", "end":
+					s.alignItems = strings.ToLower(v)
+				}
+			}
+		case "flex-grow":
+			if kw == "inherit" {
+				s.flexGrow = parent.flexGrow
+			} else if kw == "initial" {
+				s.flexGrow = 0
+			} else if g, err := strconv.ParseFloat(v, 64); err == nil && g >= 0 && g <= 1000 {
+				s.flexGrow = g
+			}
+		case "flex-shrink":
+			if kw == "inherit" {
+				s.flexShrink = parent.flexShrink
+			} else if kw == "initial" {
+				s.flexShrink = 1
+			} else if sh, err := strconv.ParseFloat(v, 64); err == nil && sh >= 0 && sh <= 1000 {
+				s.flexShrink = sh
+			}
+		case "flex-basis":
+			if kw == "inherit" {
+				s.flexBasis = parent.flexBasis
+			} else if kw == "initial" {
+				s.flexBasis = cssLength{}
+			} else if l, ok := parseLength(v, true, false); ok {
+				s.flexBasis = l.computed(s.size, s.rootSize)
+			}
+		case "row-gap":
+			if kw == "inherit" {
+				s.rowGap = parent.rowGap
+			} else if kw == "initial" {
+				s.rowGap = cssLength{}
+			} else if l, ok := parseLength(v, false, false); ok {
+				s.rowGap = l.computed(s.size, s.rootSize)
+			}
+		case "column-gap":
+			if kw == "inherit" {
+				s.colGap = parent.colGap
+			} else if kw == "initial" {
+				s.colGap = cssLength{}
+			} else if l, ok := parseLength(v, false, false); ok {
+				s.colGap = l.computed(s.size, s.rootSize)
 			}
 		case "text-decoration-line":
 			if kw == "inherit" {
@@ -773,7 +1079,7 @@ func (d *Document) styled(n *node, parent style) style {
 				s.display = parent.display
 			} else if kw == "initial" {
 				s.display = "inline"
-			} else if v == "none" || v == "block" || v == "inline" || v == "inline-block" {
+			} else if v == "none" || v == "block" || v == "inline" || v == "inline-block" || v == "flex" || v == "inline-flex" {
 				s.display = v
 			}
 		case "white-space":
@@ -824,7 +1130,7 @@ func (d *Document) styled(n *node, parent style) style {
 				s.vertical = parent.vertical
 			} else if kw == "initial" {
 				s.vertical = ""
-			} else if v == "top" || v == "middle" || v == "bottom" {
+			} else if v == "top" || v == "middle" || v == "bottom" || v == "sub" || v == "super" || v == "baseline" {
 				s.vertical = v
 			}
 		case "text-align":
@@ -832,7 +1138,7 @@ func (d *Document) styled(n *node, parent style) style {
 				s.align = parent.align
 			} else if kw == "initial" {
 				s.align = ""
-			} else {
+			} else if v == "left" || v == "right" || v == "center" || v == "justify" {
 				s.align = v
 			}
 		default:

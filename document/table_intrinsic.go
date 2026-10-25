@@ -26,8 +26,8 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				flushLine()
 				return
 			}
-			if n.tag == "img" || st.display == "inline-block" {
-				if st.display != "inline" && st.display != "inline-block" {
+			if n.tag == "img" || st.display == "inline-block" || st.display == "inline-flex" {
+				if st.display != "inline" && st.display != "inline-block" && st.display != "inline-flex" {
 					flushLine()
 					a, b := l.preferredCell(n, st, basis)
 					minimum = max(minimum, a)
@@ -36,7 +36,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				}
 				a, b := l.preferredCell(n, st, basis)
 				if pending {
-					line = min(4096, line+glyphAdvance(l.face(st), ' ', st.wordSpacing))
+					line = min(4096, line+l.glyphAdvanceStyled(st, l.face(st), ' '))
 					pending = false
 					flushWord()
 				}
@@ -62,7 +62,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				return
 			}
 			f := l.face(st)
-			text := n.text
+			text := applyTextTransform(n.text, st.textTransform)
 			if st.pre {
 				text, _ = preTextAt(text, 0)
 			}
@@ -80,10 +80,10 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 					continue
 				}
 				if pending {
-					line = min(4096, line+glyphAdvance(f, ' ', st.wordSpacing))
+					line = min(4096, line+l.glyphAdvanceStyled(st, f, ' '))
 					pending = false
 				}
-				w := glyphAdvance(f, r, st.wordSpacing)
+				w := l.glyphAdvanceStyled(st, f, r)
 				line = min(4096, line+w)
 				hasContent = true
 				if unicode.IsSpace(r) {

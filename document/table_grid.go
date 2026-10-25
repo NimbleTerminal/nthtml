@@ -114,7 +114,63 @@ func (d *Document) collectTable(n *node, s style, step func() bool) ([]tableRow,
 	if len(rows)*cols > 100000 {
 		return nil, 0, limitError("table grid slots")
 	}
+	colSpecs := d.collectColSpecs(n, s)
+	if len(colSpecs) > 0 {
+		for ri := range rows {
+			for i, sp := range rows[ri].spans {
+				if rows[ri].styles[i].bg.A == 0 && rows[ri].style.bg.A == 0 && sp.col < len(colSpecs) && colSpecs[sp.col].bg.A > 0 {
+					rows[ri].styles[i].bg = colSpecs[sp.col].bg
+				}
+			}
+		}
+	}
 	return rows, cols, nil
+}
+
+func (d *Document) collectColSpecs(n *node, s style) []style {
+	var specs []style
+	applyColAttr := func(cn *node, st *style) {
+		if !st.width.definite(100) && cn.attrs["width"] != "" {
+			if l, ok := parseLength(cn.attrs["width"], true, false); ok {
+				st.width = l.computed(st.size, st.rootSize)
+			}
+		}
+	}
+	addCol := func(st style, span int) {
+		for i := 0; i < span && len(specs) < 256; i++ {
+			specs = append(specs, st)
+		}
+	}
+	for _, child := range n.children {
+		switch child.tag {
+		case "colgroup":
+			cgStyle := d.styled(child, s)
+			applyColAttr(child, &cgStyle)
+			hasCol := false
+			for _, sub := range child.children {
+				if sub.tag == "col" {
+					hasCol = true
+					colStyle := d.styled(sub, cgStyle)
+					if colStyle.bg.A == 0 {
+						colStyle.bg = cgStyle.bg
+					}
+					if !colStyle.width.definite(100) {
+						colStyle.width = cgStyle.width
+					}
+					applyColAttr(sub, &colStyle)
+					addCol(colStyle, spanValue(sub.attrs["span"], false))
+				}
+			}
+			if !hasCol {
+				addCol(cgStyle, spanValue(child.attrs["span"], false))
+			}
+		case "col":
+			colStyle := d.styled(child, s)
+			applyColAttr(child, &colStyle)
+			addCol(colStyle, spanValue(child.attrs["span"], false))
+		}
+	}
+	return specs
 }
 func spanValue(s string, zero bool) int {
 	n, err := strconv.ParseUint(s, 10, 32)
