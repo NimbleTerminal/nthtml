@@ -300,15 +300,22 @@ scale)`: `area` is a rectangle of the page in CSS pixels (`Result.Bounds()` is
 the whole page) and `scale` the device pixels to a CSS pixel, 1/16 to 16, for
 high-density screens. Paint at scale 1 draws exactly what `Render` puts in
 `Result.Image`. Each call is bounded by the pixel limit, and is safe to make
-concurrently.
+concurrently. `Options.FontFamilies` (`Default`, `Serif`, `SansSerif`,
+`Monospace`) lets a reader map generic or unspecified font families, and
+`Options.Colors` (`Background`, `Text`, `Link`) supplies fallback theme colors
+when a page sets neither text nor background colors of its own.
 
 ## Resource limits
 
-Defaults: 1 MiB input, 10,000 nodes, depth 64, 256 CSS rules, 16 million output
-pixels, height 16,384, width 32–4,096, and 100,000 paint operations. `Limits` may
-lower these ceilings. Exceeding a budget returns `document.ErrLimit`. Font size,
-spacing and borders are also capped; each declaration list uses its first 128
-entries. TTY output is capped at 4 MiB and widths at 2–1,000 terminal cells.
+Defaults (`DefaultLimits`): 1 MiB input, 10,000 nodes, depth 64, 256 CSS rules,
+16 million output pixels per painted image, whole-page image height 16,384,
+`NoImage` layout height 262,144 (`Limits.LayoutHeight`), width 32–4,096, and
+250,000+ paint operations. `Limits` may lower these ceilings or raise them up
+to `MaxLimits` (16 MiB input, 200,000 nodes, depth 256, 4,096 CSS rules,
+64 million pixels, 262,144 whole-page height, and 1,048,576 `LayoutHeight`).
+Exceeding a budget returns `document.ErrLimit`. Font size, spacing and borders
+are also capped; each declaration list uses its first 128 entries. TTY output is
+capped at 4 MiB and widths at 2–1,000 terminal cells.
 Rendering checks context cancellation;
 caller-provided readers and image implementations must themselves return promptly.
 Decoded image helpers cap encoded input at 1 MiB and decoded output at 4 million
@@ -488,8 +495,8 @@ wins. Missing targets do not open a browser.
 | Clear search / selection | Esc | Esc outside inputs |
 | Follow local link | Click, or Tab then Enter | Click or keyboard activation |
 
-Terminal Typeset selection snaps to painted text runs; TTY selection uses
-terminal cells and UTF-8 rune boundaries. Selection is limited to the visible
+Both Typeset and TTY selection snap to individual UTF-8 runes (`TextRun.CharX`
+in Typeset mode, terminal cell widths in TTY mode). Selection is limited to the visible
 viewport while dragging; there is no drag autoscroll. Resizing or switching
 layouts clears stale selections and recomputes search positions. Search is
 literal, Unicode simple-case-insensitive, and treats repeated whitespace as a
