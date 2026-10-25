@@ -242,13 +242,13 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 		bottom := rowY[cell.row+cell.span.rows] - sy
 		delta := bottom - top - cell.height
 		for i := cell.start; i < cell.end; i++ {
-			l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(image.Pt(0, top))
+			l.ops[i].box.translate(image.Pt(0, top))
 		}
 		l.ops[cell.start].box.Bounds.Max.Y = bottom
 		contentEnd := cell.end
 		if cell.s.bw > 0 {
 			contentEnd -= 4
-			l.ops[contentEnd+1].box.Bounds = l.ops[contentEnd+1].box.Bounds.Add(image.Pt(0, delta))
+			l.ops[contentEnd+1].box.translate(image.Pt(0, delta))
 			l.ops[contentEnd+2].box.Bounds.Max.Y = bottom - cell.s.bw
 			l.ops[contentEnd+3].box.Bounds.Max.Y = bottom - cell.s.bw
 		}
@@ -260,7 +260,7 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, s style) int {
 			shift = delta
 		}
 		for i := cell.start + 1; i < contentEnd; i++ {
-			l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(image.Pt(0, shift))
+			l.ops[i].box.translate(image.Pt(0, shift))
 		}
 	}
 	if grid != nil {

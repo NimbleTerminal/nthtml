@@ -35,6 +35,9 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 			}
 		}
 		if n.tag == "" {
+			if st.size == 0 {
+				return
+			}
 			f := l.face(st)
 			text := n.text
 			if st.pre {
@@ -54,12 +57,10 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 					continue
 				}
 				if pending {
-					advance, _ := f.GlyphAdvance(' ')
-					line = min(4096, line+max(1, advance.Ceil()))
+					line = min(4096, line+glyphAdvance(f, ' ', st.wordSpacing))
 					pending = false
 				}
-				advance, _ := f.GlyphAdvance(r)
-				w := max(1, advance.Ceil())
+				w := glyphAdvance(f, r, st.wordSpacing)
 				line = min(4096, line+w)
 				if unicode.IsSpace(r) {
 					flushWord()

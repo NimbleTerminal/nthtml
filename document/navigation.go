@@ -90,7 +90,11 @@ func (r *Result) TextIndex() *TextIndex {
 			}
 			return r
 		}, b.Text))
-		out.Runs = append(out.Runs, TextRun{start, text.Len(), b.Bounds})
+		bounds := b.Bounds
+		if bounds.Empty() {
+			bounds = b.InkBounds
+		}
+		out.Runs = append(out.Runs, TextRun{start, text.Len(), bounds})
 	}
 	out.Text = text.String()
 	return out

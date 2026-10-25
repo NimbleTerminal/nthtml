@@ -7,213 +7,438 @@
   },
   "files": {
     "LICENSE.md": "5fac07febb0e2a97fb0d7b0def149ec08b642e1ba4b9c345283ab1cbd2af6570",
+    "css/CSS2/borders/border-001-ref.xht": "6ef049287f959437e9af18d77c2a116facce7b5bfb7779a61d445ac8a48616f7",
+    "css/CSS2/borders/border-001.xht": "5ccad2404b15248363a526f8ef93f5a32d4e74f20a784984213c8c4250bd0d6a",
+    "css/CSS2/borders/border-003-ref.xht": "36a67f96cb7df19a3d97fe53808e357a12c1026844d666ff6899fa8878e3d4fb",
+    "css/CSS2/borders/border-003.xht": "d49e4cf31c6fe00dc2c79aabb84d07c165b91821499682e514afbc35cc34cbba",
+    "css/CSS2/borders/border-005-ref.xht": "fbf0687a4fbee9d4fead4784d47fe271a3e5248fc5809d1c11b494ab39c72497",
+    "css/CSS2/borders/border-005.xht": "f3ec10682b648c862d5397e0ccce3cd64f3e3c5747da46c0b519365bf28773e4",
+    "css/CSS2/borders/border-006-ref.xht": "84e550393dac510390914e8347f990b2ff52a2d09af90e039d56d4d1ad7adf78",
+    "css/CSS2/borders/border-006.xht": "2f65a7676b0642f8fbc49172f42352f1a559e6019fd524a1fd0256b0ee63adb4",
+    "css/CSS2/borders/border-008.xht": "c924ca2b4bf63aeb11dcba8970e10a82f7d79b00d8a2576988cbdce8553158f9",
     "css/CSS2/box-display/display-none-001.xht": "e47736045305927d8dacb3b8d4bac7b4d4a1a98a9deb6bb83ba2c4ae82408092",
-    "css/CSS2/reference/ref-if-there-is-no-red.xht": "ceb49218754d1072a8f989d0566cc63eb0e048660c658f632d821780940cf655",
     "css/CSS2/box-display/display-none-002.xht": "efb7b3bc48aa107c5a84c247918dd08fa59a7eee8bec2d3df1cf13ce18baf34c",
     "css/CSS2/box-display/display-none-003.xht": "de7c05c5696ca7cbf5650a93619d98cc3379844df441ac9013141ca581976bbb",
-    "css/CSS2/fonts/font-style-applies-to-001.xht": "b5bc85a76619eed49eca582587a079c0010fd3967e33eb2ea49f27c8bb505d80",
+    "css/CSS2/cascade/cascade-005.xht": "578960045b50ce8cedf2a329b1433069ac839258e8bcb64e19961878db1a9abf",
+    "css/CSS2/cascade/cascade-007.xht": "9a977c48641b5e7e66001dc8765f8c2d429123b33ab411d44b6bd185af1200b0",
+    "css/CSS2/cascade/sort-by-order-001.xht": "325edd8c159b87559c554b2e029fb7ddf47a43a221a7037b549055bca3c73fd1",
+    "css/CSS2/cascade/specificity-001.xht": "1bdc4d271da89a118808574d1d61508d90c21b56b1ba4ecca9afaf2d1e21e362",
+    "css/CSS2/cascade/specificity-002.xht": "4a183d391e6192be40c6db77bde113cc461a5198d900aa6b2e9d0d34aaf26518",
+    "css/CSS2/cascade/specificity-003.xht": "873e689a67e431646e9b510e11c36b18a12362efeadf7127423debb848be3c21",
+    "css/CSS2/cascade/specificity-004.xht": "2acfbf78b51a339afb58fdc9a1b799470ab055eb2f591e78476456efef4ed51e",
+    "css/CSS2/cascade/specificity-005.xht": "a47a8049dd5d9c5db474dc8a45e26c59085dfa7ec2af2fe40ab789c337b78c39",
+    "css/CSS2/cascade/specificity-006.xht": "72de1d01c6f4c47427be40903dcbfea5844c63a87af9deebf32f5a5c8b958c04",
+    "css/CSS2/cascade/specificity-007.xht": "1a0f268135a45771a253564001d24ba0aa7b93725cdd7a3161640d0643c973ec",
+    "css/CSS2/cascade/specificity-008.xht": "0e9ddeee62b9ee8762ed3ed5ee0857de9c8ad7b76808c996b190d7025a7e59b1",
+    "css/CSS2/cascade/specificity-011-ref.xht": "b7a4ebc8a7b4c962b22ff3508d794603c0df69e5a9438b64cb6e1037913c8688",
+    "css/CSS2/cascade/specificity-011.xht": "2168917e23baa7351e076305ec0fc352f2a7eeffb0789c798becd3f76b0e5937",
+    "css/CSS2/cascade/specificity-013-ref.xht": "af72865d772334e24402792c946607f1cbc4f9dcce51059c0e18fa880b108360",
+    "css/CSS2/cascade/specificity-013.xht": "2bcc5fa4b8b3729d90c66e89d13954f55aaf71db34909c554c55909d9f633be8",
+    "css/CSS2/fonts/font-003-ref.html": "a239789be44388ceccf2b53319de70d0d2c5a7b80676f55389343b4d0fcfbbaf",
+    "css/CSS2/fonts/font-003.xht": "fec8f18e0ed8b030664e4b700203c02eab3b6adb0e690af70c815ebcff243e5b",
+    "css/CSS2/fonts/font-011.xht": "14e6c33a9f2157fdb240986f86d148b565f3f648fb8f0bb9f874c85b63eed170",
+    "css/CSS2/fonts/font-012.xht": "1a07bbd197f6dace02fc1f23ccaede0ece266485887932ba15bf26f0c893758a",
+    "css/CSS2/fonts/font-013.xht": "fa9526d0eb8fb3fdd1896d37d89aa1c6fead6e9829a9ca8f9c4da79bbeab8b64",
+    "css/CSS2/fonts/font-014.xht": "15f922b3f408787de4b84ea3c2057a7d472beca19fbbbe79ffab375614222496",
+    "css/CSS2/fonts/font-015.xht": "d85b9d05da41bc6d89663ba70550e5d355bd6dcae6386674896d066eb33a4f32",
+    "css/CSS2/fonts/font-016.xht": "b8833b28dc30643293e567058d7ac903287c8c5a38274e4b76b0dd000c644034",
+    "css/CSS2/fonts/font-051-ref.xht": "a953faef0a6f3d4a48e6c0c81cc3a0e8af9080f534f1059973519e1416d80e32",
+    "css/CSS2/fonts/font-051.xht": "6a4f40c73974004980b809784483332d8e215f68e40aa459f98279908942e025",
+    "css/CSS2/fonts/font-size-002.xht": "f252c50e837a6dee220371f243b05eb7d02442913b4b55e3f202420678d2ee58",
+    "css/CSS2/fonts/font-size-004.xht": "b9b36f261e3f978cfa219c83d2b7c2942def7960c74c65d04135369640cac334",
+    "css/CSS2/fonts/font-size-005.xht": "944ccbdc5b2634a64a415e2e1244ede07d7b99b73a5bb33cfb0185d670f176ad",
+    "css/CSS2/fonts/font-size-012.xht": "2f864d6081aa8f1d21d2d93c43a3bb56d4e39d0ade2eeb14f7fc9e52a11b20cf",
+    "css/CSS2/fonts/font-size-013.xht": "d93fa7b401d841f1ba7a13242e7136b34d2afc7589137f889283d5bd3b7e73dc",
+    "css/CSS2/fonts/font-size-015.xht": "8170281f8473d81bf1c204e6fb6fbe6b666bebfab692befbed02aef7bc5514c6",
+    "css/CSS2/fonts/font-size-016.xht": "86b15494e150866a15c13749244db020b3a5a8f293b02b2723ee0c2a43a7c1bf",
     "css/CSS2/fonts/font-style-applies-to-001-ref.html": "63a3f758fd7d558c78c1296e55716e4b212f931d5625ed32bfddaca5693e6060",
+    "css/CSS2/fonts/font-style-applies-to-001.xht": "b5bc85a76619eed49eca582587a079c0010fd3967e33eb2ea49f27c8bb505d80",
     "css/CSS2/fonts/font-style-applies-to-002.xht": "940385de30c8240041c76b5830b112b52b922623a7332bd4661adba20357e2ce",
     "css/CSS2/fonts/font-weight-applies-to-001.xht": "5da00fd62a181d5b04e7859007051e5383929fa64815b818bea3498fb0d60ae8",
-    "css/CSS2/fonts/font-weight-bold-ref.html": "970eaa50397fa7506f5dbb080cc7119055a9a0c779a8bf9626e2bd4c4cbfd9ff",
     "css/CSS2/fonts/font-weight-applies-to-002.xht": "570150b72d994f7316d4ea7a030bcab74e86651f581d62ce3a59b8425fb5dc89",
-    "css/CSS2/fonts/font-weight-rule-001.xht": "aefe1a51aa36cfb2c4615e77b356b2250956c6be9007c0b2706f941664c03223",
+    "css/CSS2/fonts/font-weight-bold-ref.html": "970eaa50397fa7506f5dbb080cc7119055a9a0c779a8bf9626e2bd4c4cbfd9ff",
     "css/CSS2/fonts/font-weight-normal-ref.html": "32e2ae7e0cc504da8998fe1b963a23c310b8e7b03e62aed132b271e87e77f1e3",
-    "css/CSS2/normal-flow/height-001.xht": "2f962cf046d80ccfbc14cad7b1e1f0212f6fd8d476e2b9aa1e2e7285849b01ad",
-    "css/CSS2/normal-flow/height-001-ref.xht": "9e71e7f72972afa93fd4bb9a9d9b08477d3c54eba35016956f81f9bc6bb922b0",
-    "css/CSS2/margin-padding-clear/padding-001.xht": "c0266a2fde6bba214758ef108b7707dbed9499d35ab39287a6b97c03e6f8a96e",
+    "css/CSS2/fonts/font-weight-rule-001.xht": "aefe1a51aa36cfb2c4615e77b356b2250956c6be9007c0b2706f941664c03223",
+    "css/CSS2/linebox/line-height-002-ref.xht": "f8753f8e3f97412b9b6aa3d87ea79474aff37ea6e17a89e812f0ff19d977ea8b",
+    "css/CSS2/linebox/line-height-002.xht": "41f69000b9b553e5f986efe8f4695ecb5c9269cffe8154c4db6889ee50fdd36b",
+    "css/CSS2/linebox/line-height-004.xht": "07ee26f3a67b3ef24c1966474493c674c9caee5c3c53b70798a567b1dde3f1eb",
+    "css/CSS2/linebox/line-height-006-ref.xht": "18990b76af1812d32ef6ccd93a17fa50132d2d839b3615faef16ec5e2ea12cb0",
+    "css/CSS2/linebox/line-height-006.xht": "eeb1a2f0ac07b6fe39de5e974edbe24e673e5e275e2cd563d31e2c94b465c211",
+    "css/CSS2/linebox/line-height-007.xht": "d032a2ba96cf4999df2a65b9f20447e653602754a999216b08b171e482526936",
     "css/CSS2/margin-padding-clear/margin-001-ref.xht": "96f2cdeea6ad5902b1f1c0bd28b80ef1d13975e31880f539c5a978455db92b6f",
     "css/CSS2/margin-padding-clear/margin-001.xht": "5d7a4c3e10f254e45c1ae0fcd91e2c8506b92f8862b01bca669f1e444e0c21ab",
-    "css/css-sizing/box-sizing-border-box-001.xht": "e8e2e59968b7054330d9c3379757de4fca9356faca8a5c5b848a6cd5e00d0f59",
-    "css/css-sizing/box-sizing-border-box-001-ref.xht": "3759892a807c6d9f0c9dfab168f3a6f75a23dc0bb091d42e6d00c7bf0421a536",
-    "css/CSS2/borders/border-001.xht": "5ccad2404b15248363a526f8ef93f5a32d4e74f20a784984213c8c4250bd0d6a",
-    "css/CSS2/borders/border-001-ref.xht": "6ef049287f959437e9af18d77c2a116facce7b5bfb7779a61d445ac8a48616f7",
-    "css/CSS2/tables/border-collapse-offset-001.xht": "c296f066c41f168d35e63acb3175d3efaf5d3f9ca73c03d494cd503ec20e6ab1",
-    "css/CSS2/tables/border-collapse-offset-001-ref.xht": "a50ef5eb9e3739768078e57a181660184e6c684e7bec85bf2719f515d3305731",
-    "css/CSS2/tables/border-conflict-element-001d.xht": "217226caba0c452831eeb9692d8f939946811d3a4404719ca2e3e4fb67db60fc",
-    "css/CSS2/tables/border-conflict-element-001d-ref.xht": "adcb809fde777c1cdb97449faef3e8fe634b034d03bfadcd2dc81e616c32bca1",
-    "css/CSS2/tables/border-collapse-001.xht": "2378a0025e0f64ad669937db8c8d303cc6d98f2d12c90dab908d959ab071ca36",
-    "css/CSS2/selectors/child-selector-001.xht": "86a308f6f44018223e92c76af6b65094ae2c51bc2cf45bb1658872b568d1214e",
-    "css/CSS2/selectors/child-selector-001-ref.xht": "00ae4c802a4d4ea1ec35e12b850973654be4fa3f7c826b72e7b1f9095c129f3b",
-    "css/CSS2/selectors/child-selector-002.xht": "c0e4851cb3eece01e68e3fd15cdeabf87cfba652636500f73fb955a54411af40",
-    "css/CSS2/selectors/child-selector-002-ref.xht": "05c8194cf4f4c4f5b27175d0dc00a68cecec2eadcd21afa8925fe6d28067ed31",
-    "css/CSS2/selectors/child-selector-003.xht": "2cd2cf00c7586bfa3570ec5fc1d7a2b33e1f292d1b82c09febc033b70c1ed14b",
-    "css/CSS2/selectors/child-selector-003-ref.xht": "51da4bdffa86d9e574ba118d88431778db101129efc33ef0f947d6406f2ff264",
-    "css/CSS2/selectors/descendent-selector-002.xht": "304937ef4759b342b421a3c0d05ba0958827268b811440506b7a0b898d15e621",
-    "css/CSS2/selectors/descendent-selector-002-ref.xht": "31cfcb5adadd9e0b2b72b45180c1d1b0f66c29aea16a0116a49b0cfc74756286",
-    "css/CSS2/selectors/descendent-selector-004.xht": "c2f711243a98c2cf5c924b8622ba5f30422a34110e7d96cfd96648cfd04a3a4e",
-    "css/CSS2/selectors/descendent-selector-004-ref.xht": "c9eb4a42cfdb703e381fa62897e93c68e1a81af178b811536af5d3858e0be412",
+    "css/CSS2/margin-padding-clear/padding-001.xht": "c0266a2fde6bba214758ef108b7707dbed9499d35ab39287a6b97c03e6f8a96e",
+    "css/CSS2/normal-flow/height-001-ref.xht": "9e71e7f72972afa93fd4bb9a9d9b08477d3c54eba35016956f81f9bc6bb922b0",
+    "css/CSS2/normal-flow/height-001.xht": "2f962cf046d80ccfbc14cad7b1e1f0212f6fd8d476e2b9aa1e2e7285849b01ad",
+    "css/CSS2/normal-flow/height-003-ref.xht": "88025966b4259c3a252a67c6edf4e688ace5feeee310178f1a513d826e992c26",
+    "css/CSS2/normal-flow/height-003.xht": "207cfa1fe40a2f49a5b2bba54fbf782f707b3fe47479b7a3df9e098d1e4b13df",
+    "css/CSS2/normal-flow/height-004.xht": "14b4fd68f5c8fb392eb65bf1182e9e46d933195b56a3f53f10e2199dc58aa7e1",
+    "css/CSS2/normal-flow/height-005.xht": "9eb4b4549d014619c74673669b1e4887669a8be773aa746b6c03c902d1f85f34",
+    "css/CSS2/normal-flow/height-006-ref.xht": "c8063ea8510a4a4bed445ff09e573e623016aa5102f949b429617d45ed12e308",
+    "css/CSS2/normal-flow/height-006.xht": "ca0f6bbb3f9169268936e2cbbe17cc26ae7a0119f937e4b55743138dde50f3b0",
+    "css/CSS2/normal-flow/height-007.xht": "a901a7116b9fafc82d834b3673f703f53054c9d2ee01b9933944fc51c20328b1",
+    "css/CSS2/normal-flow/max-height-002.xht": "d16f2b8561e1a5077bc5724351bbc5f5ea6423075b0904cf22697916e5b59316",
+    "css/CSS2/normal-flow/max-height-003.xht": "2b618f04a2d433ce2053367b1b4397de543a90f37aad0a4e2e6f66e509eb43a7",
+    "css/CSS2/normal-flow/max-height-004.xht": "df0cd6f10101f99ab0b498d2bc98582bed574092b17b3cf62aeb66a77c699966",
+    "css/CSS2/normal-flow/max-height-005.xht": "837be59adf6c87a844547fe497da97da084303854e69dcc6ff535b6d31e55ea2",
+    "css/CSS2/normal-flow/max-height-006.xht": "127f3bd6f9be4ddc06bb80d3588b9893d65a8ad127e0f498fd4e835c3c694709",
+    "css/CSS2/normal-flow/max-height-007.xht": "b003482e985994498979559987bb4d45ab354deab1c465528d3a7ee6ff75026b",
+    "css/CSS2/normal-flow/max-height-013.xht": "341697fc7ad04444c9ecc71c708dc2baf90f42f4a01694a7d38e6d7f469dece4",
+    "css/CSS2/normal-flow/max-height-025-ref.xht": "422a86c378705f4bfe7827d082d5eade49089f810ec006b35d3a9997508e1b53",
+    "css/CSS2/normal-flow/max-height-025.xht": "25832ad637bdaf3455e81914b8eeac093b4714e585a080158ae21360f1464ae7",
+    "css/CSS2/normal-flow/max-width-003-ref.xht": "93accc0c0896f09337c347647994a415091431f677bb32b8cc09e36713956c40",
+    "css/CSS2/normal-flow/max-width-003.xht": "5b5b19187273fc3f79b360a1d1aba6875377ee366aea46b6258b60e5e0533b37",
+    "css/CSS2/normal-flow/max-width-004.xht": "bceab186433134f7e6f656c02a17c4b5ea584b7b5948f612f3728a24783522b2",
+    "css/CSS2/normal-flow/max-width-005.xht": "d72b74cb359320d60e436b05c79929c14f5e3d1eca9114d40db18cba42bce4ca",
+    "css/CSS2/normal-flow/max-width-006-ref.xht": "63fe0f904249a149805557eede4b4c9bbb1272eb79744bd68ea07b525bb26c3c",
+    "css/CSS2/normal-flow/max-width-006.xht": "f8edc56e54a38ebb4fba893a7327f1a5651a9064260ca8a4391374136fa7ad0e",
+    "css/CSS2/normal-flow/max-width-007.xht": "5a25acb77abe3e012f4ad9552910a47a69e0e4eb5d9afea086e52afcd8102d62",
     "css/CSS2/normal-flow/min-height-002.xht": "9030c95b3caea0430bbcfa651cbde2468b1b482a99c57ee0b40e9ecc91eabc7c",
+    "css/CSS2/normal-flow/min-height-003.xht": "49fe00145c72d8a7ffafddaf2ef5fdee36716fe99211971d2dd34a74c522c452",
+    "css/CSS2/normal-flow/min-height-004.xht": "67e2cc17e06dbb2db55f48909195426a203d9971fdc290d8b0ae5e0e58d0b559",
+    "css/CSS2/normal-flow/min-height-005.xht": "f609c7419fcef8856ec68f829fdf7017a019fd288b2f2f655c7f227c62247e45",
+    "css/CSS2/normal-flow/min-height-006.xht": "c2f794fa1b4788f713c4f16f7c56163bac0bddf13ced0577085e643fc444464a",
+    "css/CSS2/normal-flow/min-height-007.xht": "ac10b2693cc2f0d440337a9cbbfae6263b7a09dc51c5dde88235d930dd31939f",
     "css/CSS2/normal-flow/min-height-013.xht": "dd0851d036c666d67c0222666675be29e0eaaad473ba8b69ed96458cbd9bab1d",
     "css/CSS2/normal-flow/min-height-024.xht": "6a210c707d9944f97cde31efca4e4c4a81d1aba7552e1c7c31d7308969513553",
-    "css/CSS2/normal-flow/max-height-002.xht": "d16f2b8561e1a5077bc5724351bbc5f5ea6423075b0904cf22697916e5b59316",
-    "css/CSS2/normal-flow/max-height-013.xht": "341697fc7ad04444c9ecc71c708dc2baf90f42f4a01694a7d38e6d7f469dece4",
     "css/CSS2/normal-flow/min-width-002.xht": "fd17c0583e759799c7370f0e9bc925b11b6758775862804a15c7917d62ad1421",
+    "css/CSS2/normal-flow/min-width-003.xht": "46cc4fd9b41146496f546dbef6a0ca4ee77ae98e9e7e32d2ff2f16e2fac5a788",
+    "css/CSS2/normal-flow/min-width-004.xht": "b87d61a06d29837261205a17f3859fe55ed1cb0ef17c221ea8c06d872377233b",
+    "css/CSS2/normal-flow/min-width-005.xht": "5ff64777d9802297c9d69b0d7aeaabc4636480adc0240404eed733f6ca0fd137",
+    "css/CSS2/normal-flow/min-width-006.xht": "8843ac612dbefc8bfe947a4338c12b3b4e8154f3f1e308148c9c24da52af4066",
+    "css/CSS2/normal-flow/min-width-007.xht": "1dfa7b3f0fe6b322fa431360772d2c1e7dfa8cad6c29ff6f851d2529b7c5e944",
     "css/CSS2/normal-flow/min-width-013.xht": "39b2b3ac8e6acf006b51a7b5547658dacdcf031d0994240afbb381855da44274",
-    "css/CSS2/normal-flow/max-height-025.xht": "25832ad637bdaf3455e81914b8eeac093b4714e585a080158ae21360f1464ae7",
-    "css/CSS2/normal-flow/max-height-025-ref.xht": "422a86c378705f4bfe7827d082d5eade49089f810ec006b35d3a9997508e1b53",
-    "css/css-color/rgb-001.html": "ceea9f6c155846abefdab7b1bea6b795d18b34844828fd803233b4e2f68070bd",
+    "css/CSS2/normal-flow/support/black96x96.png": "4b4360c511aaeb81f6b614589d77fac8a28b2b7fdcc3c96857473dac834d8661",
+    "css/CSS2/normal-flow/width-003.xht": "6ac946ec56c2de3c1dcfcfd064cc5823170f4b6e40753ff00d6a9920154c2975",
+    "css/CSS2/normal-flow/width-004.xht": "a3960369c04cb8435e241c93dd509b2bc6c84828618fdcfd9e7340b757e029de",
+    "css/CSS2/normal-flow/width-005.xht": "1ec67e2477a53eea1d0f32c5bbf8d23abb7102e06de3dc5b11e508857a06e602",
+    "css/CSS2/normal-flow/width-006.xht": "79f043a40bc7037c679f338e844733b9c09fcd932f73104c8d7ac77d347a6e5b",
+    "css/CSS2/normal-flow/width-007.xht": "545855017830136edd35989b7c66dc160fedc11721e9c14554a5e74e05c4ffc6",
+    "css/CSS2/reference/filler-text-below-green.xht": "c3763b3724b4b38af8d3b46302e5b9163eb26c04446b917f28907fbcfb8c683a",
+    "css/CSS2/reference/no-red-filler-text-ref.xht": "14571a0577f7f8419963fc75ec597b7d77d5c07687929c36816e1ba75b812798",
+    "css/CSS2/reference/no-red-on-blank-page-ref.xht": "fa58cb5350d63aa3f69ba1fe4e85d03a9f296df2d98fbd498c14cfdc1568dd8c",
+    "css/CSS2/reference/no_red_bold_italic_small-caps_ahem.html": "ad65a8b79f999c4f8d5a25e0593b511e1ad3319cb37e81f1509eb8f58943afe7",
+    "css/CSS2/reference/ref-filled-green-100px-square.xht": "b7d98bb3f8b7b70e8f76f0b7e99566bc09ca5e5cbae1cef571d7843be87da4f0",
+    "css/CSS2/reference/ref-green-background.xht": "380df7cf05a66d9f434cc707bb38edfd4b9e0b10dac25988838b6fc953e6a29f",
+    "css/CSS2/reference/ref-if-there-is-no-red.xht": "ceb49218754d1072a8f989d0566cc63eb0e048660c658f632d821780940cf655",
+    "css/CSS2/reference/ref-this-text-should-be-green.xht": "584427d94a84853f026af97c03893373e2eac48e9f24c66491764c326047642a",
+    "css/CSS2/selectors/child-selector-001-ref.xht": "00ae4c802a4d4ea1ec35e12b850973654be4fa3f7c826b72e7b1f9095c129f3b",
+    "css/CSS2/selectors/child-selector-001.xht": "86a308f6f44018223e92c76af6b65094ae2c51bc2cf45bb1658872b568d1214e",
+    "css/CSS2/selectors/child-selector-002-ref.xht": "05c8194cf4f4c4f5b27175d0dc00a68cecec2eadcd21afa8925fe6d28067ed31",
+    "css/CSS2/selectors/child-selector-002.xht": "c0e4851cb3eece01e68e3fd15cdeabf87cfba652636500f73fb955a54411af40",
+    "css/CSS2/selectors/child-selector-003-ref.xht": "51da4bdffa86d9e574ba118d88431778db101129efc33ef0f947d6406f2ff264",
+    "css/CSS2/selectors/child-selector-003.xht": "2cd2cf00c7586bfa3570ec5fc1d7a2b33e1f292d1b82c09febc033b70c1ed14b",
+    "css/CSS2/selectors/class-selector-001.xht": "cc2d262b95bd57b0300a8e6b39c88ddf28c5302ba4b92e554d7798f749cf7e95",
+    "css/CSS2/selectors/class-selector-002.xht": "7eee286706fc8da1a6def46c3e6cb7afde3550d6fdb6922e04ef50c334aad3ce",
+    "css/CSS2/selectors/class-selector-003.xht": "97a6641900d1eb077700f58cfd6ea1945b3231a7e7f2b96d31ceaa5d57939f25",
+    "css/CSS2/selectors/class-selector-004.xht": "ca0d0e14b2c19e374f0c3ba89c58a0df703ad0b55742e428fe53784b7343c86d",
+    "css/CSS2/selectors/class-selector-005.xht": "737a1cc4edd78af89dca7be15f82f9295437d19bdfed8a839c2fb5be8b0b6643",
+    "css/CSS2/selectors/class-selector-006.xht": "e82fffef731991343432af5804a53cafc498f3d9b2626c4dd3719c130057d09d",
+    "css/CSS2/selectors/class-selector-007.xht": "2a41edecd007b80e32e6c6cd2d72ba6a08da10d59b9e0b65119e844cd5e30a04",
+    "css/CSS2/selectors/class-selector-008.xht": "3418a742500473ea76ebe6954d3db087817ed4dfd2700aab11f187a77e590d73",
+    "css/CSS2/selectors/class-selector-009.xht": "8a2849f93618d9115279dedd997363ad56304711965b67422d5ffbd83d7a1ba0",
+    "css/CSS2/selectors/class-selector-010.xht": "98ca2adeb2b89eb7ff52f782208aa91e68625df3347fd88409085f42201ee0f7",
+    "css/CSS2/selectors/class-selector-011.xht": "0bb5887589b1f8faf44ad4da712c85c74b262e745679de4ba9f2fb2d3ac7beaa",
+    "css/CSS2/selectors/class-selector-012-ref.html": "90e535e5704fd82c732234fb4c3dd8255bebade03abb27e8f74ecc0e4b29b8b2",
+    "css/CSS2/selectors/class-selector-012.xht": "424fbb26d76b76e3ccc685c42ea18fc10a81714c326c80968fe6dcb88924c311",
+    "css/CSS2/selectors/descendent-selector-001.xht": "acce9f42fae6c54bddbb4f86ea1407b981b57a9c9b62d42ac6dfb54ed3baceed",
+    "css/CSS2/selectors/descendent-selector-002-ref.xht": "31cfcb5adadd9e0b2b72b45180c1d1b0f66c29aea16a0116a49b0cfc74756286",
+    "css/CSS2/selectors/descendent-selector-002.xht": "304937ef4759b342b421a3c0d05ba0958827268b811440506b7a0b898d15e621",
+    "css/CSS2/selectors/descendent-selector-003.xht": "366570136b5d894c2dcbd65774f7550bf0e6f731698971467dc69f158ba7ad1f",
+    "css/CSS2/selectors/descendent-selector-004-ref.xht": "c9eb4a42cfdb703e381fa62897e93c68e1a81af178b811536af5d3858e0be412",
+    "css/CSS2/selectors/descendent-selector-004.xht": "c2f711243a98c2cf5c924b8622ba5f30422a34110e7d96cfd96648cfd04a3a4e",
+    "css/CSS2/selectors/descendent-selector-005.xht": "30a828b73ef1487a3cf3f690c5f623495fdd0abf351588119bc7e34de4364fd7",
+    "css/CSS2/selectors/descendent-selector-006.xht": "bdde7735eaed78eeca8d35f81139bb6a8dbed6e58f4a678b4d953614acda8851",
+    "css/CSS2/selectors/descendent-selector-007.xht": "94cf98ee0c4f7b3e350385ff17e09300d3bb7c54fa6768cc68418813e577c844",
+    "css/CSS2/selectors/descendent-selector-008.xht": "a9774b356227d5f696433a7d8b4ab11de22f500ddbb9bdcbbe5ea01ef545bd96",
+    "css/CSS2/selectors/descendent-selector-009.xht": "f3610d394207705f2ca83e11e49e63ef1fa12463ed4ccf4882933165ce160681",
+    "css/CSS2/selectors/descendent-selector-010.xht": "16c7f62ff819861121f1ca8c18f05f64048865cbe63859fd45839740980787ef",
+    "css/CSS2/selectors/descendent-selector-011.xht": "da3b23d650a4d4d5dcb81616f2d3ea6ceaf452b4d0fb5486e09d7e756f4f0a28",
+    "css/CSS2/selectors/id-selector-001.xht": "4d25dd3c97ab3c8a6427c54cb8b2e0c572937c0ba5aa5f71fb9f276c747fc7a2",
+    "css/CSS2/selectors/id-selector-002.xht": "e84853ea52d3c5c1c92c93171fee2c3528b2731711af786503b59dcac9b9548b",
+    "css/CSS2/selectors/id-selector-004.xht": "85af07871e831d8a4e76280a21e30c7314b2fcb8af7fd8b2a51654ee59c050f4",
+    "css/CSS2/selectors/id-selector-005.xht": "d45e68d10f653ed96dd3171304c4cf87aa74ac5db7099240f0dbb58c90c1b392",
+    "css/CSS2/selectors/id-selector-006.xht": "0744a9f3691b12109996953fa14f06d70de11f1e3505a452eed12ab73a184141",
+    "css/CSS2/tables/border-collapse-001.xht": "2378a0025e0f64ad669937db8c8d303cc6d98f2d12c90dab908d959ab071ca36",
+    "css/CSS2/tables/border-collapse-offset-001-ref.xht": "a50ef5eb9e3739768078e57a181660184e6c684e7bec85bf2719f515d3305731",
+    "css/CSS2/tables/border-collapse-offset-001.xht": "c296f066c41f168d35e63acb3175d3efaf5d3f9ca73c03d494cd503ec20e6ab1",
+    "css/CSS2/tables/border-conflict-element-001d-ref.xht": "adcb809fde777c1cdb97449faef3e8fe634b034d03bfadcd2dc81e616c32bca1",
+    "css/CSS2/tables/border-conflict-element-001d.xht": "217226caba0c452831eeb9692d8f939946811d3a4404719ca2e3e4fb67db60fc",
+    "css/CSS2/text/white-space-001-ref.xht": "28f61b29c2944957be4a9d7ea253c6849ebc72dcbc82e48771d6a359888d44c8",
+    "css/CSS2/text/white-space-001.xht": "df4bef53f1d56c441c240911d030511d2d9307079269f96c5652db1e5391a33c",
+    "css/CSS2/text/white-space-002-ref.xht": "10d2d65d959608c69a76f4216ab8ae9fc3084f237082246d4a0cb61e389d5448",
+    "css/CSS2/text/white-space-002.xht": "44a16d835e715076aa062ed15fd5ea6b5454b87e432c3af1ce6d98620382bab6",
+    "css/CSS2/text/white-space-003.xht": "46e63e3b0747427d87391e8650de7818f23ab6cb1c53c5feced6d776ef292b8a",
+    "css/CSS2/text/white-space-004-ref.xht": "1e98f0cf6b616a3ad3e58e69c8628b6ae837b28c001f16bf18f3636311e82ff9",
+    "css/CSS2/text/white-space-004.xht": "0219e63377c6d39173601fc0874a5f698e0a734f11dfe3f0dd154211a8a9dbf2",
+    "css/CSS2/text/white-space-005.xht": "b45ed0952ad95f5acc414b70d59c0ad549573b8f1f798cd971f31a1998a14224",
+    "css/CSS2/text/white-space-006.xht": "cc4e1a1876e4cfed4184765c5359b60f6993cbea7d5a648b5c40df260947ba0c",
+    "css/CSS2/text/white-space-007-ref.xht": "383c5944774be4f24d751255c4118d869eb143da29c8d08bc5c4a347443ad896",
+    "css/CSS2/text/white-space-007.xht": "eaee5b56ff141176ac75f0975e7796e3e569beada394b86e3f1ce70e36581214",
+    "css/CSS2/text/white-space-008-ref.xht": "65fc9c61cb6029b0fac4b2142db7c4942bd45cab2fecc66349eb193354872ecc",
+    "css/CSS2/text/white-space-008.xht": "1beeab1014a65eb823eee324647687609e822d06b1ccde614ee1ac54f927014c",
+    "css/CSS2/text/white-space-normal-001-ref.xht": "1ca97f9f7e3d942ec51f7303187eb47babdb738e5d6c522b0712aa6d966aa40e",
+    "css/CSS2/text/white-space-normal-001.xht": "9419302ed5e25f6a31f12c8195ed5825971a32fbc77e05c92137e29b78b70414",
+    "css/CSS2/text/white-space-normal-002.xht": "d5f24c8afdd0f4a2cf5ce9952e0ab1a8bf03c7f8769a2a4ca8c43fe380ceee80",
+    "css/CSS2/text/white-space-normal-003-ref.xht": "411bb836646d48034b06628e300d0f8c7cd12547d5b7243cc72349d00e1ba311",
+    "css/CSS2/text/white-space-normal-003.xht": "2b975259aaa36edc69083ab40106f75c796e64d9ff4beef1f0ba6c668c9c3fc3",
+    "css/CSS2/text/white-space-normal-004.xht": "4ec28ea01dc59260001c30f72c7cf6d6565ccb290583db5c616ca79ad6f7b989",
+    "css/CSS2/text/white-space-normal-005-ref.xht": "178dd7e683e0ab78be1308cc3800688a25e76ce1cc21cdd9dd733e72868b00a2",
+    "css/CSS2/text/white-space-normal-005.xht": "66f7b249bc993a4f535f3580eac67927e6ad99eb261cd64bf9b72aa8691da76b",
+    "css/CSS2/text/white-space-nowrap-001-ref.xht": "462c97cd394e5cf0e345cffd2b1a4b424116b39ec5e6581072e7d80fef3e4c62",
+    "css/CSS2/text/white-space-nowrap-001.xht": "1899f32d66bb9866baceba6f40bd5cc013cd42a768cfb6bda36d57d4099633d7",
+    "css/CSS2/text/white-space-nowrap-005.xht": "6f7fc3ff3f41bf99b9d10d8c781983662510ee87a961e0512757c9cd0b0251c0",
+    "css/CSS2/text/white-space-nowrap-006.xht": "472fdc3378441197001e9d2145354d2edcad7e164c8b4c0dea6a9b79f2e8741e",
+    "css/CSS2/text/white-space-pre-001-ref.xht": "a4275a5126b3fb39320d649ada15a343d41b9f369b1f7bf6d029e27c5280c417",
+    "css/CSS2/text/white-space-pre-001.xht": "ae641c343c9040f53bf78cd92de5976406a35083316f5abada162e32afb0045d",
+    "css/CSS2/text/white-space-pre-002-ref.xht": "90e1d4700e8eb0f06041f23d52d923a05d0d26d8a036cb176b2fc34027b85eca",
+    "css/CSS2/text/white-space-pre-002.xht": "730dda6e5ae01947a94fa84c12a122ec8a926d54a85f585068ae5b1581afd104",
+    "css/CSS2/text/white-space-pre-005.xht": "aee60d34f143ad0e9ed65a3699afb490d2e1f23e10d7307235fea3530e4d4472",
+    "css/CSS2/text/white-space-pre-006.xht": "fbd66a0f2fb5a37edd5981741850e0a156585b42a7aecb3b153051053f4baeb9",
+    "css/CSS2/text/word-spacing-004-ref.xht": "2cb8be789e9c91cf46f7663cbb22aa26d47e0d03b2149d7ba70683358ef1b242",
+    "css/CSS2/text/word-spacing-004.xht": "88be7e779ec8ea090892b7ee9aa8a0952dea0c48428e5f9c05fe0897165ed250",
+    "css/CSS2/text/word-spacing-005.xht": "3b2087ae52dedc111d01fb1efc3249b45cfadf63fc33de37a6d125010e95a9df",
+    "css/CSS2/text/word-spacing-006.xht": "53e901ecca8a8dee4bf193a03b867365067953559d610db7d47e84e69635c2c1",
+    "css/CSS2/text/word-spacing-007-ref.xht": "a0f515f6ddff41a190af6dec11ab62f6c405f22d234dee0fd4321acf736a87d0",
+    "css/CSS2/text/word-spacing-007.xht": "7ef14ea9d14398804b5e6e04c53c39e69f2396778233f6bf3255664f5d29812b",
+    "css/CSS2/text/word-spacing-008.xht": "50807cdd188faf5802b9c5e1f7aeb79a0aa89cc8088089cc2a4158c7424031b8",
+    "css/CSS2/text/word-spacing-016.xht": "f5df347d0f797ee3146d2bf8f71620052f0015d44b838907745fb38998fbcf84",
+    "css/CSS2/text/word-spacing-017.xht": "913d1cef27e0d46fb675cc9e9d94c3c8d37a5a2e954c146d2510f4123cb04c0a",
+    "css/CSS2/text/word-spacing-018.xht": "9a6ee29eac7e6180aca939280f752490792af35069f5dcf82e0840fbad826642",
+    "css/CSS2/text/word-spacing-019.xht": "2fac82db9ebf187d2efc215130c578e6aefabe17f4e615183fce3da83721a2e3",
+    "css/CSS2/text/word-spacing-020.xht": "3b0ae2748e444602a93c53b31fa6ee052d7c0d9618b9fe394ee8673fb7bc3521",
+    "css/CSS2/text/word-spacing-028.xht": "1385db688c3e7c7c8f4f72929d9d36f93fb9db4cbcfb7f88f32bca52ade2fe03",
+    "css/CSS2/text/word-spacing-029.xht": "67065054510fd247db79faecbdef537e34b2a657b43b96571ff7eca204576f9c",
+    "css/CSS2/text/word-spacing-030.xht": "4227c49aca917d8884ba35ff09c725db417d6e50a63b70722d38bd41db1c9163",
+    "css/CSS2/text/word-spacing-031.xht": "e4c05ef9c6937d509ce7047e339c1311188e9e3e7cc51eeaf5989f450c2227cf",
+    "css/CSS2/text/word-spacing-032.xht": "22f665e1e52a5da2f4ddcd87dfa2f04f9407fb23d9f24e517be79195c888d711",
+    "css/css-color/currentcolor-003-ref.html": "f9dd2d6d7c4497931a2e3b7743b3dcf57ca6e94a5e572535de17b46f45020af8",
+    "css/css-color/currentcolor-003.html": "41729a3a42764dc2bb5c7a33c3e463b51dd2893d0773df57c647ecf916faab08",
     "css/css-color/greensquare-ref.html": "ee5aed0f5b0ad234da0c8c2be8991f6edc8775d11015e9ec33727db4b7e476e5",
-    "css/css-color/rgb-002.html": "eb3498bbad5967091b9092b9a01c661a797453fbd4785b4b491045fb6573137e",
-    "css/css-color/rgba-001.html": "31765e250b9d4faa54d8ab3f3bd780df6bf7fa3ec3d6a169b113f499090d2d9f",
-    "css/css-color/hex-003.html": "844048a65335554881e698d7e9e008dc74c5a7b6c7424687c3558cfc106b9c0f",
+    "css/css-color/hex-001.html": "078da6d7cc78f6256410791d480a90377facd86a277a394a6780a50a60bb3ce3",
+    "css/css-color/hex-002.html": "b618d1c2f27302073748554be6672c6ed8dfb0002adf7dca15996cb03d276a41",
     "css/css-color/hex-003-ref.html": "97cf158bb6824ea747ab6dbbd246ce145fb8db9cbdf46b2328646594f766bbc6",
+    "css/css-color/hex-003.html": "844048a65335554881e698d7e9e008dc74c5a7b6c7424687c3558cfc106b9c0f",
+    "css/css-color/hex-004.html": "535a6adcf6d42a3067b6154255862459b77d064008f9e544ea2aa6c0fdc28007",
+    "css/css-color/hsl-001.html": "a19a1a60ddcc46531922b319871f28b6280d92cb487899ecbe914f2cb6c33c14",
+    "css/css-color/hsl-002.html": "7686bb6b16ad35110b4cea475ed1f9b2353873afef045d1f5e80cdb28a1a25b4",
+    "css/css-color/hsl-003.html": "03a6f008b5eed72eb84c1cae6445ed5610ec3cd8f70e0f35111a166dea2118e2",
+    "css/css-color/hsl-004.html": "302b6b26a9d9bfa057d38969df5841f295712740fd9bfbd29d6f9daac21cda02",
+    "css/css-color/hsl-005.html": "5d287af4ee9a28a4659b5ddf29d8d783de1c18b5e53ea19a08f9d11ea16d680c",
+    "css/css-color/hsl-006.html": "da6f5d53bd81390296fdf23f6063342b9e97939f308fde40abf9e8883abeeae5",
+    "css/css-color/hsl-007.html": "b1755eeb8adb598162b5bb77243e1abbdfb204f34cd11228639f1a5d703f0fde",
+    "css/css-color/hsl-008.html": "60f4df1819d64ac73e6dfaa523d03fcdfdee9d04514fff9b73121a043afdb242",
+    "css/css-color/hsla-001.html": "9b62f0068cbc11f7edc6c75a41f2ab2c524bb94cb67fddf9266d50245578649b",
+    "css/css-color/hsla-002.html": "2e688678f638db900891b3961dadd43a1d2d5665c5833473696b86b8571314db",
+    "css/css-color/hsla-003.html": "a38f44a7016bf5ba16b75a7ebe79218a8c0eb493e42686e1a848709c1c579fd3",
+    "css/css-color/hsla-004.html": "818c78c342304c188d9d43bed0428185cf8103f2020503f24493b240a0c5b01f",
+    "css/css-color/hsla-005.html": "d6493ef41f9853ef6d156da37282e8a10e904848ddd2f0f2e5601e7ed952da72",
+    "css/css-color/hsla-006.html": "10b2f308e9c94f78a99b1db0ab4ee8c5909c94161e3e67de3857cfc085a1b7d5",
+    "css/css-color/hsla-007.html": "144799e78f2562117a62f12d7b167f576a33b2db480607cda3e311847f57440f",
+    "css/css-color/hsla-008.html": "51a67dcbdbe19a17751284674b2a879c5cc0fe4790ccd8b069b4f00335aaa0e3",
     "css/css-color/named-001.html": "a885eedce1c56a30bb821e8d8eabc2ac49b7edb864aff33444091d27d2d7de47",
     "css/css-color/rebeccapurple-ref.html": "ffac5857bbe0ca4d47a58d1cfa8a5745f647e756779a9f46fcab82ba2fd18d37",
-    "css/css-color/currentcolor-003.html": "41729a3a42764dc2bb5c7a33c3e463b51dd2893d0773df57c647ecf916faab08",
-    "css/css-color/currentcolor-003-ref.html": "f9dd2d6d7c4497931a2e3b7743b3dcf57ca6e94a5e572535de17b46f45020af8",
-    "css/css-color/t44-currentcolor-background-b.xht": "329254e2886b534eb4cf5943c924aabde76470e5a96bd859aee75307c6002c60",
-    "css/css-color/t44-currentcolor-background-b-ref.html": "2a841571c5b3349df2ffedd9bcb43c641b027216bc2b337ba2aab58e8d0621cd",
-    "css/css-color/t44-currentcolor-border-b.xht": "cdb49b9aed39c301d7eaadee13227f0838ca6ecaef7af0e010f6856c032658f9",
-    "css/css-color/t44-currentcolor-border-b-ref.html": "c654efca212a634f09f5925ff68dde594c7d74d5ec5af3287da0e69971c1e667",
-    "css/css-color/t422-rgba-a1.0-a.xht": "23e04721bf9d91fc2d9a60fc13df571dba4bddcfdbdec112ec44209dcc0c1719",
-    "css/css-color/t422-rgba-a1.0-a-ref.html": "0e8a8bf69c510ca1bb9f8c044ea684033d4e3cbd8c23f0de61bebd5eb978f48d",
-    "css/css-color/t421-rgb-hex3-expand-b.xht": "cf8cacadca7bbc212ed0def33dc338d3a630600a5b84f466cecd4f2adf966da1",
+    "css/css-color/rgb-001.html": "ceea9f6c155846abefdab7b1bea6b795d18b34844828fd803233b4e2f68070bd",
+    "css/css-color/rgb-002.html": "eb3498bbad5967091b9092b9a01c661a797453fbd4785b4b491045fb6573137e",
+    "css/css-color/rgb-003.html": "b6afe5dc889ad1d79f5db643ef80dfe62ff32013c988be525044b6a4a1555c5b",
+    "css/css-color/rgb-004.html": "5a4d16c29086df7fcbbe81e24584e53f0a84f55b60c9e5e3aaf104bce38827e5",
+    "css/css-color/rgb-005.html": "c0f45ff26343599a006cec067d9f83ddee5bdb6a77c4d77a5f1dab02a2d8010e",
+    "css/css-color/rgb-006.html": "2590a6527b8e5ada89a40ad27fad42e9d9021c26e63b50749b3af211da662967",
+    "css/css-color/rgb-007.html": "ed01ccf70af3a0e5d4d211dfff1f347e157a70efc32334c143e58656bf0e19b7",
+    "css/css-color/rgb-008.html": "6f8df861d22e04098ccf799f9b6d87e4f629f34f445c6e16d2884476f635ac10",
+    "css/css-color/rgba-001.html": "31765e250b9d4faa54d8ab3f3bd780df6bf7fa3ec3d6a169b113f499090d2d9f",
+    "css/css-color/rgba-002.html": "559a928b1da8d17eebc9a027b9f72bae3b816d98bdf1cc938aa6f3e8339e1b87",
+    "css/css-color/rgba-003.html": "ff341d75c950e72c805e103409f2b5b66c68361331f4c3ddc7da4edfa76bf11a",
+    "css/css-color/rgba-004.html": "bb0e4806b3499c63901c61f9fd6c38c558e1c338da9803d92b967f779217f0fb",
+    "css/css-color/rgba-005.html": "5f03572c1b3a995a750d420e5770412366f09d1731106e40ea949002e32dbc6e",
+    "css/css-color/rgba-006.html": "b904b77b995a4ebeda27bbe5d642afad21e9500da9d873605b49fc2781cff865",
+    "css/css-color/rgba-007.html": "fe10eeab8ce2e31504e9165902cc1c83e8785b21054d154857e5b096cca9354e",
+    "css/css-color/rgba-008.html": "ee6c0dde22fd5d196027482a9c9931ca8255a038414627c7626f5dc25c406a53",
     "css/css-color/t421-rgb-hex3-expand-b-ref.html": "0daed90efa3a4a688fb9936df55a136a5a4b85f4a5f34353650d5aa123e2e1b6",
+    "css/css-color/t421-rgb-hex3-expand-b.xht": "cf8cacadca7bbc212ed0def33dc338d3a630600a5b84f466cecd4f2adf966da1",
+    "css/css-color/t422-rgba-a1.0-a-ref.html": "0e8a8bf69c510ca1bb9f8c044ea684033d4e3cbd8c23f0de61bebd5eb978f48d",
+    "css/css-color/t422-rgba-a1.0-a.xht": "23e04721bf9d91fc2d9a60fc13df571dba4bddcfdbdec112ec44209dcc0c1719",
+    "css/css-color/t44-currentcolor-background-b-ref.html": "2a841571c5b3349df2ffedd9bcb43c641b027216bc2b337ba2aab58e8d0621cd",
+    "css/css-color/t44-currentcolor-background-b.xht": "329254e2886b534eb4cf5943c924aabde76470e5a96bd859aee75307c6002c60",
+    "css/css-color/t44-currentcolor-border-b-ref.html": "c654efca212a634f09f5925ff68dde594c7d74d5ec5af3287da0e69971c1e667",
+    "css/css-color/t44-currentcolor-border-b.xht": "cdb49b9aed39c301d7eaadee13227f0838ca6ecaef7af0e010f6856c032658f9",
+    "css/css-sizing/box-sizing-border-box-001-ref.xht": "3759892a807c6d9f0c9dfab168f3a6f75a23dc0bb091d42e6d00c7bf0421a536",
+    "css/css-sizing/box-sizing-border-box-001.xht": "e8e2e59968b7054330d9c3379757de4fca9356faca8a5c5b848a6cd5e00d0f59",
     "css/css-values/absolute-length-units-001.html": "10be9f5be4dbea6bf91b8aa7b08da29548dcfd3288f4d1c2963ba4de46551421",
     "css/css-values/rem-unit-root-element.html": "c634036a28760c7ce1aaa19019c29339599df763c19e3bd306797a284a93c090",
-    "css/CSS2/normal-flow/support/black96x96.png": "4b4360c511aaeb81f6b614589d77fac8a28b2b7fdcc3c96857473dac834d8661"
+    "fonts/Ahem.ttf": "b719ecb31c5b21fc573c03f6421c74ac63c271a5a3ff841e34f9705fb94b8448",
+    "fonts/README.md": "5e0d0877ee785564c59b96f5477231af62a37eb4b4248c4fbf2492fca2ee8857",
+    "fonts/ahem.css": "5d8b9526d7be573871022125d5ec44f4893e4d851c26ab3fb6df44219422111c"
   },
   "cases": [
     {
       "path": "css/CSS2/box-display/display-none-001.xht",
       "expected": "PASS",
-      "reason": "display:none suppresses the entire box; positioning/float on that hidden box is intentionally irrelevant."
+      "reason": "display:none suppresses the entire box; positioning/float on that hidden box is intentionally irrelevant.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/box-display/display-none-002.xht",
       "expected": "PASS",
-      "reason": "display:none suppresses the entire box; positioning/float on that hidden box is intentionally irrelevant."
+      "reason": "display:none suppresses the entire box; positioning/float on that hidden box is intentionally irrelevant.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/box-display/display-none-003.xht",
       "expected": "PASS",
-      "reason": "display:none suppresses the entire box; positioning/float on that hidden box is intentionally irrelevant."
+      "reason": "display:none suppresses the entire box; positioning/float on that hidden box is intentionally irrelevant.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/fonts/font-style-applies-to-001.xht",
       "expected": "PASS",
-      "reason": "Italic styling on inline/block elements; reference uses the HTML italic element."
+      "reason": "Italic styling on inline/block elements; reference uses the HTML italic element.",
+      "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/fonts/font-style-applies-to-002.xht",
       "expected": "PASS",
-      "reason": "Italic styling on inline/block elements; reference uses the HTML italic element."
+      "reason": "Italic styling on inline/block elements; reference uses the HTML italic element.",
+      "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/fonts/font-weight-applies-to-001.xht",
       "expected": "PASS",
-      "reason": "Bold font weight on inline/block elements; no external fonts required."
+      "reason": "Bold font weight on inline/block elements; no external fonts required.",
+      "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/fonts/font-weight-applies-to-002.xht",
       "expected": "PASS",
-      "reason": "Bold font weight on inline/block elements; no external fonts required."
+      "reason": "Bold font weight on inline/block elements; no external fonts required.",
+      "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/fonts/font-weight-rule-001.xht",
       "expected": "PASS",
-      "reason": "Normal font weight and numeric 400 should be identical."
+      "reason": "Normal font weight and numeric 400 should be identical.",
+      "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/normal-flow/height-001.xht",
       "expected": "PASS",
-      "reason": "Invalid negative height preserves height:0; text overflows visibly without expanding the background."
+      "reason": "Invalid negative height preserves height:0; text overflows visibly without expanding the background.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/margin-padding-clear/padding-001.xht",
       "expected": "FAIL",
-      "reason": "Known gap: positioning matches the intended boxes, but the reference auto-width table fills its container instead of using intrinsic width."
+      "reason": "Known gap: positioning matches the intended boxes, but the reference auto-width table fills its container instead of using intrinsic width.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/margin-padding-clear/margin-001.xht",
       "expected": "FAIL",
-      "reason": "Known gap: positioning matches the intended boxes, but the reference auto-width table fills its container instead of using intrinsic width."
+      "reason": "Known gap: positioning matches the intended boxes, but the reference auto-width table fills its container instead of using intrinsic width.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/css-sizing/box-sizing-border-box-001.xht",
       "expected": "PASS",
-      "reason": "Percentage border-box widths place two left floats side by side; z-index is inapplicable to these static floats."
+      "reason": "Percentage border-box widths place two left floats side by side; z-index is inapplicable to these static floats.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/borders/border-001.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires external Ahem stylesheet/font and word-spacing."
+      "expected": "FAIL",
+      "reason": "Known gap: default dark foreground colors the test border and reference Ahem side stripes, while reference top/bottom backgrounds are CSS black. Geometry agrees.",
+      "area": "boxes and positioning",
+      "ahem": true
     },
     {
       "path": "css/CSS2/tables/border-collapse-offset-001.xht",
       "expected": "PASS",
-      "reason": "Constrained absolute positioning and shrink-to-fit boxes; offsets anchor to the nearest positioned padding box."
+      "reason": "Constrained absolute positioning and shrink-to-fit boxes; offsets anchor to the nearest positioned padding box.",
+      "area": "tables"
     },
     {
       "path": "css/CSS2/tables/border-conflict-element-001d.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires Ahem, external image assets, per-side border colors."
+      "reason": "Requires Ahem, external image assets, per-side border colors.",
+      "area": "tables"
     },
     {
       "path": "css/CSS2/tables/border-collapse-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Manual test with no upstream match/mismatch reference."
+      "reason": "Manual test with no upstream match/mismatch reference.",
+      "area": "tables"
     },
     {
       "path": "css/CSS2/selectors/child-selector-001.xht",
       "expected": "PASS",
-      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets.",
+      "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/selectors/child-selector-002.xht",
       "expected": "PASS",
-      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets.",
+      "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/selectors/child-selector-003.xht",
       "expected": "PASS",
-      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets.",
+      "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/selectors/descendent-selector-002.xht",
       "expected": "PASS",
-      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets.",
+      "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/selectors/descendent-selector-004.xht",
       "expected": "PASS",
-      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets."
+      "reason": "Child/descendant selector matching and non-matching ancestor relationships; no external assets.",
+      "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/normal-flow/min-height-002.xht",
       "expected": "PASS",
-      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/min-height-013.xht",
       "expected": "PASS",
-      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/min-height-024.xht",
       "expected": "PASS",
-      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/max-height-002.xht",
       "expected": "PASS",
-      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/max-height-013.xht",
       "expected": "PASS",
-      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/min-width-002.xht",
       "expected": "PASS",
-      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/min-width-013.xht",
       "expected": "PASS",
-      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background."
+      "reason": "Zero minimum/maximum dimensions in pixels or physical units; visible overflow does not enlarge the background.",
+      "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/max-height-025.xht",
@@ -221,67 +446,1064 @@
       "reason": "Pica max-height and relative overlap match a pinned, allowlisted black PNG reference.",
       "assets": [
         "css/CSS2/normal-flow/support/black96x96.png"
-      ]
+      ],
+      "area": "boxes and positioning"
     },
     {
       "path": "css/css-color/rgb-001.html",
       "expected": "PASS",
-      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed."
+      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed.",
+      "area": "colors"
     },
     {
       "path": "css/css-color/rgb-002.html",
       "expected": "PASS",
-      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed."
+      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed.",
+      "area": "colors"
     },
     {
       "path": "css/css-color/rgba-001.html",
       "expected": "PASS",
-      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed."
+      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed.",
+      "area": "colors"
     },
     {
       "path": "css/css-color/hex-003.html",
       "expected": "PASS",
-      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed."
+      "reason": "Color and em sizing match the reference with paragraph defaults and adjoining vertical margins collapsed.",
+      "area": "colors"
     },
     {
       "path": "css/css-color/named-001.html",
       "expected": "PASS",
-      "reason": "RebeccaPurple and hexadecimal equivalents paint the same 10em square."
+      "reason": "RebeccaPurple and hexadecimal equivalents paint the same 10em square.",
+      "area": "colors"
     },
     {
       "path": "css/css-color/currentcolor-003.html",
       "expected": "UNSUPPORTED",
-      "reason": "Requires first-line pseudo-elements, inline box decorations, gradients, shadows, and filters."
+      "reason": "Requires first-line pseudo-elements, inline box decorations, gradients, shadows, and filters.",
+      "area": "colors"
     },
     {
       "path": "css/css-color/t44-currentcolor-background-b.xht",
       "expected": "PASS",
-      "reason": "XML-parsed XHTML CSS CDATA and entities; compared with its original HTML reference."
+      "reason": "XML-parsed XHTML CSS CDATA and entities; compared with its original HTML reference.",
+      "area": "colors"
     },
     {
       "path": "css/css-color/t44-currentcolor-border-b.xht",
       "expected": "PASS",
-      "reason": "XML-parsed XHTML CSS CDATA and entities; compared with its original HTML reference."
+      "reason": "XML-parsed XHTML CSS CDATA and entities; compared with its original HTML reference.",
+      "area": "colors"
     },
     {
       "path": "css/css-color/t422-rgba-a1.0-a.xht",
       "expected": "FAIL",
-      "reason": "Known gap: explicit black text differs from nthtml default dark foreground in the reference."
+      "reason": "Known gap: explicit black text differs from nthtml default dark foreground in the reference.",
+      "area": "colors"
     },
     {
       "path": "css/css-color/t421-rgb-hex3-expand-b.xht",
       "expected": "PASS",
-      "reason": "XML-parsed XHTML CSS CDATA and entities; compared with its original HTML reference."
+      "reason": "XML-parsed XHTML CSS CDATA and entities; compared with its original HTML reference.",
+      "area": "colors"
     },
     {
       "path": "css/css-values/absolute-length-units-001.html",
       "expected": "UNSUPPORTED",
-      "reason": "JavaScript testharness/getComputedStyle test, not a visual reference test. Equivalent length ratios have local native/WASM regression coverage."
+      "reason": "JavaScript testharness/getComputedStyle test, not a visual reference test. Equivalent length ratios have local native/WASM regression coverage.",
+      "area": "units"
     },
     {
       "path": "css/css-values/rem-unit-root-element.html",
       "expected": "UNSUPPORTED",
-      "reason": "Requires JavaScript testharness, dynamic restyling, :root, and initial values; not a visual reference test."
+      "reason": "Requires JavaScript testharness, dynamic restyling, :root, and initial values; not a visual reference test.",
+      "area": "units"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-001.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-002.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-003.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-004.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-005.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-006.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-007.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-008.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-009.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-010.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-011.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/class-selector-012.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/id-selector-001.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/id-selector-002.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/id-selector-004.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/id-selector-005.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/id-selector-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute selectors, including in competing rules.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-001.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-003.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-005.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-006.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-007.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-008.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute selectors, including in competing rules.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-009.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute selectors, including in competing rules.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-010.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/selectors/descendent-selector-011.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-002.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-003.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-004.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-005.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-007.xht",
+      "expected": "FAIL",
+      "reason": "Known gap: paragraph text is explicitly CSS black in the test but uses the default dark foreground in the reference. Green selector result agrees.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-008.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-011.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/specificity-013.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/cascade-005.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/cascade-007.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires an external @import stylesheet; imports are outside the offline renderer subset.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/cascade/sort-by-order-001.xht",
+      "expected": "PASS",
+      "reason": "Audited class/ID/descendant matching, invalid-selector rejection, specificity, or declaration order matches the reference.",
+      "area": "selectors and cascade"
+    },
+    {
+      "path": "css/CSS2/fonts/font-003.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-011.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-012.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-013.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-014.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-015.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-016.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-size-002.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-size-004.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-size-005.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-size-012.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-size-013.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-size-015.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/fonts/font-size-016.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires small-caps and/or synthetic bold/italic Ahem variants; only regular Ahem is available.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-002.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-003.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-004.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-005.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-007.xht",
+      "expected": "FAIL",
+      "reason": "Known gap: wrapping opportunities between adjacent nowrap spans are lost, producing one overflowing line rather than two lines.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/white-space-008.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires negative z-index stacking.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-normal-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-normal-002.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-normal-003.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-normal-004.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-normal-005.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-nowrap-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-nowrap-005.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-nowrap-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-pre-001.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-pre-002.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-pre-005.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/white-space-pre-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Test/reference requires inline-block, inline image layout, inline backgrounds, or CSS-wide font/whitespace inheritance.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-004.xht",
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or zero word-spacing syntax matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-005.xht",
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or zero word-spacing syntax matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-006.xht",
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or zero word-spacing syntax matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-007.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-008.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-016.xht",
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or zero word-spacing syntax matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-017.xht",
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or zero word-spacing syntax matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-018.xht",
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or zero word-spacing syntax matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-019.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-020.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-028.xht",
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or zero word-spacing syntax matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-029.xht",
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or zero word-spacing syntax matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-030.xht",
+      "expected": "PASS",
+      "reason": "Audited zero font sizing or zero word-spacing syntax matches the reference with the pinned regular Ahem face.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-031.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/text/word-spacing-032.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires horizontal margins on inline spans; inline box geometry is outside the subset.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/normal-flow/height-003.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
+    },
+    {
+      "path": "css/CSS2/normal-flow/height-004.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/height-005.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/height-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/height-007.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/width-003.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
+    },
+    {
+      "path": "css/CSS2/normal-flow/width-004.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/width-005.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/width-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/width-007.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-height-003.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-height-004.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-height-005.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-height-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-height-007.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-height-003.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-height-004.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-height-005.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-height-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-height-007.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-width-003.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-width-004.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-width-005.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-width-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/min-width-007.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-width-003.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-width-004.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-width-005.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-width-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/normal-flow/max-width-007.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/css-color/rgb-003.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgb-004.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgb-005.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgb-006.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgb-007.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgb-008.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgba-002.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgba-003.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgba-004.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgba-005.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgba-006.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgba-007.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/rgba-008.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsl-001.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsl-002.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsl-003.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsl-004.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsl-005.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsl-006.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsl-007.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsl-008.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsla-001.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsla-002.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsla-003.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsla-004.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsla-005.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsla-006.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsla-007.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hsla-008.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hex-001.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hex-002.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/css-color/hex-004.html",
+      "expected": "PASS",
+      "reason": "Color syntax and adjoining paragraph blocks match the independent solid-color reference.",
+      "area": "colors"
+    },
+    {
+      "path": "css/CSS2/borders/border-003.xht",
+      "expected": "PASS",
+      "reason": "Audited dimension/border geometry matches the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/borders/border-005.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires 96px border widths, above the renderer\u2019s 32px border resource cap.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/borders/border-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires 96px border widths, above the renderer\u2019s 32px border resource cap.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/borders/border-008.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Requires 96px border widths, above the renderer\u2019s 32px border resource cap.",
+      "area": "boxes and positioning"
+    },
+    {
+      "path": "css/CSS2/fonts/font-051.xht",
+      "expected": "FAIL",
+      "reason": "Known gap: the Ahem rectangle has correct geometry but uses the default dark foreground; the reference background is CSS black.",
+      "area": "typography and whitespace",
+      "ahem": true
+    },
+    {
+      "path": "css/CSS2/linebox/line-height-002.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires adjacent inline images, sibling selectors, and (for zero heights) negative margins.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/linebox/line-height-004.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires adjacent inline images, sibling selectors, and (for zero heights) negative margins.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/linebox/line-height-006.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires adjacent inline images, sibling selectors, and (for zero heights) negative margins.",
+      "area": "typography and whitespace"
+    },
+    {
+      "path": "css/CSS2/linebox/line-height-007.xht",
+      "expected": "UNSUPPORTED",
+      "reason": "Reference requires adjacent inline images, sibling selectors, and (for zero heights) negative margins.",
+      "area": "typography and whitespace"
     }
   ]
 }

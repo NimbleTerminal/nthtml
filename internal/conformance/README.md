@@ -15,12 +15,25 @@ Open `artifacts/conformance/index.html` for results and failure images. `report.
 
 | Result | Cases | Meaning |
 |---|---:|---|
-| PASS | 32 | Display-none, typography, selectors, zero/min/max dimensions, named/RGB/RGBA/hex colors, and collapsed paragraph margins. |
-| FAIL | 3 | One default-foreground mismatch; two positioning cases whose references expose auto-width table sizing differences. |
-| UNSUPPORTED | 6 | Dependencies outside our reviewed subset; never counted as passes. |
+| PASS | 118 | Audited selectors/cascade, colors, dimensions, zero font sizes, Ahem typography, and other core document cases. |
+| FAIL | 7 | Four default-foreground mismatches, two auto-width table differences, and adjacent-nowrap wrapping. |
+| UNSUPPORTED | 75 | Required features outside the subset, including dependencies in references; never counted as passes. |
 | ERROR | 0 | Harness errors, missing fixtures, or rejected prerequisites. |
 
-The manifest pins revision `ffe56d4420d270941329689aff42d925f615d0b4` and SHA-256 hashes for every vendored file. Original fixture bytes and upstream `LICENSE.md` are retained under `testdata/wpt`. Unsupported cases document gaps in Ahem fonts, external resources and table prerequisites, including prerequisites in their reference documents.
+| Feature area | PASS | FAIL | UNSUPPORTED |
+|---|---:|---:|---:|
+| Boxes and positioning | 32 | 3 | 15 |
+| Colors | 40 | 1 | 1 |
+| Selectors and cascade | 31 | 1 | 12 |
+| Tables | 1 | 0 | 2 |
+| Typography and whitespace | 14 | 2 | 43 |
+| Units (JavaScript testharness cases) | 0 | 0 | 2 |
+
+The corpus contains **200 selected HTML/CSS cases**, expanded from 41. It samples consecutive numeric ranges for class/ID/descendant selectors, cascade, font/spacing syntax, min/max dimensions, and RGB/HSL/hex colors, plus explicit gap cases. Only upstream tests with reference documents were added; cases with unsupported prerequisites were retained. Many cases exercise syntax variants of the same feature, so case counts do not measure feature completeness. Selection and prerequisites were reviewed before pixel baselines were recorded.
+
+**118/125 runnable cases pass (94.4%)**, or **118/200 selected cases (59%)** including unsupported cases. Neither percentage measures the full HTML/CSS suite. Native and WASM run the same corpus. HTML, JSON, and CLI reports include counts by feature area.
+
+The manifest pins revision `ffe56d4420d270941329689aff42d925f615d0b4` and SHA-256 hashes for every vendored file. Original fixture bytes and upstream `LICENSE.md` are retained under `testdata/wpt`. Unsupported cases document gaps such as inline box geometry, attribute/pseudo selectors, generated content, per-side borders, synthetic Ahem variants, and JavaScript testharness execution.
 
 Default exit status checks the reviewed baseline: an unexpected failure **or improvement** fails until reviewed. Known failures remain labelled FAIL. `-strict` also fails on known failures. Unsupported cases are deliberately skipped, so implementing a feature requires reviewing and enabling those cases explicitly.
 
@@ -43,10 +56,10 @@ Fetching/updating upstream fixtures is a separate, intentional maintenance opera
 
 Selector/cascade combinations, whitespace modes, and merged-table geometry/TTY output also have native and WASM regression tests in `document`. These local tests are not counted as upstream WPT passes.
 
-The current inventory is **41 selected HTML/CSS cases**, not the full HTML/CSS suite. Of 35 runnable reference cases, 32 pass and three fail; six others are explicitly unsupported. Some unit tests upstream use JavaScript `getComputedStyle` assertions rather than visual references. They remain unsupported by this runner even when the underlying unit conversion is implemented and covered locally. The four color-square cases now match after paragraph defaults and vertical margin collapse were corrected. Original test/reference files remain unchanged.
+## Deterministic font and image prerequisites
 
-The four formerly CDATA-blocked color cases now run. Three pass; the fourth exposes the renderer's dark default foreground versus explicit CSS black. It remains a visible FAIL in the baseline. Fixture integrity checks continue to use original upstream bytes.
+Cases opt into `ahem: true` to use the original pinned `fonts/Ahem.ttf` through `document.Options.Fonts`. Only the accompanying `/fonts/ahem.css` stylesheet is accepted, and only when explicitly enabled. No stylesheet fetching or general `@font-face` implementation is involved. Other fonts use the renderer's usual embedded source. Synthetic bold/italic Ahem variants are rejected. See [Ahem provenance and license](AHEM-LICENSE.md). Local tests independently assert exact Ahem square pixels and advances, half-leading, zero/short line heights, and positive/negative word spacing; those tests do not count as upstream passes.
 
-Constrained positioning enables three more cases. `border-collapse-offset-001` passes. The padding/margin cases render the intended positioned boxes, but their original table reference expands to the container width instead of its intrinsic width; both remain FAIL with image diffs. Remaining skips still require additional prerequisites such as fonts, per-side borders, external assets, or JavaScript.
+Images require explicit per-case `assets` paths, pinned hashes, and bounded decoding. Paths cannot resolve to network URLs or escape the fixture tree. Missing, unpinned, or corrupt images fail instead of silently rendering alt text. Per-document decoding is limited to 16 images, 4MiB encoded bytes, and four million pixels. Fonts are limited to 1MiB in this harness. Ordinary tests and reports perform no network access.
 
-The box-sizing float case and `max-height-025` now pass. The former checks side-by-side 50% border-box floats; its static `z-index` declarations are inapplicable. The latter uses `assets` to allowlist `css/CSS2/normal-flow/support/black96x96.png`, pinned at the same revision and SHA-256 verified along with the documents. Image paths cannot resolve to network URLs or escape the fixture tree. Missing, unpinned, or corrupt images fail the run instead of silently rendering alt text. Per-document decoding is limited to 16 images, 4MiB encoded bytes, and four million pixels. No network access occurs during testing.
+The two table failures remain visible because their references expand auto-width tables to the container width instead of using intrinsic widths. Four other failures compare explicit CSS black to nthtml's dark default foreground; Ahem rectangle geometry itself agrees. The remaining failure demonstrates lost line-break opportunities between adjacent nowrap spans. Original documents are never rewritten to hide those differences.

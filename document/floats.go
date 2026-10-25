@@ -148,7 +148,7 @@ func (a *floatArea) place(n *node, s style, x, y, w, parentHeight int) {
 	}
 	shift := image.Pt(target, y)
 	for i := first; i < len(a.l.ops); i++ {
-		a.l.ops[i].box.Bounds = a.l.ops[i].box.Bounds.Add(shift)
+		a.l.ops[i].box.translate(shift)
 	}
 	r := image.Rect(target, y, target+width, y+end)
 	if r.Max.Y > a.l.d.limits.Height {

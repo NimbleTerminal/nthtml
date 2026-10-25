@@ -13,6 +13,8 @@ type rule struct {
 	specificity int
 }
 type style struct {
+	lineMode                        uint8 // 0: document default; 1: absolute; 2: font-size multiplier
+	wordSpacing                     int
 	floatSide, clear                string
 	position                        string
 	inset                           [4]cssLength
@@ -87,14 +89,22 @@ func declarations(s string) map[string]string {
 				continue
 			}
 		}
+		if k == "word-spacing" {
+			if _, ok := wordSpacingValue(v); !ok {
+				continue
+			}
+		}
 		if k == "font-size" {
 			if _, ok := parseLength(v, false, false); !ok {
 				continue
 			}
 		}
-		if k == "line-height" && v != "normal" {
-			if _, ok := parseLength(v, false, false); !ok {
-				continue
+		if k == "line-height" {
+			v = strings.ToLower(v)
+			if v != "normal" {
+				if _, ok := parseLength(v, false, false); !ok {
+					continue
+				}
 			}
 		}
 		if k == "white-space" {
@@ -121,6 +131,12 @@ func declarations(s string) map[string]string {
 			}
 		}
 		switch k {
+		case "font":
+			if values, ok := fontValues(v); ok {
+				for key, value := range values {
+					put(key, value)
+				}
+			}
 		case "margin", "padding":
 			parts := strings.Fields(v)
 			if len(parts) < 1 || len(parts) > 4 {
@@ -231,10 +247,7 @@ func parseCSS(s string, budget int) ([]rule, error) {
 	return out, nil
 }
 func (d *Document) styled(n *node, parent style) style {
-	s := style{rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
-	if s.rootSize == 0 {
-		s.rootSize = 16
-	}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, display: "block"}
 	if n.tag == "svg" {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
 		s.height, _ = parseLength(n.attrs["height"], true, false)
@@ -248,12 +261,14 @@ func (d *Document) styled(n *node, parent style) style {
 		s.size = 32
 		s.line = 40
 		s.lineMultiplier = 0
+		s.lineMode = 0
 		s.bold = true
 		s.margin = uniform(12)
 	case "h2":
 		s.size = 24
 		s.line = 32
 		s.lineMultiplier = 0
+		s.lineMode = 0
 		s.bold = true
 		s.margin = uniform(10)
 	case "body":
@@ -301,10 +316,8 @@ func (d *Document) styled(n *node, parent style) style {
 		s.fg = c
 	}
 	if value, ok := parseLength(values["font-size"], false, false); ok {
-		value = value.computed(max(1, parent.size), s.rootSize)
-		if size := value.resolve(parent.size, 128); size > 0 {
-			s.size = size
-		}
+		value = value.computed(parent.size, s.rootSize)
+		s.size = value.resolve(parent.size, 128)
 	}
 	if n.tag == "html" {
 		s.rootSize = s.size
@@ -340,15 +353,20 @@ func (d *Document) styled(n *node, parent style) style {
 		case "line-height":
 			if v == "normal" {
 				s.lineMultiplier = 1.375
+				s.lineMode = 2
 			} else if cssNumber.MatchString(v) {
-				if l, ok := parseLength(v, false, false); ok && l.value > 0 {
+				if l, ok := parseLength(v, false, false); ok {
 					s.lineMultiplier = min(l.value, 16)
+					s.lineMode = 2
 				}
 			} else if l, ok := parseLength(v, false, false); ok {
-				if line := l.computed(s.size, s.rootSize).resolve(s.size, 256); line > 0 {
-					s.line = line
-					s.lineMultiplier = 0
-				}
+				s.line = l.computed(s.size, s.rootSize).resolve(s.size, 256)
+				s.lineMultiplier = 0
+				s.lineMode = 1
+			}
+		case "word-spacing":
+			if l, ok := wordSpacingValue(v); ok {
+				s.wordSpacing = max(-256, min(256, l.computed(s.size, s.rootSize).offset(0)))
 			}
 		case "text-decoration-line":
 			underline, strike, valid := false, false, true
@@ -494,11 +512,17 @@ func (d *Document) styled(n *node, parent style) style {
 		s.margin[i] = s.margin[i].computed(s.size, s.rootSize)
 		s.padding[i] = s.padding[i].computed(s.size, s.rootSize)
 	}
-	if s.lineMultiplier > 0 {
+	if s.lineMode == 2 {
 		s.line = min(256, int(float64(s.size)*s.lineMultiplier))
 	}
 
-	s.line = max(s.line, s.size+2)
+	if s.lineMode == 0 {
+		if s.size == 0 {
+			s.line = 0
+		} else {
+			s.line = max(s.line, s.size+2)
+		}
+	}
 	return s
 }
 

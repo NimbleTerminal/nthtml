@@ -33,6 +33,8 @@ type Viewport struct {
 	Height int `json:"height"`
 }
 type Case struct {
+	Ahem     bool     `json:"ahem,omitempty"`
+	Area     string   `json:"area,omitempty"`
 	Assets   []string `json:"assets,omitempty"`
 	Path     string   `json:"path"`
 	Expected string   `json:"expected"`
@@ -102,6 +104,9 @@ func (s Suite) Verify() error {
 			return fmt.Errorf("invalid/duplicate case %q", c.Path)
 		}
 		seen[c.Path] = true
+		if c.Ahem && (m.Files[ahemCSS] == "" || m.Files[ahemTTF] == "") {
+			return fmt.Errorf("missing pinned Ahem assets")
+		}
 		if len(c.Assets) > 16 {
 			return fmt.Errorf("too many assets: %s", c.Path)
 		}
@@ -122,6 +127,13 @@ func (s Suite) Verify() error {
 type Reference struct{ Path, Relation string }
 
 func references(name string, data []byte, assets ...[]string) ([]Reference, error) {
+	var allowed []string
+	if len(assets) > 0 {
+		allowed = assets[0]
+	}
+	return referencesWith(name, data, allowed, false)
+}
+func referencesWith(name string, data []byte, assets []string, ahem bool) ([]Reference, error) {
 	data, err := fixtureInput(context.Background(), name, data)
 	if err != nil {
 		return nil, err
@@ -154,7 +166,7 @@ func references(name string, data []byte, assets ...[]string) ([]Reference, erro
 			}
 			allowed := false
 			if len(assets) > 0 {
-				for _, candidate := range assets[0] {
+				for _, candidate := range assets {
 					if asset == candidate {
 						allowed = true
 						break
@@ -178,7 +190,11 @@ func references(name string, data []byte, assets ...[]string) ([]Reference, erro
 		}
 		for _, rel := range strings.Fields(a["rel"]) {
 			if rel == "stylesheet" {
-				return nil, fmt.Errorf("external stylesheet prerequisite")
+				asset, err := fixturePath(name, a["href"])
+				if err != nil || !ahem || asset != ahemCSS {
+					return nil, fmt.Errorf("unreviewed external stylesheet prerequisite")
+				}
+				continue
 			}
 			if rel != "match" && rel != "mismatch" {
 				continue
@@ -210,6 +226,7 @@ type Comparison struct {
 	DiffPNG              string `json:"diff_png,omitempty"`
 }
 type Result struct {
+	Area        string       `json:"area"`
 	Path        string       `json:"path"`
 	URL         string       `json:"url"`
 	Status      string       `json:"status"`
@@ -219,13 +236,14 @@ type Result struct {
 	Comparisons []Comparison `json:"comparisons,omitempty"`
 }
 type Report struct {
-	Repository string         `json:"repository"`
-	Revision   string         `json:"revision"`
-	Viewport   Viewport       `json:"viewport"`
-	Note       string         `json:"note"`
-	Counts     map[string]int `json:"counts"`
-	Unexpected int            `json:"unexpected"`
-	Results    []Result       `json:"results"`
+	Repository string                    `json:"repository"`
+	Revision   string                    `json:"revision"`
+	Viewport   Viewport                  `json:"viewport"`
+	Note       string                    `json:"note"`
+	Counts     map[string]int            `json:"counts"`
+	Areas      map[string]map[string]int `json:"areas"`
+	Unexpected int                       `json:"unexpected"`
+	Results    []Result                  `json:"results"`
 }
 type Options struct{ ArtifactsDir string }
 
@@ -234,6 +252,7 @@ func (s Suite) Run(ctx context.Context, o Options) (Report, error) {
 		return Report{}, err
 	}
 	report := Report{Repository: s.Manifest.Repository, Revision: s.Manifest.Revision, Viewport: s.Manifest.Viewport, Note: "Audited subset only; both test and reference use nthtml defaults. Not full WPT/browser conformance. Unsupported cases are not passes.", Counts: map[string]int{"PASS": 0, "FAIL": 0, "UNSUPPORTED": 0, "ERROR": 0}}
+	report.Areas = map[string]map[string]int{}
 	for _, c := range s.Manifest.Cases {
 		if err := ctx.Err(); err != nil {
 			return report, err
@@ -244,12 +263,20 @@ func (s Suite) Run(ctx context.Context, o Options) (Report, error) {
 			report.Unexpected++
 		}
 		report.Counts[r.Status]++
+		area := c.Area
+		if area == "" {
+			area = "uncategorized"
+		}
+		if report.Areas[area] == nil {
+			report.Areas[area] = map[string]int{"PASS": 0, "FAIL": 0, "UNSUPPORTED": 0, "ERROR": 0}
+		}
+		report.Areas[area][r.Status]++
 		report.Results = append(report.Results, r)
 	}
 	return report, nil
 }
 func (s Suite) runCase(ctx context.Context, c Case, o Options) (r Result) {
-	r = Result{Path: c.Path, URL: s.Manifest.Repository + "/blob/" + s.Manifest.Revision + "/" + c.Path, Expected: c.Expected, Reason: c.Reason}
+	r = Result{Area: c.Area, Path: c.Path, URL: s.Manifest.Repository + "/blob/" + s.Manifest.Revision + "/" + c.Path, Expected: c.Expected, Reason: c.Reason}
 	fail := func(err error) Result { r.Status = "ERROR"; r.Reason = err.Error(); return r }
 	if c.Expected == "UNSUPPORTED" {
 		r.Status = "UNSUPPORTED"
@@ -259,14 +286,14 @@ func (s Suite) runCase(ctx context.Context, c Case, o Options) (r Result) {
 	if e != nil {
 		return fail(e)
 	}
-	refs, e := references(c.Path, data, c.Assets)
+	refs, e := referencesWith(c.Path, data, c.Assets, c.Ahem)
 	if e != nil {
 		return fail(e)
 	}
 	if len(refs) == 0 {
 		return fail(fmt.Errorf("no upstream match/mismatch references"))
 	}
-	img, e := s.render(ctx, c.Path, data, s.Manifest.Viewport, c.Assets)
+	img, e := s.render(ctx, c.Path, data, s.Manifest.Viewport, c)
 	if e != nil {
 		return fail(e)
 	}
@@ -278,10 +305,10 @@ func (s Suite) runCase(ctx context.Context, c Case, o Options) (r Result) {
 		if e != nil {
 			return fail(e)
 		}
-		if _, e = references(ref.Path, data, c.Assets); e != nil {
+		if _, e = referencesWith(ref.Path, data, c.Assets, c.Ahem); e != nil {
 			return fail(e)
 		}
-		reference, e := s.render(ctx, ref.Path, data, s.Manifest.Viewport, c.Assets)
+		reference, e := s.render(ctx, ref.Path, data, s.Manifest.Viewport, c)
 		if e != nil {
 			return fail(e)
 		}
@@ -329,7 +356,7 @@ func Satisfies(comparisons []Comparison) bool {
 	}
 	return !hasMatch || matched
 }
-func (s Suite) render(ctx context.Context, name string, data []byte, v Viewport, assets []string) (*image.RGBA, error) {
+func (s Suite) render(ctx context.Context, name string, data []byte, v Viewport, c Case) (*image.RGBA, error) {
 	data, err := fixtureInput(ctx, name, data)
 	if err != nil {
 		return nil, err
@@ -338,13 +365,28 @@ func (s Suite) render(ctx context.Context, name string, data []byte, v Viewport,
 	if e != nil {
 		return nil, e
 	}
-	images, e := s.images(ctx, name, d, assets)
+	images, e := s.images(ctx, name, d, c.Assets)
 	if e != nil {
 		return nil, e
 	}
-	r, e := d.Render(ctx, document.Options{Width: v.Width, Images: images})
+	fonts, e := s.fontSource(c.Ahem)
 	if e != nil {
 		return nil, e
+	}
+	opts := document.Options{Width: v.Width, Images: images}
+	if c.Ahem {
+		opts.Fonts = fonts
+	}
+	r, e := d.Render(ctx, opts)
+	if e != nil {
+		return nil, e
+	}
+	if c.Ahem {
+		for _, b := range r.Boxes {
+			if strings.Contains(strings.ToLower(b.FontFamily), "ahem") && (b.Bold || b.Italic) {
+				return nil, fmt.Errorf("unreviewed Ahem synthetic font variant")
+			}
+		}
 	}
 	if len(r.Warnings) > 0 {
 		return nil, fmt.Errorf("render warnings: %s", strings.Join(r.Warnings, "; "))

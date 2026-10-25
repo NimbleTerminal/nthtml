@@ -22,11 +22,12 @@ func (r *Result) PageBreak(top, limit int) int {
 			default:
 				continue
 			}
-			if b.Bounds.Min.Y < y && y < b.Bounds.Max.Y {
-				if b.Bounds.Min.Y <= floor {
+			bounds := b.Bounds.Union(b.InkBounds)
+			if bounds.Min.Y < y && y < bounds.Max.Y {
+				if bounds.Min.Y <= floor {
 					return limit
 				}
-				y, moved = b.Bounds.Min.Y, true
+				y, moved = bounds.Min.Y, true
 			}
 		}
 	}

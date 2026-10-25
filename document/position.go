@@ -185,7 +185,7 @@ func (l *layout) placeAbsolute(job absoluteBox) {
 		shift.Y = cb.Max.Y - s.inset[2].offset(height) - margin[2] - bounds.Max.Y
 	}
 	for i := first; i < len(l.ops); i++ {
-		l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(shift)
+		l.ops[i].box.translate(shift)
 	}
 }
 
@@ -213,7 +213,7 @@ func (l *layout) position(height int) {
 				l.err = err
 				return
 			}
-			op.box.Bounds = op.box.Bounds.Add(shift)
+			op.box.translate(shift)
 			if op.box.Bounds.Max.Y > l.d.limits.Height || op.box.Bounds.Min.Y < -l.d.limits.Height {
 				l.err = limitError("positioned height")
 				return

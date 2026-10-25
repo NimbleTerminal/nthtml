@@ -10,6 +10,7 @@ import (
 	"nimbleterminal.dev/nthtml/internal/conformance"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -56,6 +57,15 @@ func main() {
 		}
 	}
 	fmt.Printf("\n%d PASS · %d FAIL · %d UNSUPPORTED · %d ERROR · %d unexpected\n", report.Counts["PASS"], report.Counts["FAIL"], report.Counts["UNSUPPORTED"], report.Counts["ERROR"], report.Unexpected)
+	areas := make([]string, 0, len(report.Areas))
+	for area := range report.Areas {
+		areas = append(areas, area)
+	}
+	sort.Strings(areas)
+	for _, area := range areas {
+		c := report.Areas[area]
+		fmt.Printf("  %-28s %3d PASS · %2d FAIL · %2d UNSUPPORTED · %d ERROR\n", area, c["PASS"], c["FAIL"], c["UNSUPPORTED"], c["ERROR"])
+	}
 	fmt.Printf("Pinned WPT %s\nReport: %s\n", report.Revision, filepath.Join(*out, "index.html"))
 	if report.Unexpected > 0 || *strict && report.Counts["FAIL"] > 0 {
 		os.Exit(1)
@@ -68,6 +78,7 @@ const reportHTML = `<!doctype html><meta charset="utf-8"><title>nthtml · WPT su
 <h1>nthtml · WPT reference subset</h1><p>{{.Note}}</p>
 <p>{{index .Counts "PASS"}} PASS · {{index .Counts "FAIL"}} FAIL · {{index .Counts "UNSUPPORTED"}} UNSUPPORTED · {{index .Counts "ERROR"}} ERROR · {{.Unexpected}} unexpected</p>
 <p>Revision <code>{{.Revision}}</code> · {{.Viewport.Width}} × {{.Viewport.Height}} · exact pixels</p>
+<table><tr><th>Feature area</th><th>PASS</th><th>FAIL</th><th>UNSUPPORTED</th><th>ERROR</th></tr>{{range $area, $counts := .Areas}}<tr><td>{{$area}}</td><td>{{index $counts "PASS"}}</td><td>{{index $counts "FAIL"}}</td><td>{{index $counts "UNSUPPORTED"}}</td><td>{{index $counts "ERROR"}}</td></tr>{{end}}</table>
 <table><tr><th>Observed</th><th>Upstream case</th><th>Scope / known gap</th></tr>
 {{range .Results}}<tr><td class="{{.Status}}"><strong>{{.Status}}</strong><br><small>Expected {{.Expected}}{{if .Unexpected}} · CHANGED{{end}}</small></td><td><a href="{{.URL}}"><code>{{.Path}}</code></a></td><td>{{.Reason}}
 {{range .Comparisons}}<p><small>{{.Relation}} {{.Reference}} · {{.DifferentPixels}} different pixels · max delta {{.MaxChannelDifference}}</small></p>

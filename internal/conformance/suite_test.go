@@ -26,6 +26,20 @@ func TestPinnedSuite(t *testing.T) {
 			t.Errorf("expected %s, got %s: %s", r.Expected, r.Status, r.Path)
 		}
 	}
+	totals := map[string]int{}
+	for area, counts := range report.Areas {
+		if area == "uncategorized" {
+			t.Error("uncategorized corpus case")
+		}
+		for status, n := range counts {
+			totals[status] += n
+		}
+	}
+	for status, n := range report.Counts {
+		if totals[status] != n {
+			t.Errorf("area totals %s: %d != %d", status, totals[status], n)
+		}
+	}
 	if len(report.Results) != len(s.Manifest.Cases) {
 		t.Fatal("missing results")
 	}

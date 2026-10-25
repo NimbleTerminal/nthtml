@@ -16,7 +16,10 @@ import (
 // Box describes a painted rectangle or text run in document pixel coordinates.
 // Text and bounds can also be consumed by a host's text renderer (e.g. nttypeset).
 type Box struct {
-	Bounds                    image.Rectangle
+	Bounds image.Rectangle
+	// Baseline is the font baseline offset from Bounds.Min.Y. InkBounds encloses visible glyph overflow.
+	Baseline, WordSpacing     int
+	InkBounds                 image.Rectangle
 	Tag, Text                 string
 	Anchor, TextPrefix        string
 	FontSize                  int
@@ -68,7 +71,11 @@ func (l *layout) add(b Box, src image.Image) {
 		l.err = e
 		return
 	}
-	if b.Bounds.Max.Y > l.d.limits.Height {
+	if b.Text != "" && b.FontSize > 0 {
+		f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
+		b.InkBounds = textInk(f, b)
+	}
+	if b.paintBottom() > l.d.limits.Height {
 		l.err = limitError("height")
 		return
 	}
@@ -106,7 +113,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 			f.Close()
 		}
 	}()
-	h := l.block(d.root, 0, 0, o.Width, -1, style{size: 16, line: 22, fg: color.RGBA{30, 36, 46, 255}})
+	h := l.block(d.root, 0, 0, o.Width, -1, style{rootSize: 16, size: 16, line: 22, fg: color.RGBA{30, 36, 46, 255}})
 	if l.err != nil {
 		return nil, l.err
 	}
@@ -116,7 +123,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	}
 	// Visible overflow contributes to the exported canvas, not normal flow.
 	for _, op := range l.ops {
-		h = max(h, op.box.Bounds.Max.Y)
+		h = max(h, op.box.paintBottom())
 	}
 	h = max(1, h)
 	if h > d.limits.Height || o.Width > d.limits.Pixels/h {
@@ -145,7 +152,11 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 			}
 		}
 		if i, ok := linkIndex[b.LinkID]; ok && b.LinkID != 0 {
-			region := b.Bounds.Intersect(img.Bounds())
+			region := b.Bounds
+			if region.Empty() {
+				region = b.InkBounds
+			}
+			region = region.Intersect(img.Bounds())
 			if !region.Empty() {
 				appendLinkRegion(&links[i], region)
 			}
@@ -153,15 +164,18 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		if op.source != nil {
 			xdraw.ApproxBiLinear.Scale(img, b.Bounds, op.source, op.source.Bounds(), draw.Over, nil)
 		} else if b.Text != "" {
+			if b.FontSize == 0 {
+				continue
+			}
 			f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
-			dr := font.Drawer{Dst: img, Src: image.NewUniform(b.Color), Face: f, Dot: fixed.P(b.Bounds.Min.X, b.Bounds.Min.Y+f.Metrics().Ascent.Ceil())}
-			dr.DrawString(b.Text)
+			dr := font.Drawer{Dst: img, Src: image.NewUniform(b.Color), Face: f, Dot: fixed.P(b.Bounds.Min.X, b.Bounds.Min.Y+b.Baseline)}
+			drawText(&dr, b.Text, b.WordSpacing)
 			if b.Strike {
-				yy := b.Bounds.Min.Y + f.Metrics().Ascent.Ceil()*2/3
+				yy := b.Bounds.Min.Y + b.Baseline - f.Metrics().Ascent.Ceil()/3
 				draw.Draw(img, image.Rect(b.Bounds.Min.X, yy, b.Bounds.Max.X, yy+1), image.NewUniform(b.Color), image.Point{}, draw.Over)
 			}
 			if b.Underline {
-				under := image.Rect(b.Bounds.Min.X, b.Bounds.Min.Y+f.Metrics().Ascent.Ceil()+1, b.Bounds.Max.X, b.Bounds.Min.Y+f.Metrics().Ascent.Ceil()+2)
+				under := image.Rect(b.Bounds.Min.X, b.Bounds.Min.Y+b.Baseline+1, b.Bounds.Max.X, b.Bounds.Min.Y+b.Baseline+2)
 				draw.Draw(img, under, image.NewUniform(b.Color), image.Point{}, draw.Over)
 			}
 		} else {
@@ -290,7 +304,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 					break
 				}
 			}
-			l.add(Box{Bounds: image.Rect(cx, markerY, cx+indent, markerY+s.line), Tag: "marker", Text: marker, FontSize: s.size, Bold: s.bold, FontFamily: s.family, Italic: s.italic, Color: s.fg}, nil)
+			l.add(Box{Bounds: image.Rect(cx, markerY, cx+indent, markerY+s.line), Tag: "marker", Text: marker, Baseline: l.baseline(s), WordSpacing: s.wordSpacing, FontSize: s.size, Bold: s.bold, FontFamily: s.family, Italic: s.italic, Color: s.fg}, nil)
 			cy = max(cy, markerY+s.line)
 		}
 	} else if n.tag == "img" {
@@ -435,7 +449,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		for i := lineStart; i < len(l.ops); i++ {
 			op := &l.ops[i]
 			if op.owner == l.frame && (op.box.Tag == "anchor" || op.box.Tag == "position-anchor") {
-				op.box.Bounds = op.box.Bounds.Add(delta)
+				op.box.translate(delta)
 			}
 		}
 		px = x
@@ -456,7 +470,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		}
 		for i := lineStart; i < len(l.ops); i++ {
 			if l.ops[i].owner == l.frame {
-				l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(image.Pt(shift, 0))
+				l.ops[i].box.translate(image.Pt(shift, 0))
 			}
 		}
 		y += lineHeight
@@ -530,6 +544,15 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			}
 			return
 		}
+		if st.size == 0 {
+			if strings.TrimSpace(n.text) != "" || st.pre {
+				l.add(Box{Bounds: image.Rect(px, y, px, y+st.line), Tag: "text", Text: n.text, TextPrefix: prefix, FontSize: 0, FontFamily: st.family, Color: st.fg, LinkID: st.linkID}, nil)
+				prefix = ""
+				hasText = true
+				lineHeight = max(lineHeight, st.line)
+			}
+			return
+		}
 		f := l.face(st)
 		if st.pre {
 			text, nextColumn := preTextAt(n.text, preColumn)
@@ -561,19 +584,18 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					for end < len(runes) && !cssSpace(runes[end]) {
 						end++
 					}
-					ww := font.MeasureString(f, string(runes[index:end])).Ceil()
+					ww := measureText(f, string(runes[index:end]), st.wordSpacing)
 					if px > x && px+ww > x+w {
 						newline()
 						prepareLine()
 					}
 				}
-				a, _ := f.GlyphAdvance(r)
-				adv := max(1, a.Ceil())
+				adv := glyphAdvance(f, r, st.wordSpacing)
 				if st.whiteSpace != "pre" && (cssSpace(r) || st.overflowWrap != "normal") && px > x && px+adv > x+w {
 					newline()
 					prepareLine()
 				}
-				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), TextPrefix: prefix, FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
+				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), Baseline: l.baseline(st), WordSpacing: st.wordSpacing, TextPrefix: prefix, FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
 				prefix = ""
 				px += adv
 				hasText = true
@@ -601,9 +623,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				}
 				space := 0
 				if pendingSpace && px > x {
-					space = font.MeasureString(f, " ").Ceil()
+					space = glyphAdvance(f, ' ', st.wordSpacing)
 				}
-				ww := font.MeasureString(f, word).Ceil()
+				ww := measureText(f, word, st.wordSpacing)
 				if st.whiteSpace != "nowrap" && px > x && px+space+ww > x+w {
 					newline()
 					prepareLine()
@@ -614,15 +636,14 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				runX := px
 				emit := func() {
 					if run.Len() > 0 {
-						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), TextPrefix: prefix, FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Color: st.fg, Monospace: st.mono, LinkID: st.linkID}, nil)
+						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), Baseline: l.baseline(st), WordSpacing: st.wordSpacing, TextPrefix: prefix, FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Color: st.fg, Monospace: st.mono, LinkID: st.linkID}, nil)
 						run.Reset()
 						prefix = ""
 						hasText = true
 					}
 				}
 				for _, r := range word {
-					a, _ := f.GlyphAdvance(r)
-					adv := max(1, a.Ceil())
+					adv := glyphAdvance(f, r, st.wordSpacing)
 					if st.whiteSpace != "nowrap" && st.overflowWrap != "normal" && px > x && px+adv > x+w {
 						emit()
 						newline()
