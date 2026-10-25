@@ -112,7 +112,7 @@ func (a app) View() tea.View {
 }
 func run(r *document.Result, _ string) {
 	a := app{viewer: nthtml.New(r), cols: 80, notice: strings.Join(r.Warnings, "; ")}
-	defer a.viewer.Close()
+	defer func() { _ = a.viewer.Close() }()
 	if _, err := tea.NewProgram(a).Run(); err != nil {
 		panic(err)
 	}

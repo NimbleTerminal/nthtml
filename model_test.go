@@ -11,7 +11,7 @@ import (
 
 func TestNavigationClamps(t *testing.T) {
 	m := New(&document.Result{Image: image.NewRGBA(image.Rect(0, 0, 800, 2000))})
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	m.Zoom(100)
 	m.Pan(100000, 100000)
 	if m.zoom != 6 || m.x < 0 || m.x >= 800 || m.y < 0 || m.y >= 2000 {
@@ -29,7 +29,7 @@ func TestLayoutToggleAndResize(t *testing.T) {
 		t.Fatal(e)
 	}
 	m := New(r)
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	m.SetSize(40, 5)
 	m.Zoom(1)
 	m.Pan(20, 40)
@@ -76,7 +76,7 @@ func TestKeyboardLinkNavigation(t *testing.T) {
 		t.Fatal(e)
 	}
 	m := New(r)
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	if m.ActivateLink() != nil {
 		t.Fatal("activated without selection")
 	}

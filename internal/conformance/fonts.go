@@ -24,14 +24,14 @@ func (s Suite) fontSource(enabled bool) (fixtureFonts, error) {
 		return fixtureFonts{}, nil
 	}
 	if s.Manifest.Files[ahemCSS] == "" || s.Manifest.Files[ahemTTF] == "" {
-		return fixtureFonts{}, fmt.Errorf("Ahem font and stylesheet must be pinned")
+		return fixtureFonts{}, fmt.Errorf("ahem font and stylesheet must be pinned")
 	}
 	data, err := fs.ReadFile(s.Files, ahemTTF)
 	if err != nil {
 		return fixtureFonts{}, err
 	}
 	if len(data) > 1<<20 {
-		return fixtureFonts{}, fmt.Errorf("Ahem font too large")
+		return fixtureFonts{}, fmt.Errorf("ahem font too large")
 	}
 	return fixtureFonts{data}, nil
 }

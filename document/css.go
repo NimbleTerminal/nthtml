@@ -478,9 +478,6 @@ func parseContentValue(v string) (string, bool) {
 			return "", false
 		}
 	}
-	if out.Len() == 1 && !strings.HasPrefix(strings.TrimSpace(v), "\"") && !strings.HasPrefix(strings.TrimSpace(v), "'") {
-		// Ensure at least one quoted string was parsed.
-	}
 	return out.String(), true
 }
 
@@ -565,42 +562,42 @@ func (d *Document) styled(n *node, parent style) style {
 		s.lineMultiplier = 0
 		s.lineMode = 0
 		s.bold = true
-		s.margin = uniform(12)
+		s.margin = [4]cssLength{px(12), {}, px(12), {}}
 	case "h2":
 		s.size = 24
 		s.line = 32
 		s.lineMultiplier = 0
 		s.lineMode = 0
 		s.bold = true
-		s.margin = uniform(10)
+		s.margin = [4]cssLength{px(10), {}, px(10), {}}
 	case "h3":
 		s.size = 20
 		s.line = 28
 		s.lineMultiplier = 0
 		s.lineMode = 0
 		s.bold = true
-		s.margin = uniform(8)
+		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	case "h4":
 		s.size = 16
 		s.line = 22
 		s.lineMultiplier = 0
 		s.lineMode = 0
 		s.bold = true
-		s.margin = uniform(8)
+		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	case "h5":
 		s.size = 14
 		s.line = 20
 		s.lineMultiplier = 0
 		s.lineMode = 0
 		s.bold = true
-		s.margin = uniform(8)
+		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	case "h6":
 		s.size = 12
 		s.line = 18
 		s.lineMultiplier = 0
 		s.lineMode = 0
 		s.bold = true
-		s.margin = uniform(8)
+		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	case "body":
 		s.margin = uniform(8)
 	case "p", "dl":
@@ -616,7 +613,9 @@ func (d *Document) styled(n *node, parent style) style {
 		s.height = px(1)
 		s.bg = color.RGBA{180, 188, 200, 255}
 	case "ul", "ol":
-		s.margin = uniform(8)
+		s.margin = [4]cssLength{px(8), {}, px(8), {}}
+	case "td", "th":
+		s.padding = [4]cssLength{{}, px(4), {}, px(4)}
 	}
 	if n.tag == "small" && parent.size > 0 {
 		s.size = max(1, (parent.size*85+50)/100)
@@ -643,7 +642,7 @@ func (d *Document) styled(n *node, parent style) style {
 		s.mono = true
 		s.pre = true
 		s.whiteSpace = "pre-wrap"
-		s.margin = uniform(8)
+		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	}
 	if n.tag == "code" {
 		s.family = "Go Mono"

@@ -20,7 +20,7 @@ func navModel(t *testing.T) *Model {
 func TestNavigationSearchCopy(t *testing.T) {
 	for _, mode := range []LayoutMode{LayoutTypeset, LayoutTTY} {
 		m := navModel(t)
-		defer m.Close()
+		defer func() { _ = m.Close() }()
 		m.SetLayoutMode(mode)
 		m.SetSize(30, 5)
 		if _, ok := m.NavigateFragment("#end"); !ok {
@@ -57,7 +57,7 @@ func TestNavigationSearchCopy(t *testing.T) {
 }
 func TestSearchInputAndDrag(t *testing.T) {
 	m := navModel(t)
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	m.SetLayoutMode(LayoutTTY)
 	m.SetSize(30, 8)
 	m.Update(tea.KeyPressMsg{Code: '/'})

@@ -274,3 +274,52 @@ func TestPhase5FlexboxAndOverflow(t *testing.T) {
 		t.Fatalf("expected overflow:hidden child not to enlarge canvas beyond clipped box, got height %d", r.Image.Bounds().Dy())
 	}
 }
+
+func TestHeadingAlignmentTablePaddingAndSpaceUnderlines(t *testing.T) {
+	const src = `<html><body style="margin:0">
+		<h1>Field notes</h1>
+		<p>Paragraph text aligned with heading.</p>
+		<h2>The ridge</h2>
+		<p>The <a href="https://example.com">gallery's own readme</a> says more.</p>
+		<table><tr><th>Day</th><th>Species</th><th>Count</th></tr><tr><td>Wed</td><td>Kingfisher</td><td>3</td></tr></table>
+	</body></html>`
+	r, err := Render(context.Background(), strings.NewReader(src), Options{Width: 600})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var h1X, h2X, pX int
+	var galleryBox, ownBox Box
+	var kingfisherBox, count3Box Box
+	for _, b := range r.Boxes {
+		switch b.Text {
+		case "Field":
+			h1X = b.Bounds.Min.X
+		case "Paragraph":
+			pX = b.Bounds.Min.X
+		case "The":
+			if b.Bold && h2X == 0 {
+				h2X = b.Bounds.Min.X
+			}
+		case "gallery's":
+			galleryBox = b
+		case "own":
+			ownBox = b
+		case "Kingfisher":
+			kingfisherBox = b
+		case "3":
+			count3Box = b
+		}
+	}
+	if h1X != pX || h2X != pX {
+		t.Fatalf("headings should align with paragraph left edge: h1=%d h2=%d p=%d", h1X, h2X, pX)
+	}
+	if count3Box.Bounds.Min.X-kingfisherBox.Bounds.Max.X < 8 {
+		t.Fatalf("expected horizontal gap between table cells, got %dpx (%v to %v)", count3Box.Bounds.Min.X-kingfisherBox.Bounds.Max.X, kingfisherBox.Bounds, count3Box.Bounds)
+	}
+	spaceX := (galleryBox.Bounds.Max.X + ownBox.Bounds.Min.X) / 2
+	underY := galleryBox.Bounds.Min.Y + galleryBox.Baseline + 1
+	px := r.Image.RGBAAt(spaceX, underY)
+	if px.R == 255 && px.G == 255 && px.B == 255 {
+		t.Fatalf("expected underline across space between link words at (%d,%d), got white %v", spaceX, underY, px)
+	}
+}

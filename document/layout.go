@@ -581,6 +581,30 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 	preStart := true
 	preColumn := 0
 	prefix := "\n"
+	paintSpace := func(px, space int) {
+		if space <= 0 {
+			return
+		}
+		if pendingSpaceBg.A > 0 {
+			l.rect(image.Rect(px, y, px+space, y+pendingSpaceStyle.line), pendingSpaceBg, "span")
+		}
+		if (pendingSpaceStyle.underline || pendingSpaceStyle.strike) && pendingSpaceStyle.size > 0 && pendingSpaceStyle.fg.A > 0 {
+			sf := l.face(pendingSpaceStyle)
+			base := l.baseline(pendingSpaceStyle)
+			if pendingSpaceStyle.vertical == "sub" {
+				base += max(2, pendingSpaceStyle.size/4)
+			} else if pendingSpaceStyle.vertical == "sup" || pendingSpaceStyle.vertical == "super" {
+				base = max(pendingSpaceStyle.size, base-max(2, pendingSpaceStyle.size/3))
+			}
+			if pendingSpaceStyle.strike {
+				yy := y + base - sf.Metrics().Ascent.Ceil()/3
+				l.add(Box{Bounds: image.Rect(px, yy, px+space, yy+1), Color: pendingSpaceStyle.fg, Tag: "strike", LinkID: pendingSpaceStyle.linkID}, nil)
+			}
+			if pendingSpaceStyle.underline {
+				l.add(Box{Bounds: image.Rect(px, y+base+1, px+space, y+base+2), Color: pendingSpaceStyle.fg, Tag: "underline", LinkID: pendingSpaceStyle.linkID}, nil)
+			}
+		}
+	}
 	finishLine := func(wrapped bool) {
 		prepareLine()
 		used := px - x
@@ -759,9 +783,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					prepareLine()
 					space = 0
 				}
-				if space > 0 && pendingSpaceBg.A > 0 {
-					l.rect(image.Rect(px, y, px+space, y+pendingSpaceStyle.line), pendingSpaceBg, "span")
-				}
+				paintSpace(px, space)
 				px += space + pendingLeft
 				pendingLeft = 0
 				pendingSpace = false
@@ -802,9 +824,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					prepareLine()
 					space = 0
 				}
-				if space > 0 && pendingSpaceBg.A > 0 {
-					l.rect(image.Rect(px, y, px+space, y+pendingSpaceStyle.line), pendingSpaceBg, "span")
-				}
+				paintSpace(px, space)
 				px += space + pendingLeft
 				pendingLeft = 0
 				pendingSpace = false
@@ -900,9 +920,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				prepareLine()
 				if pendingSpace && hasText {
 					space := l.glyphAdvanceStyled(pendingSpaceStyle, l.face(pendingSpaceStyle), ' ')
-					if pendingSpaceBg.A > 0 && space > 0 {
-						l.rect(image.Rect(px, y, px+space, y+pendingSpaceStyle.line), pendingSpaceBg, "span")
-					}
+					paintSpace(px, space)
 					px += space
 					pendingSpace = false
 					pendingSpaceBg = color.RGBA{}
@@ -969,9 +987,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					prepareLine()
 					space = 0
 				}
-				if space > 0 && pendingSpaceBg.A > 0 {
-					l.rect(image.Rect(px, y, px+space, y+pendingSpaceStyle.line), pendingSpaceBg, "span")
-				}
+				paintSpace(px, space)
 				px += space + pendingLeft
 				pendingLeft = 0
 				var run strings.Builder

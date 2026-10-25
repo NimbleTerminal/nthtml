@@ -53,7 +53,7 @@ func TestMouseTTYLinksWithOriginAndScroll(t *testing.T) {
 		t.Fatal(e)
 	}
 	m := New(r)
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	m.SetBounds(7, 4, 20, 4)
 	m.SetLayoutMode(LayoutTTY)
 	region := m.ttyResult.Links[0].Regions[0]
@@ -91,7 +91,7 @@ func mouseRasterResult(height int, region image.Rectangle) *document.Result {
 }
 func TestMouseRasterLinksAndZoom(t *testing.T) {
 	m := New(mouseRasterResult(1200, image.Rect(240, 100, 320, 122)))
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	size := m.SetBounds(10, 5, 80, 24)
 	// No click may target an image that has not reached the displayed generation.
 	p := image.Pt(34, 10)
@@ -119,7 +119,7 @@ func TestMouseRasterLinksAndZoom(t *testing.T) {
 }
 func TestMouseRasterLetterboxAndKittyGeometry(t *testing.T) {
 	m := New(mouseRasterResult(100, image.Rect(240, 22, 320, 24)))
-	defer m.Close()
+	defer func() { _ = m.Close() }()
 	m.SetSize(80, 24)
 	if _, ok := m.LinkAtCell(image.Pt(24, 0)); ok {
 		t.Fatal("top letterbox activated")

@@ -144,10 +144,6 @@ func formatListMarker(kind string, index int) string {
 	return "•"
 }
 
-func listMarker(n *node, index int) string {
-	return formatListMarker(resolveListStyleType(n, nil, style{}), index)
-}
-
 // Preserve line breaks and spaces, normalize CRLF, expand tabs to four columns,
 // and remove terminal controls. A leading newline follows HTML pre conventions.
 func preTextAt(s string, col int) (string, int) {
