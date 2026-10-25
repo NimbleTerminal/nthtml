@@ -1,10 +1,19 @@
-# nthtml
+# nthtml — Constrained HTML/CSS document renderer & viewer for Bubble Tea
+
+<p>
+    <a href="https://github.com/NimbleTerminal/nthtml/tags"><img src="https://img.shields.io/github/tag/NimbleTerminal/nthtml.svg" alt="Latest Release"></a>
+    <a href="https://pkg.go.dev/nimbleterminal.dev/nthtml?tab=doc"><img src="https://godoc.org/github.com/golang/gddo?status.svg" alt="GoDoc"></a>
+    <a href="https://github.com/NimbleTerminal/nthtml/actions/workflows/check.yml"><img src="https://github.com/NimbleTerminal/nthtml/actions/workflows/check.yml/badge.svg" alt="CI"></a>
+    <a href="https://github.com/NimbleTerminal/nthtml/blob/main/CODE_OF_CONDUCT.md"><img src="https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg" alt="Code Of Conduct"></a>
+</p>
+
+**[Try the live browser demo](https://nimbleterminal.github.io/nthtml/)**
 
 **Constrained HTML/CSS documents, not a browser.**
 
-A pure-Go document renderer for [Nimble Terminal](https://nimbleterminal.dev).
-Render HTML into pixels and structured boxes, display it with Bubble Tea v2
-through [ntpicture](https://github.com/NimbleTerminal/ntpicture), or compile the
+A pure-Go document renderer and [Bubble Tea v2](https://github.com/charmbracelet/bubbletea) viewer widget (`nimbleterminal.dev/nthtml`) for [Nimble Terminal](https://nimbleterminal.dev).
+Render HTML into pixels and structured boxes, display it in the terminal through
+[`ntpicture`](https://github.com/NimbleTerminal/ntpicture) (Kitty graphics or half-block glyphs) or reflowed plain-text TTY cells, or compile the
 same renderer to WebAssembly. No CGO, browser engine, JavaScript execution, or
 implicit network/file access.
 
@@ -63,18 +72,23 @@ Use `task fmt` and `task go-tidy` to update formatting and module files.
 
 ## Demo gallery
 
-Five embedded documents run through the same renderer on native Go and WASM:
+Ten embedded documents run through the same renderer on native Go and in the [live WebAssembly browser gallery](https://nimbleterminal.github.io/nthtml/):
 
-| Demo | What it shows | Terminal command |
-| --- | --- | --- |
-| Platform overview | Cards, inline emphasis, feature table | `go run ./examples/demo` |
-| Studio invoice | Nested blocks, itemized table, right-aligned totals | `go run ./examples/demo -demo invoice` |
-| Field notes | Editorial typography, pull quote, long-page scrolling | `go run ./examples/demo -demo field-notes` |
-| Delivery status | Dark palette, metric cards, service report | `go run ./examples/demo -demo status-report` |
-| Documentation guide | Interactive links, nested lists, inline code and preformatted blocks | `go run ./examples/demo -demo guide` |
+| Demo | What it shows | Live web demo | Side-by-side compare | Terminal command |
+| --- | --- | --- | --- | --- |
+| Platform overview | Cards, inline emphasis, feature table | [overview](https://nimbleterminal.github.io/nthtml/?demo=overview) | [compare](https://nimbleterminal.github.io/nthtml/?demo=overview&compare=1) | `task demo` (`go run ./examples/demo`) |
+| Studio invoice | Nested blocks, itemized table, right-aligned totals | [invoice](https://nimbleterminal.github.io/nthtml/?demo=invoice) | [compare](https://nimbleterminal.github.io/nthtml/?demo=invoice&compare=1) | `task invoice` (`go run ./examples/demo -demo invoice`) |
+| Field notes | Editorial typography, pull quote, long-page scrolling | [field-notes](https://nimbleterminal.github.io/nthtml/?demo=field-notes) | [compare](https://nimbleterminal.github.io/nthtml/?demo=field-notes&compare=1) | `task field-notes` (`go run ./examples/demo -demo field-notes`) |
+| Delivery status | Dark palette, metric cards, service report | [status-report](https://nimbleterminal.github.io/nthtml/?demo=status-report) | [compare](https://nimbleterminal.github.io/nthtml/?demo=status-report&compare=1) | `task status-report` (`go run ./examples/demo -demo status-report`) |
+| Documentation guide | Interactive links, nested lists, inline code and preformatted blocks | [guide](https://nimbleterminal.github.io/nthtml/?demo=guide) | [compare](https://nimbleterminal.github.io/nthtml/?demo=guide&compare=1) | `task demo DEMO=guide` |
+| Typography & spacing | Embedded `ntfonts` families, relative/physical length rulers, responsive padding | [typography](https://nimbleterminal.github.io/nthtml/?demo=typography) | [compare](https://nimbleterminal.github.io/nthtml/?demo=typography&compare=1) | `task demo DEMO=typography` |
+| SVG & Mermaid | Embedded `<svg>` and `<pre class="mermaid">` diagrams via `ntsvg` | [diagrams](https://nimbleterminal.github.io/nthtml/?demo=diagrams) | [compare](https://nimbleterminal.github.io/nthtml/?demo=diagrams&compare=1) | `task demo DEMO=diagrams` |
+| Document navigation | Fragment `#id` links, text search (`/`), selection, and copy (`y`) | [navigation](https://nimbleterminal.github.io/nthtml/?demo=navigation) | [compare](https://nimbleterminal.github.io/nthtml/?demo=navigation&compare=1) | `task demo DEMO=navigation` |
+| Reports & merged tables | Compound selectors, `!important`, `colspan`/`rowspan`, `border-collapse` | [reports](https://nimbleterminal.github.io/nthtml/?demo=reports) | [compare](https://nimbleterminal.github.io/nthtml/?demo=reports&compare=1) | `task demo DEMO=reports` |
+| Positioned blocks | Relative/absolute positioning, `float` + `clear`, `box-sizing: border-box` | [positioning](https://nimbleterminal.github.io/nthtml/?demo=positioning) | [compare](https://nimbleterminal.github.io/nthtml/?demo=positioning&compare=1) | `task demo DEMO=positioning` |
 
 The browser gallery has a document picker and shareable URLs such as
-`http://localhost:8080/?demo=invoice`. **Show browser reference** opens a
+`https://nimbleterminal.github.io/nthtml/?demo=invoice` (or `http://localhost:8080/?demo=invoice` locally). **Show browser reference** opens a
 side-by-side iframe containing the exact embedded HTML sent to the Go renderer.
 With the reference closed, the Go view lives in a resizable container: drag its
 lower-right corner, set **Container width**, or use **Fit pane**. Resize events
@@ -95,10 +109,16 @@ Render a standalone preview without starting a terminal UI:
 go run ./cmd/nthtml -o invoice.png examples/demo/documents/invoice.html
 ```
 
-Preview images: [invoice](examples/demo/previews/invoice.png),
+Checked-in preview images: [overview](document/testdata/demo.png),
+[invoice](examples/demo/previews/invoice.png),
 [field notes](examples/demo/previews/field-notes.png),
 [status report](examples/demo/previews/status-report.png),
-[documentation guide](examples/demo/previews/guide.png).
+[documentation guide](examples/demo/previews/guide.png),
+[typography](examples/demo/previews/typography.png),
+[diagrams](examples/demo/previews/diagrams.png),
+[navigation](examples/demo/previews/navigation.png),
+[reports](examples/demo/previews/reports.png),
+[positioning](examples/demo/previews/positioning.png).
 
 ## Terminal component
 
@@ -295,11 +315,14 @@ by the document engine.
 
 ## Browser demo
 
+Try the [hosted browser demo](https://nimbleterminal.github.io/nthtml/), or build and serve it locally:
+
 ```sh
-./scripts/build-web.sh
-python3 -m http.server 8080 --directory web
+task serve-wasm-site   # or: ./scripts/build-web.sh && python3 -m http.server 8080 --directory web
 # Open http://localhost:8080
 ```
+
+`task build-wasm-site` produces the deployable `web/` directory; `.github/workflows/pages.yml` publishes it to GitHub Pages on every push to `main`.
 
 The native and browser builds use the same `examples/demo/main.go`, embedded HTML,
 public document API, layout and raster code. Only presentation differs: Bubble Tea
@@ -319,11 +342,6 @@ tolerance on at most 1% of pixels, while layout uses the same pixel coordinates.
 TinyGo/embedded targets are an architectural goal, not verified support: font rasterization and the standard
 HTML tokenizer may be too large for small devices. Use the isolated `document`
 package and smaller budgets when evaluating such targets.
-
-## License
-
-MIT. Part of the Nimble Terminal family alongside ntpicture, ntsvg, ntpdf,
-nttypeset and ntvideo.
 
 ### Bubble Tea on WASM
 
@@ -555,3 +573,19 @@ The positioning demo also shows two 50% border-box floats and a capped-height ba
 This is a constrained float model: nested inline floats may start a new line, and advanced float interaction with table widths, mixed-height inline runs, list items, captions, and table internals is outside the supported scope. Float exclusion work is capped at 100,000 checks per render. `z-index` remains unsupported; it has no effect on the static floats used by the box-sizing WPT case.
 
 The conformance harness can load images only when a case explicitly lists their vendored paths in `assets` and their hashes are present in the pinned manifest. It resolves local fixture paths, uses bounded image decoding, and caps each document at 16 images, 4MiB encoded data, and four million decoded pixels. Test runs never fetch image URLs. `max-height-025` now compares against its original pinned black PNG and passes.
+
+## Open Collaboration
+
+Run `task ci` before submitting changes. Contributions and feedback are welcome — please follow our [Code of Conduct](./CODE_OF_CONDUCT.md).
+
+- [Report an issue](https://github.com/NimbleTerminal/nthtml/issues)
+- [Submit a pull request](https://github.com/NimbleTerminal/nthtml/pulls)
+
+## License
+
+Part of the [Nimble Terminal](https://nimbleterminal.dev) family alongside [`ntpicture`](https://github.com/NimbleTerminal/ntpicture), [`ntsvg`](https://github.com/NimbleTerminal/ntsvg), [`ntpdf`](https://github.com/NimbleTerminal/ntpdf), [`nttypeset`](https://github.com/NimbleTerminal/nttypeset), and [`ntvideo`](https://github.com/NimbleTerminal/ntvideo). See [font notices](licenses/fonts/THIRD_PARTY_NOTICES.md) and [diagram dependency notices](licenses/diagrams/README.md).
+
+[MIT License](./LICENSE) — Copyright (c) 2024-2026 [Neomantra Corp](https://www.neomantra.com).
+
+----
+Made with :heart: and :fire: by the team behind [Nimble.Markets](https://nimble.markets).
