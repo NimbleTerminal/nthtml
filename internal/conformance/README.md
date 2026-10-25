@@ -15,14 +15,14 @@ Open `artifacts/conformance/index.html` for results and failure images. `report.
 
 | Result | Cases | Meaning |
 |---|---:|---|
-| PASS | 142 | Audited selectors/cascade, colors, dimensions, zero font sizes, Ahem typography, inline-block/inline-image whitespace & word-spacing, auto-width tables, and core document cases. |
+| PASS | 151 | Audited selectors/cascade, colors, dimensions, per-side 96px borders, zero font sizes, Ahem typography, inline-block/inline-image whitespace & word-spacing, auto-width tables, and core document cases. |
 | FAIL | 0 | Known rendering discrepancies in runnable cases. |
-| UNSUPPORTED | 58 | Required features outside the subset, including dependencies in references; never counted as passes. |
+| UNSUPPORTED | 49 | Required features outside the subset, including dependencies in references; never counted as passes. |
 | ERROR | 0 | Harness errors, missing fixtures, or rejected prerequisites. |
 
 | Feature area | PASS | FAIL | UNSUPPORTED |
 |---|---:|---:|---:|
-| Boxes and positioning | 35 | 0 | 15 |
+| Boxes and positioning | 44 | 0 | 6 |
 | Colors | 41 | 0 | 1 |
 | Selectors and cascade | 32 | 0 | 12 |
 | Tables | 1 | 0 | 2 |
@@ -31,7 +31,7 @@ Open `artifacts/conformance/index.html` for results and failure images. `report.
 
 The corpus contains **200 selected HTML/CSS cases**, expanded from 41. It samples consecutive numeric ranges for class/ID/descendant selectors, cascade, font/spacing syntax, min/max dimensions, and RGB/HSL/hex colors, plus explicit gap cases. Only upstream tests with reference documents were added; cases with unsupported prerequisites were retained. Many cases exercise syntax variants of the same feature, so case counts do not measure feature completeness. Selection and prerequisites were reviewed before pixel baselines were recorded.
 
-**142/142 runnable cases pass (100%)**, or **142/200 selected cases (71.0%)** including unsupported cases. Neither percentage measures the full HTML/CSS suite. Native and WASM run the same corpus. HTML, JSON, and CLI reports include counts by feature area.
+**151/151 runnable cases pass (100%)**, or **151/200 selected cases (75.5%)** including unsupported cases. Neither percentage measures the full HTML/CSS suite. Native and WASM run the same corpus. HTML, JSON, and CLI reports include counts by feature area.
 
 The manifest pins revision `ffe56d4420d270941329689aff42d925f615d0b4` and SHA-256 hashes for every vendored file. Original fixture bytes and upstream `LICENSE.md` are retained under `testdata/wpt`. Unsupported cases document gaps such as inline box geometry, attribute/pseudo selectors, generated content, per-side borders, synthetic Ahem variants, and JavaScript testharness execution.
 

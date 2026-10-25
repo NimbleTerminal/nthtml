@@ -2,18 +2,38 @@ package document
 
 import "strings"
 
-// Nonnegative adjoining margins form a strut whose size is their maximum.
-// Negative margins, floats, positioning, and clearance remain outside our CSS
-// subset. Each profile traversal shares a cumulative layout work budget.
+type marginStrut struct {
+	pos, neg int
+}
+
+func marginFrom(v int) marginStrut {
+	if v < 0 {
+		return marginStrut{neg: v}
+	}
+	return marginStrut{pos: v}
+}
+
+func (a marginStrut) join(b marginStrut) marginStrut {
+	return marginStrut{pos: max(a.pos, b.pos), neg: min(a.neg, b.neg)}
+}
+
+func (a marginStrut) value() int {
+	return a.pos + a.neg
+}
+
+// Adjoining vertical margins form a strut combining their maximum positive and
+// most negative values. Floats, positioning, and clearance bound margin collapse.
+// Each profile traversal shares a cumulative layout work budget.
 type blockMargins struct {
-	before, after        int
-	top, bottom, through bool
-	block                bool
+	before, after           int
+	beforeStrut, afterStrut marginStrut
+	top, bottom, through    bool
+	block                   bool
 }
 
 func boxWidth(s style, w int) (margin, padding [4]int, target int) {
 	margin, padding = resolveEdges(s.margin, w), resolveEdges(s.padding, w)
-	extra := padding[1] + padding[3] + 2*s.bw
+	extra := padding[1] + padding[3] + s.borderH()
 	available := max(1, w-margin[1]-margin[3])
 	target = available
 	outer := func(v cssLength) int {
@@ -68,19 +88,20 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 		return blockMargins{}
 	}
 	margin, padding, width := boxWidth(s, w)
-	info := blockMargins{before: margin[0], after: margin[2], block: true}
+	beforeStrut, afterStrut := marginFrom(margin[0]), marginFrom(margin[2])
+	info := blockMargins{before: margin[0], after: margin[2], beforeStrut: beforeStrut, afterStrut: afterStrut, block: true}
 	if s.display == "none" {
 		return blockMargins{through: true}
 	}
 	if marginBoundary(n) || s.display == "inline-block" || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" || s.clear != "" && s.clear != "none" {
 		return info
 	}
-	cw := max(1, width-padding[1]-padding[3]-2*s.bw)
+	cw := max(1, width-padding[1]-padding[3]-s.borderH())
 	height := -1
 	if s.height.definite(parentHeight) {
 		height = s.height.resolve(parentHeight, l.d.limits.Height)
 		if s.borderBox {
-			height = max(0, height-padding[0]-padding[2]-2*s.bw)
+			height = max(0, height-padding[0]-padding[2]-s.borderV())
 		}
 	}
 	specifiedHeight := height
@@ -88,7 +109,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 		content := func(value cssLength) int {
 			h := value.resolve(parentHeight, l.d.limits.Height)
 			if s.borderBox {
-				h = max(0, h-padding[0]-padding[2]-2*s.bw)
+				h = max(0, h-padding[0]-padding[2]-s.borderV())
 			}
 			return h
 		}
@@ -103,9 +124,9 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 	if s.minHeight.definite(parentHeight) {
 		minHeight = s.minHeight.resolve(parentHeight, l.d.limits.Height)
 	}
-	canTop := s.bw == 0 && padding[0] == 0
-	canBottom := s.bw == 0 && padding[2] == 0 && specifiedHeight < 0 && minHeight == 0
-	allThrough := s.bw == 0 && padding[0] == 0 && padding[2] == 0 && specifiedHeight <= 0 && minHeight == 0
+	canTop := s.bw[0] == 0 && padding[0] == 0
+	canBottom := s.bw[2] == 0 && padding[2] == 0 && specifiedHeight < 0 && minHeight == 0
+	allThrough := s.bw[0] == 0 && s.bw[2] == 0 && padding[0] == 0 && padding[2] == 0 && specifiedHeight <= 0 && minHeight == 0
 	// Only profiles for children at the two edges are needed, but collect once
 	// to handle a chain of empty blocks adjoining either edge.
 	var children []blockMargins
@@ -145,7 +166,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 			if !c.block {
 				break
 			}
-			info.before = max(info.before, c.before)
+			beforeStrut = beforeStrut.join(c.beforeStrut)
 			info.top = true
 			if !c.through {
 				break
@@ -158,7 +179,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 			if !c.block {
 				break
 			}
-			info.after = max(info.after, c.after)
+			afterStrut = afterStrut.join(c.afterStrut)
 			info.bottom = true
 			if !c.through {
 				break
@@ -168,13 +189,17 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 	info.through = allThrough
 	if allThrough {
 		for _, c := range children {
-			info.before = max(info.before, c.before, c.after)
+			beforeStrut = beforeStrut.join(c.beforeStrut).join(c.afterStrut)
 		}
-		info.before = max(info.before, info.after)
-		info.after = info.before
+		beforeStrut = beforeStrut.join(afterStrut)
+		afterStrut = beforeStrut
 		info.top = true
 		info.bottom = true
 	}
+	info.beforeStrut = beforeStrut
+	info.afterStrut = afterStrut
+	info.before = beforeStrut.value()
+	info.after = afterStrut.value()
 	// Every block exposes its own outer margins, including a zero margin.
 	return info
 }

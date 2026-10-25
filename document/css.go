@@ -18,16 +18,18 @@ type style struct {
 	floatSide, clear                string
 	position                        string
 	inset                           [4]cssLength
-	borderSet                       bool
+	borderSet                       [4]bool
+	borderStyle                     [4]string
 	rootSize                        int
 	minWidth, minHeight, maxHeight  cssLength
 	whiteSpace, overflowWrap        string
 	spacing                         [2]int
 	collapse                        bool
 	size, line                      int
-	fg, bg, border                  color.RGBA
+	fg, bg                          color.RGBA
+	border                          [4]color.RGBA
 	margin, padding                 [4]cssLength // top, right, bottom, left
-	bw                              int
+	bw                              [4]int       // top, right, bottom, left
 	width, height, maxWidth         cssLength
 	borderBox                       bool
 	vertical                        string
@@ -37,6 +39,20 @@ type style struct {
 	linkID                          int
 	lineMultiplier                  float64
 }
+
+func (s style) borderH() int { return s.bw[1] + s.bw[3] }
+func (s style) borderV() int { return s.bw[0] + s.bw[2] }
+func (s style) hasBorder() bool {
+	return s.bw[0] > 0 || s.bw[1] > 0 || s.bw[2] > 0 || s.bw[3] > 0
+}
+func (s style) borderColor(side int) color.RGBA {
+	if s.borderSet[side] {
+		return s.border[side]
+	}
+	return s.fg
+}
+
+var borderSides = [4]string{"top", "right", "bottom", "left"}
 
 func isCSSKeyword(v string) bool {
 	switch strings.ToLower(strings.TrimSpace(v)) {
@@ -96,12 +112,23 @@ func declarations(s string) map[string]string {
 					put(sub, kw)
 				}
 			case "margin", "padding":
-				for _, side := range []string{"top", "right", "bottom", "left"} {
+				for _, side := range borderSides {
 					put(k+"-"+side, kw)
 				}
 			case "border":
-				for _, sub := range []string{"border-width", "border-style", "border-color"} {
-					put(sub, kw)
+				for _, side := range borderSides {
+					for _, sub := range []string{"width", "style", "color"} {
+						put("border-"+side+"-"+sub, kw)
+					}
+				}
+			case "border-top", "border-right", "border-bottom", "border-left":
+				for _, sub := range []string{"width", "style", "color"} {
+					put(k+"-"+sub, kw)
+				}
+			case "border-width", "border-style", "border-color":
+				sub := strings.TrimPrefix(k, "border-")
+				for _, side := range borderSides {
+					put("border-"+side+"-"+sub, kw)
 				}
 			case "word-wrap":
 				put("overflow-wrap", kw)
@@ -114,7 +141,7 @@ func declarations(s string) map[string]string {
 			}
 			continue
 		}
-		if k == "color" || k == "background" || k == "background-color" || k == "border-color" {
+		if k == "color" || k == "background" || k == "background-color" {
 			if _, ok := cssColor(v, color.RGBA{}); !ok {
 				continue
 			}
@@ -192,45 +219,94 @@ func declarations(s string) map[string]string {
 			}
 		case "margin", "padding":
 			parts := strings.Fields(v)
-			if len(parts) < 1 || len(parts) > 4 {
+			sides, ok := expandFour(parts)
+			if !ok {
 				continue
 			}
 			valid := true
 			for _, part := range parts {
-				if _, ok := parseLength(part, k == "margin", false); !ok {
+				if k == "margin" {
+					_, ok = parseInset(part)
+				} else {
+					_, ok = parseLength(part, false, false)
+				}
+				if !ok {
 					valid = false
 				}
 			}
 			if !valid {
 				continue
 			}
-			sides := [4]string{parts[0], parts[0], parts[0], parts[0]}
-			if len(parts) > 1 {
-				sides[1] = parts[1]
-				sides[3] = parts[1]
-			}
-			if len(parts) > 2 {
-				sides[2] = parts[2]
-			}
-			if len(parts) > 3 {
-				sides[3] = parts[3]
-			}
-			for j, side := range []string{"top", "right", "bottom", "left"} {
+			for j, side := range borderSides {
 				put(k+"-"+side, sides[j])
 			}
 		case "border":
 			if values, ok := borderValues(v); ok {
-				for key, value := range values {
-					put(key, value)
+				for _, side := range borderSides {
+					for sub, value := range values {
+						put("border-"+side+"-"+sub, value)
+					}
+				}
+			}
+		case "border-top", "border-right", "border-bottom", "border-left":
+			if values, ok := borderValues(v); ok {
+				for sub, value := range values {
+					put(k+"-"+sub, value)
 				}
 			}
 		case "border-width":
-			if _, ok := borderWidth(v); ok {
-				put(k, v)
+			parts := strings.Fields(v)
+			sides, ok := expandFour(parts)
+			if !ok {
+				continue
+			}
+			valid := true
+			for _, part := range parts {
+				if _, ok := borderWidth(part); !ok {
+					valid = false
+				}
+			}
+			if valid {
+				for j, side := range borderSides {
+					put("border-"+side+"-width", sides[j])
+				}
 			}
 		case "border-style":
-			if strings.EqualFold(v, "solid") || strings.EqualFold(v, "none") {
-				put(k, strings.ToLower(v))
+			parts := strings.Fields(v)
+			sides, ok := expandFour(parts)
+			if !ok {
+				continue
+			}
+			valid := true
+			for _, part := range parts {
+				if !isBorderStyle(part) {
+					valid = false
+				}
+			}
+			if valid {
+				for j, side := range borderSides {
+					put("border-"+side+"-style", strings.ToLower(sides[j]))
+				}
+			}
+		case "border-color":
+			parts, ok := cssTokens(v)
+			if !ok {
+				continue
+			}
+			sides, ok := expandFour(parts)
+			if !ok {
+				continue
+			}
+			valid := true
+			for _, part := range parts {
+				if _, ok := cssColor(part, color.RGBA{}); !ok {
+					valid = false
+				}
+			}
+			if valid {
+				for j, side := range borderSides {
+					put("border-"+side+"-color", sides[j])
+				}
 			}
 		case "word-wrap":
 			put("overflow-wrap", v)
@@ -239,9 +315,28 @@ func declarations(s string) map[string]string {
 		case "text-decoration":
 			put("text-decoration-line", v)
 		default:
-			if strings.HasPrefix(k, "margin-") || strings.HasPrefix(k, "padding-") || k == "width" || k == "height" || k == "max-width" || k == "min-width" || k == "min-height" || k == "max-height" {
-				if _, ok := parseLength(v, strings.HasPrefix(k, "margin-") || k == "width" || k == "height", k == "max-width" || k == "max-height"); !ok {
+			if strings.HasPrefix(k, "margin-") {
+				if _, ok := parseInset(v); !ok {
 					continue
+				}
+			} else if strings.HasPrefix(k, "padding-") || k == "width" || k == "height" || k == "max-width" || k == "min-width" || k == "min-height" || k == "max-height" {
+				if _, ok := parseLength(v, k == "width" || k == "height", k == "max-width" || k == "max-height"); !ok {
+					continue
+				}
+			} else if strings.HasPrefix(k, "border-") {
+				if strings.HasSuffix(k, "-width") {
+					if _, ok := borderWidth(v); !ok {
+						continue
+					}
+				} else if strings.HasSuffix(k, "-style") {
+					if !isBorderStyle(v) {
+						continue
+					}
+					v = strings.ToLower(v)
+				} else if strings.HasSuffix(k, "-color") {
+					if _, ok := cssColor(v, color.RGBA{}); !ok {
+						continue
+					}
 				}
 			}
 			put(k, v)
@@ -392,6 +487,7 @@ func (d *Document) styled(n *node, parent style) style {
 	if n.tag == "html" {
 		s.rootSize = s.size
 	}
+	rawBW := [4]int{3, 3, 3, 3}
 	keys := make([]string, 0, len(values))
 	for k := range values {
 		keys = append(keys, k)
@@ -504,15 +600,6 @@ func (d *Document) styled(n *node, parent style) style {
 			} else {
 				s.bg, _ = cssColor(v, s.fg)
 			}
-		case "border-color":
-			if kw == "inherit" {
-				s.border, s.borderSet = parent.border, parent.borderSet
-			} else if kw == "initial" {
-				s.border, s.borderSet = color.RGBA{}, false
-			} else {
-				s.border, _ = cssColor(v, s.fg)
-				s.borderSet = true
-			}
 		case "border-collapse":
 			if kw == "inherit" {
 				s.collapse = parent.collapse
@@ -520,14 +607,6 @@ func (d *Document) styled(n *node, parent style) style {
 				s.collapse = false
 			} else if v == "collapse" {
 				s.collapse = true
-			}
-		case "border-width":
-			if kw == "inherit" {
-				s.bw = parent.bw
-			} else if kw == "initial" {
-				s.bw = 0
-			} else if l, ok := borderWidth(v); ok {
-				s.bw = l.computed(s.size, s.rootSize).resolve(0, 32)
 			}
 		case "width":
 			if kw == "inherit" {
@@ -602,7 +681,7 @@ func (d *Document) styled(n *node, parent style) style {
 				s.position = v
 			}
 		case "top", "right", "bottom", "left":
-			for i, side := range []string{"top", "right", "bottom", "left"} {
+			for i, side := range borderSides {
 				if k == side {
 					if kw == "inherit" {
 						s.inset[i] = parent.inset[i]
@@ -689,14 +768,14 @@ func (d *Document) styled(n *node, parent style) style {
 				s.align = v
 			}
 		default:
-			for i, side := range []string{"top", "right", "bottom", "left"} {
+			for i, side := range borderSides {
 				if k == "margin-"+side {
 					if kw == "inherit" {
 						s.margin[i] = parent.margin[i]
 					} else if kw == "initial" {
 						s.margin[i] = cssLength{}
 					} else {
-						s.margin[i], _ = parseLength(v, true, false)
+						s.margin[i], _ = parseInset(v)
 					}
 				}
 				if k == "padding-"+side {
@@ -706,6 +785,33 @@ func (d *Document) styled(n *node, parent style) style {
 						s.padding[i] = cssLength{}
 					} else {
 						s.padding[i], _ = parseLength(v, false, false)
+					}
+				}
+				if k == "border-"+side+"-width" {
+					if kw == "inherit" {
+						rawBW[i] = parent.bw[i]
+					} else if kw == "initial" {
+						rawBW[i] = 3
+					} else if l, ok := borderWidth(v); ok {
+						rawBW[i] = l.computed(s.size, s.rootSize).resolve(0, 256)
+					}
+				}
+				if k == "border-"+side+"-style" {
+					if kw == "inherit" {
+						s.borderStyle[i] = parent.borderStyle[i]
+					} else if kw == "initial" {
+						s.borderStyle[i] = "none"
+					} else if isBorderStyle(v) {
+						s.borderStyle[i] = strings.ToLower(v)
+					}
+				}
+				if k == "border-"+side+"-color" {
+					if kw == "inherit" {
+						s.border[i], s.borderSet[i] = parent.border[i], parent.borderSet[i]
+					} else if kw == "initial" {
+						s.border[i], s.borderSet[i] = color.RGBA{}, false
+					} else if c, ok := cssColor(v, s.fg); ok {
+						s.border[i], s.borderSet[i] = c, true
 					}
 				}
 			}
@@ -727,14 +833,13 @@ func (d *Document) styled(n *node, parent style) style {
 	if (s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right") && s.display != "none" {
 		s.display = "block"
 	}
-	bs := values["border-style"]
-	if isCSSKeyword(bs) && resolveCSSKeyword("border-style", bs) == "initial" {
-		bs = "none"
-	}
-	if bs == "none" {
-		s.bw = 0
-	} else if bs == "solid" && (values["border-width"] == "" || (isCSSKeyword(values["border-width"]) && resolveCSSKeyword("border-width", values["border-width"]) == "initial")) {
-		s.bw = 3
+	for i := range s.bw {
+		switch s.borderStyle[i] {
+		case "solid", "dashed", "dotted":
+			s.bw[i] = rawBW[i]
+		default:
+			s.bw[i] = 0
+		}
 	}
 	for _, p := range []*cssLength{&s.width, &s.height, &s.maxWidth, &s.minWidth, &s.minHeight, &s.maxHeight} {
 		*p = p.computed(s.size, s.rootSize)

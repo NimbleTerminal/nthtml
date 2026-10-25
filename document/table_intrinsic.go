@@ -53,9 +53,9 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				return
 			}
 			m, p := resolveEdges(st.margin, basis), resolveEdges(st.padding, basis)
-			inlineExtra := m[1] + m[3] + p[1] + p[3] + 2*st.bw
-			line = min(4096, line+inlineExtra)
-			word = min(4096, word+inlineExtra)
+			inlineExtra := m[1] + m[3] + p[1] + p[3] + st.borderH()
+			line = min(4096, max(0, line+inlineExtra))
+			word = min(4096, max(0, word+inlineExtra))
 		}
 		if n.tag == "" {
 			if st.size == 0 {
@@ -152,11 +152,11 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 		flushLine()
 	}
 	p := resolveEdges(s.padding, basis)
-	bw := s.bw
+	bh := s.borderH()
 	if n.tag == "table" && s.collapse {
-		bw = 0
+		bh = 0
 	}
-	extra := p[1] + p[3] + 2*bw
+	extra := p[1] + p[3] + bh
 	if n.tag != "td" && n.tag != "th" {
 		m := resolveEdges(s.margin, basis)
 		extra += m[1] + m[3]

@@ -1100,13 +1100,13 @@
     {
       "path": "css/CSS2/normal-flow/height-006.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "reason": "Reference requires adjacent sibling selector (img + img).",
       "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/height-007.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "reason": "Reference requires adjacent sibling selector (img + img).",
       "area": "boxes and positioning"
     },
     {
@@ -1132,15 +1132,21 @@
     },
     {
       "path": "css/CSS2/normal-flow/width-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension and per-side 96px border geometry match the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/width-007.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension and per-side 96px border geometry match the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/min-height-003.xht",
@@ -1166,13 +1172,13 @@
     {
       "path": "css/CSS2/normal-flow/min-height-006.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "reason": "Reference requires adjacent sibling selector (img + img).",
       "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/min-height-007.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "reason": "Reference requires adjacent sibling selector (img + img).",
       "area": "boxes and positioning"
     },
     {
@@ -1199,13 +1205,13 @@
     {
       "path": "css/CSS2/normal-flow/max-height-006.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "reason": "Reference requires adjacent sibling selector (img + img).",
       "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/normal-flow/max-height-007.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
+      "reason": "Reference requires adjacent sibling selector (img + img).",
       "area": "boxes and positioning"
     },
     {
@@ -1231,15 +1237,21 @@
     },
     {
       "path": "css/CSS2/normal-flow/min-width-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension and per-side 96px border geometry match the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/min-width-007.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension and per-side 96px border geometry match the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/max-width-003.xht",
@@ -1264,15 +1276,21 @@
     },
     {
       "path": "css/CSS2/normal-flow/max-width-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension and per-side 96px border geometry match the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/max-width-007.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires per-side 96px borders; some references also require adjacent inline images/sibling selectors.",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension and per-side 96px border geometry match the independently sized reference; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/css-color/rgb-003.html",
@@ -1475,20 +1493,20 @@
     },
     {
       "path": "css/CSS2/borders/border-005.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires 96px border widths, above the renderer\u2019s 32px border resource cap.",
+      "expected": "PASS",
+      "reason": "Audited 1in (96px) border shorthand and solid border geometry cover the positioned red reference square.",
       "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/borders/border-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires 96px border widths, above the renderer\u2019s 32px border resource cap.",
+      "expected": "PASS",
+      "reason": "Audited 1in (96px) border shorthand and solid border geometry cover the positioned red reference square.",
       "area": "boxes and positioning"
     },
     {
       "path": "css/CSS2/borders/border-008.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires 96px border widths, above the renderer\u2019s 32px border resource cap.",
+      "expected": "PASS",
+      "reason": "Audited 1in (96px) border shorthand and solid border geometry cover the positioned red reference square.",
       "area": "boxes and positioning"
     },
     {
@@ -1501,25 +1519,25 @@
     {
       "path": "css/CSS2/linebox/line-height-002.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent inline images, sibling selectors, and (for zero heights) negative margins.",
+      "reason": "Reference requires adjacent sibling selector (img + img) and unpinned support/black15x15.png asset.",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/linebox/line-height-004.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent inline images, sibling selectors, and (for zero heights) negative margins.",
+      "reason": "Reference requires adjacent sibling selector (img + img) and unpinned support/black15x15.png asset.",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/linebox/line-height-006.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent inline images, sibling selectors, and (for zero heights) negative margins.",
+      "reason": "Reference requires adjacent sibling selector (img + img) and unpinned support/black15x15.png asset.",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/linebox/line-height-007.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent inline images, sibling selectors, and (for zero heights) negative margins.",
+      "reason": "Reference requires adjacent sibling selector (img + img) and unpinned support/black15x15.png asset.",
       "area": "typography and whitespace"
     }
   ]

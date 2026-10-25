@@ -75,12 +75,29 @@ func (l cssLength) definite(base int) bool {
 	return l.unit == lengthPX || l.unit == lengthPercent && base >= 0
 }
 
+func (l cssLength) resolveSigned(base, ceiling int) int {
+	v := l.value
+	if l.unit == lengthPercent {
+		if base < 0 {
+			return 0
+		}
+		v = v * float64(base) / 100
+	}
+	if l.unit != lengthPX && l.unit != lengthPercent {
+		return 0
+	}
+	if v < 0 {
+		return max(-ceiling, int(v-1e-9))
+	}
+	return min(ceiling, int(v+1e-9))
+}
+
 // Percent margins and padding (including vertical sides) resolve against the
-// containing block's content width. Each side retains the existing 256px cap.
+// containing block's content width. Each side retains the existing ±256px cap.
 func resolveEdges(edges [4]cssLength, width int) [4]int {
 	var out [4]int
 	for i, l := range edges {
-		out[i] = l.resolve(width, 256)
+		out[i] = l.resolveSigned(width, 256)
 	}
 	return out
 }

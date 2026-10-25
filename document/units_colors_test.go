@@ -163,3 +163,32 @@ func TestDefaultForegroundIsCSSBlack(t *testing.T) {
 		t.Fatalf("expected default text color black, got %v", got)
 	}
 }
+
+func TestPerSideBordersStylesAndCaps(t *testing.T) {
+	r := renderCSS(t, `<body style="margin:0"><article style="width:20px;height:10px;border-top:4px solid red;border-right:6px dashed green;border-bottom:2px dotted blue;border-left:8px solid black"></article></body>`)
+	art := tagged(r, "article")
+	if art.Bounds.Dx() != 34 || art.Bounds.Dy() != 16 {
+		t.Fatalf("expected 34x16 outer box with asymmetric borders, got %v", art.Bounds)
+	}
+	if got := r.Image.RGBAAt(10, 1); got != (color.RGBA{255, 0, 0, 255}) {
+		t.Fatalf("expected red top border, got %v", got)
+	}
+	if got := r.Image.RGBAAt(2, 8); got != (color.RGBA{0, 0, 0, 255}) {
+		t.Fatalf("expected black left border, got %v", got)
+	}
+
+	// 1in (96px) border width is allowed up to 256px cap.
+	r = renderCSS(t, `<body style="margin:0"><div style="width:0;height:0;border:1in blue;border-style:solid"></div></body>`)
+	if got := r.Image.RGBAAt(100, 100); got != (color.RGBA{0, 0, 255, 255}) {
+		t.Fatalf("expected 192x192 filled blue border square at (100,100), got %v", got)
+	}
+
+	// border-style: hidden suppresses shared collapsed table border edges.
+	r = renderCSS(t, `<body style="margin:0"><table style="border-collapse:collapse;border:4px solid red"><tr><td style="border-top:4px hidden;width:20px;height:20px"></td></tr></table></body>`)
+	if got := r.Image.RGBAAt(10, 1); got != (color.RGBA{255, 255, 255, 255}) {
+		t.Fatalf("expected top collapsed border to be hidden (white), got %v", got)
+	}
+	if got := r.Image.RGBAAt(1, 10); got != (color.RGBA{255, 0, 0, 255}) {
+		t.Fatalf("expected left collapsed border to remain red, got %v", got)
+	}
+}

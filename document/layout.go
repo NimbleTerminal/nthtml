@@ -225,12 +225,12 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	basisWidth := w
 	tableStyle := s
 	if n.tag == "table" && s.collapse {
-		s.bw = 0
+		s.bw = [4]int{}
 	}
 	profile := l.margins(n, s, w, parentHeight)
 	margin, padding, target := boxWidth(s, w)
 	margin[0], margin[2] = profile.before, profile.after
-	extra := padding[1] + padding[3] + 2*s.bw
+	extra := padding[1] + padding[3] + s.borderH()
 	x += margin[3]
 	y += margin[0]
 	w = target
@@ -238,7 +238,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	if s.height.definite(parentHeight) {
 		height = s.height.resolve(parentHeight, l.d.limits.Height)
 		if s.borderBox {
-			height = max(0, height-padding[0]-padding[2]-2*s.bw)
+			height = max(0, height-padding[0]-padding[2]-s.borderV())
 		}
 	}
 	kind, _ := diagramSource(n)
@@ -247,7 +247,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		content := func(v cssLength) int {
 			size := v.resolve(parentHeight, l.d.limits.Height)
 			if s.borderBox {
-				size = max(0, size-padding[0]-padding[2]-2*s.bw)
+				size = max(0, size-padding[0]-padding[2]-s.borderV())
 			}
 			return size
 		}
@@ -278,7 +278,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		}
 		defer func() { l.frame = previous }()
 	}
-	cx, cy, cw := x+padding[3]+s.bw, y+padding[0]+s.bw, max(1, w-extra)
+	cx, cy, cw := x+padding[3]+s.bw[3], y+padding[0]+s.bw[0], max(1, w-extra)
 	contentY := cy
 	if kind, source := diagramSource(n); kind != "" {
 		cy = l.diagram(n, kind, source, cx, cy, cw, height, s)
@@ -355,12 +355,14 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	} else {
 		var inline []*node
 		pending, atTop := 0, true
+		var pendingStrut marginStrut
 		flush := func() {
 			if len(inline) > 0 {
 				before := cy
 				cy = l.flow(inline, cx, cy, cw, s)
 				if cy != before {
 					pending = 0
+					pendingStrut = marginStrut{}
 					atTop = false
 				}
 				inline = nil
@@ -388,7 +390,8 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			}
 			flush()
 			childMargins := l.margins(c, cs, cw, height)
-			input := cy - min(pending, childMargins.before)
+			collapsed := pendingStrut.join(childMargins.beforeStrut).value()
+			input := cy - pending + collapsed - childMargins.before
 			if atTop && profile.top {
 				input = cy - childMargins.before
 			}
@@ -398,11 +401,14 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			cy = l.blockStyled(c, cx, input, cw, height, cs)
 			if atTop && profile.top && childMargins.through {
 				pending = 0
+				pendingStrut = marginStrut{}
 				continue
 			}
 			if childMargins.through {
-				pending = max(pending, childMargins.after)
+				pendingStrut = pendingStrut.join(childMargins.afterStrut)
+				pending = pendingStrut.value()
 			} else {
+				pendingStrut = childMargins.afterStrut
 				pending = childMargins.after
 				atTop = false
 			}
@@ -426,26 +432,14 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	if constrainHeight {
 		cy = contentY + clampHeight(cy-contentY)
 	}
-	cy += padding[2] + s.bw
+	cy += padding[2] + s.bw[2]
 	if l.err != nil {
 		return cy
 	}
 	if opStart < len(l.ops) {
 		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchorName(n), Color: s.bg}
 	}
-	if s.bw > 0 {
-		r := image.Rect(x, start, x+w, cy)
-		c := s.border
-		if !s.borderSet {
-			c = s.fg
-		}
-		borderRect := func(r image.Rectangle, c color.RGBA, tag string) { l.add(Box{Bounds: r, Color: c, Tag: tag}, nil) }
-		b := min(s.bw, r.Dx()/2, r.Dy()/2)
-		borderRect(image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+b), c, "border")
-		borderRect(image.Rect(r.Min.X, r.Max.Y-b, r.Max.X, r.Max.Y), c, "border")
-		borderRect(image.Rect(r.Min.X, r.Min.Y+b, r.Min.X+b, r.Max.Y-b), c, "border")
-		borderRect(image.Rect(r.Max.X-b, r.Min.Y+b, r.Max.X, r.Max.Y-b), c, "border")
-	}
+	l.paintBorders(image.Rect(x, start, x+w, cy), s)
 	if cy+margin[2] > l.d.limits.Height {
 		l.err = limitError("height")
 	}
@@ -454,10 +448,64 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	}
 	return cy + margin[2]
 }
+
+func (l *layout) paintBorders(r image.Rectangle, s style) {
+	if !s.hasBorder() || r.Empty() {
+		return
+	}
+	bTop, bBottom := s.bw[0], s.bw[2]
+	if bTop+bBottom > r.Dy() {
+		sides := apportion([]int{bTop, bBottom}, r.Dy())
+		bTop, bBottom = sides[0], sides[1]
+	}
+	bLeft, bRight := s.bw[3], s.bw[1]
+	if bLeft+bRight > r.Dx() {
+		sides := apportion([]int{bLeft, bRight}, r.Dx())
+		bLeft, bRight = sides[0], sides[1]
+	}
+	paintEdge := func(side int, seg image.Rectangle, horizontal bool) {
+		if s.bw[side] <= 0 {
+			return
+		}
+		c := s.borderColor(side)
+		st := s.borderStyle[side]
+		if st == "dashed" || st == "dotted" {
+			if seg.Empty() {
+				return
+			}
+			if horizontal {
+				t := max(1, seg.Dy())
+				dash, step := t, 2*t
+				if st == "dashed" {
+					dash, step = 2*t, 3*t
+				}
+				for x := seg.Min.X; x < seg.Max.X && l.err == nil; x += step {
+					l.add(Box{Bounds: image.Rect(x, seg.Min.Y, min(seg.Max.X, x+dash), seg.Max.Y), Color: c, Tag: "border"}, nil)
+				}
+			} else {
+				t := max(1, seg.Dx())
+				dash, step := t, 2*t
+				if st == "dashed" {
+					dash, step = 2*t, 3*t
+				}
+				for y := seg.Min.Y; y < seg.Max.Y && l.err == nil; y += step {
+					l.add(Box{Bounds: image.Rect(seg.Min.X, y, seg.Max.X, min(seg.Max.Y, y+dash)), Color: c, Tag: "border"}, nil)
+				}
+			}
+			return
+		}
+		l.add(Box{Bounds: seg, Color: c, Tag: "border"}, nil)
+	}
+	paintEdge(0, image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+bTop), true)
+	paintEdge(2, image.Rect(r.Min.X, r.Max.Y-bBottom, r.Max.X, r.Max.Y), true)
+	paintEdge(3, image.Rect(r.Min.X, r.Min.Y+bTop, r.Min.X+bLeft, r.Max.Y-bBottom), false)
+	paintEdge(1, image.Rect(r.Max.X-bRight, r.Min.Y+bTop, r.Max.X, r.Max.Y-bBottom), false)
+}
+
 func (l *layout) resolveInlineBlock(n *node, ib style, baseW int) (style, int) {
 	for i := range ib.margin {
 		if ib.margin[i].unit == lengthPercent {
-			ib.margin[i] = px(ib.margin[i].resolve(baseW, 256))
+			ib.margin[i] = px(ib.margin[i].resolveSigned(baseW, 256))
 		}
 		if ib.margin[i].unit == lengthAuto {
 			ib.margin[i] = px(0)
@@ -477,7 +525,7 @@ func (l *layout) resolveInlineBlock(n *node, ib style, baseW int) (style, int) {
 		avail := max(0, baseW-m[1]-m[3])
 		size := max(0, min(preferred, max(minimum, avail))-m[1]-m[3])
 		if !ib.borderBox {
-			size = max(0, size-p[1]-p[3]-2*ib.bw)
+			size = max(0, size-p[1]-p[3]-ib.borderH())
 		}
 		ib.width = px(size)
 	}
@@ -617,53 +665,53 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				if st.height.definite(parentH) {
 					imgH = st.height.resolve(parentH, l.d.limits.Height)
 					if st.borderBox {
-						imgH = max(0, imgH-padding[0]-padding[2]-2*st.bw)
+						imgH = max(0, imgH-padding[0]-padding[2]-st.borderV())
 					}
 				}
 				if imgH >= 0 {
 					if st.maxHeight.definite(parentH) {
 						mh := st.maxHeight.resolve(parentH, l.d.limits.Height)
 						if st.borderBox {
-							mh = max(0, mh-padding[0]-padding[2]-2*st.bw)
+							mh = max(0, mh-padding[0]-padding[2]-st.borderV())
 						}
 						imgH = min(imgH, mh)
 					}
 					if st.minHeight.definite(parentH) {
 						mh := st.minHeight.resolve(parentH, l.d.limits.Height)
 						if st.borderBox {
-							mh = max(0, mh-padding[0]-padding[2]-2*st.bw)
+							mh = max(0, mh-padding[0]-padding[2]-st.borderV())
 						}
 						imgH = max(imgH, mh)
 					}
 				}
-				availW := max(1, baseW-margin[1]-margin[3]-padding[1]-padding[3]-2*st.bw)
+				availW := max(1, baseW-margin[1]-margin[3]-padding[1]-padding[3]-st.borderH())
 				hasCSSW := st.width.definite(baseW)
 				targetW := availW
 				if hasCSSW {
 					targetW = st.width.resolve(baseW, 16384)
 					if st.borderBox {
-						targetW = max(0, targetW-padding[1]-padding[3]-2*st.bw)
+						targetW = max(0, targetW-padding[1]-padding[3]-st.borderH())
 					}
 				}
 				if st.maxWidth.definite(baseW) {
 					mw := st.maxWidth.resolve(baseW, 16384)
 					if st.borderBox {
-						mw = max(0, mw-padding[1]-padding[3]-2*st.bw)
+						mw = max(0, mw-padding[1]-padding[3]-st.borderH())
 					}
 					targetW = min(targetW, mw)
 				}
 				if st.minWidth.definite(baseW) {
 					mw := st.minWidth.resolve(baseW, 16384)
 					if st.borderBox {
-						mw = max(0, mw-padding[1]-padding[3]-2*st.bw)
+						mw = max(0, mw-padding[1]-padding[3]-st.borderH())
 					}
 					targetW = max(targetW, mw)
 				}
 				targetW = max(1, min(availW, targetW))
 				iw, ih := imageSize(n, src.Bounds().Size(), hasCSSW || st.maxWidth.definite(baseW) || st.minWidth.definite(baseW), targetW, imgH)
 				ih = min(ih, l.d.limits.Height)
-				outerW := iw + padding[1] + padding[3] + 2*st.bw + margin[1] + margin[3]
-				outerH := ih + padding[0] + padding[2] + 2*st.bw + margin[0] + margin[2]
+				outerW := iw + padding[1] + padding[3] + st.borderH() + margin[1] + margin[3]
+				outerH := ih + padding[0] + padding[2] + st.borderV() + margin[0] + margin[2]
 				prepareLine()
 				if pendingSpace && prefix == "" {
 					prefix = " "
@@ -685,13 +733,17 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				pendingSpace = false
 				pendingSpaceBg = color.RGBA{}
 				spaceWraps = false
-				ix := px + margin[3] + st.bw + padding[3]
-				iy := y + margin[0] + st.bw + padding[0]
+				ix := px + margin[3] + st.bw[3] + padding[3]
+				iy := y + margin[0] + st.bw[0] + padding[0]
 				var shift image.Point
 				if st.position == "relative" {
 					shift = relativeOffset(st, baseW, parentH)
 				}
 				l.add(Box{Bounds: image.Rect(ix, iy, ix+iw, iy+ih).Add(shift), Tag: "img", Anchor: anchorName(n), LinkID: st.linkID}, src)
+				if st.hasBorder() {
+					bRect := image.Rect(px+margin[3], y+margin[0], px+margin[3]+iw+padding[1]+padding[3]+st.borderH(), y+margin[0]+ih+padding[0]+padding[2]+st.borderV()).Add(shift)
+					l.paintBorders(bRect, st)
+				}
 				px += outerW
 				lineHeight = max(lineHeight, outerH)
 				hasText = true
@@ -732,7 +784,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				inlineBg = st.bg
 			}
 			margin, padding := resolveEdges(st.margin, baseW), resolveEdges(st.padding, baseW)
-			pendingLeft += margin[3] + st.bw + padding[3]
+			pendingLeft += margin[3] + st.bw[3] + padding[3]
 			if name := anchorName(n); name != "" {
 				l.add(Box{Tag: "anchor", Anchor: name, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
 			}
@@ -740,9 +792,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				visit(c, st, inlineBg)
 			}
 			if hasText && !pendingSpace {
-				px += padding[1] + st.bw + margin[1]
+				px += padding[1] + st.bw[1] + margin[1]
 			} else {
-				pendingLeft += padding[1] + st.bw + margin[1]
+				pendingLeft += padding[1] + st.bw[1] + margin[1]
 			}
 			return
 		}

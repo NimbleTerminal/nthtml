@@ -204,25 +204,34 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 			cs.minWidth = cssLength{}
 			cs.margin = [4]cssLength{}
 			padding := resolveEdges(cs.padding, width)
+			cellBorder := cs
 			if grid != nil {
 				inset := grid.spanInsets(ri, sp)
 				for j := range padding {
 					padding[j] += inset[j]
 				}
-				cs.bw = 0
+				cellBorder.bw = [4]int{}
+			} else {
+				if cellBorder.borderH() > width {
+					sides := apportion([]int{cellBorder.bw[3], cellBorder.bw[1]}, max(0, width))
+					cellBorder.bw[3], cellBorder.bw[1] = sides[0], sides[1]
+				}
+				room := max(0, width-cellBorder.borderH())
+				if padding[1]+padding[3] > room {
+					sides := apportion([]int{padding[3], padding[1]}, room)
+					padding[3], padding[1] = sides[0], sides[1]
+				}
+				for j := range padding {
+					padding[j] += cellBorder.bw[j]
+				}
 			}
-			cs.bw = min(cs.bw, max(0, width/2))
-			room := max(0, width-2*cs.bw)
-			if padding[1]+padding[3] > room {
-				sides := apportion([]int{padding[3], padding[1]}, room)
-				padding[3], padding[1] = sides[0], sides[1]
-			}
+			cs.bw = [4]int{}
 			for j := range padding {
 				cs.padding[j] = px(padding[j])
 			}
 			first := len(l.ops)
 			h := l.blockStyled(cell, xs[sp.col], 0, width, parentHeight, cs)
-			cells = append(cells, laidCell{first, len(l.ops), h, ri, sp, cs})
+			cells = append(cells, laidCell{first, len(l.ops), h, ri, sp, cellBorder})
 			if sp.rows == 1 {
 				heights[ri] = max(heights[ri], h)
 			}
@@ -266,13 +275,6 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 			l.ops[i].box.translate(image.Pt(0, top))
 		}
 		l.ops[cell.start].box.Bounds.Max.Y = bottom
-		contentEnd := cell.end
-		if cell.s.bw > 0 {
-			contentEnd -= 4
-			l.ops[contentEnd+1].box.translate(image.Pt(0, delta))
-			l.ops[contentEnd+2].box.Bounds.Max.Y = bottom - cell.s.bw
-			l.ops[contentEnd+3].box.Bounds.Max.Y = bottom - cell.s.bw
-		}
 		shift := 0
 		switch cell.s.vertical {
 		case "middle":
@@ -280,9 +282,10 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 		case "bottom":
 			shift = delta
 		}
-		for i := cell.start + 1; i < contentEnd; i++ {
+		for i := cell.start + 1; i < cell.end; i++ {
 			l.ops[i].box.translate(image.Pt(0, shift))
 		}
+		l.paintBorders(l.ops[cell.start].box.Bounds, cell.s)
 	}
 	if grid != nil {
 		grid.paint(l, x, widths, rowY)

@@ -111,3 +111,26 @@ func TestConstrainedHeightsAndThroughMargins(t *testing.T) {
 		t.Fatalf("child percentages must use constrained height: %d", got)
 	}
 }
+
+func TestNegativeMarginCollapseAndOffsets(t *testing.T) {
+	// Positive +20px and negative -10px collapse to +10px (maxPositive + minNegative).
+	r := renderCSS(t, `<article style="height:20px;margin-bottom:20px"></article><aside style="height:20px;margin-top:-10px"></aside>`)
+	a, b := tagged(r, "article"), tagged(r, "aside")
+	if gap := b.Bounds.Min.Y - a.Bounds.Max.Y; gap != 10 {
+		t.Fatalf("expected +20px and -10px margins to collapse to 10px, got %d", gap)
+	}
+
+	// Two negative margins (-12px and -25px) collapse to the most negative (-25px).
+	r = renderCSS(t, `<article style="height:40px;margin-bottom:-12px"></article><aside style="height:20px;margin-top:-25px"></aside>`)
+	a, b = tagged(r, "article"), tagged(r, "aside")
+	if gap := b.Bounds.Min.Y - a.Bounds.Max.Y; gap != -25 {
+		t.Fatalf("expected -12px and -25px margins to collapse to -25px, got %d", gap)
+	}
+
+	// Negative horizontal margins shift and expand auto-width blocks.
+	r = renderCSS(t, `<div style="margin:0 20px"><article style="height:10px;margin-left:-10px;margin-right:-5px"></article></div>`)
+	art := tagged(r, "article")
+	if art.Bounds.Min.X != 10 || art.Bounds.Max.X != 385 {
+		t.Fatalf("unexpected negative horizontal margin bounds: %v", art.Bounds)
+	}
+}

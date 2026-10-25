@@ -8,17 +8,24 @@ import (
 type tableBorder struct {
 	width, priority int
 	color           color.RGBA
+	hidden          bool
 }
 
-func borderOf(s style, priority int) tableBorder {
-	c := s.border
-	if !s.borderSet {
-		c = s.fg
+func borderSideOf(s style, side, priority int) tableBorder {
+	if s.borderStyle[side] == "hidden" {
+		return tableBorder{width: 0, priority: 100, hidden: true}
 	}
-	return tableBorder{s.bw, priority, c}
+	return tableBorder{width: s.bw[side], priority: priority, color: s.borderColor(side)}
 }
+
 func chooseBorder(a, b tableBorder) tableBorder {
-	// Solid borders only. Wider wins; cells beat rows, rows beat tables.
+	if a.hidden {
+		return a
+	}
+	if b.hidden {
+		return b
+	}
+	// Wider wins; cells beat rows, rows beat tables.
 	// Equal candidates keep the earlier (top/left) cell.
 	if b.width > a.width || b.width == a.width && b.priority > a.priority {
 		return b
@@ -44,43 +51,41 @@ func (l *layout) collapseGrid(rows []tableRow, cols int, s style) *collapsedGrid
 				return nil
 			}
 			top, bottom, left, right := &g.h[r*cols+c], &g.h[(r+1)*cols+c], &g.v[r*(cols+1)+c], &g.v[r*(cols+1)+c+1]
-			rb := borderOf(row.style, 1)
-			*top = chooseBorder(*top, rb)
-			*bottom = chooseBorder(*bottom, rb)
+			*top = chooseBorder(*top, borderSideOf(row.style, 0, 1))
+			*bottom = chooseBorder(*bottom, borderSideOf(row.style, 2, 1))
 			if c == 0 {
-				*left = chooseBorder(*left, rb)
+				*left = chooseBorder(*left, borderSideOf(row.style, 3, 1))
 			}
 			if c == cols-1 {
-				*right = chooseBorder(*right, rb)
+				*right = chooseBorder(*right, borderSideOf(row.style, 1, 1))
 			}
 
-			tb := borderOf(s, 0)
 			if r == 0 {
-				*top = chooseBorder(*top, tb)
+				*top = chooseBorder(*top, borderSideOf(s, 0, 0))
 			}
 			if r == len(rows)-1 {
-				*bottom = chooseBorder(*bottom, tb)
+				*bottom = chooseBorder(*bottom, borderSideOf(s, 2, 0))
 			}
 			if c == 0 {
-				*left = chooseBorder(*left, tb)
+				*left = chooseBorder(*left, borderSideOf(s, 3, 0))
 			}
 			if c == cols-1 {
-				*right = chooseBorder(*right, tb)
+				*right = chooseBorder(*right, borderSideOf(s, 1, 0))
 			}
 		}
 	}
 	for r, row := range rows {
 		for i, sp := range row.spans {
-			cb := borderOf(row.styles[i], 2)
+			cs := row.styles[i]
 			for c := sp.col; c < sp.col+sp.cols; c++ {
 				top, bottom := &g.h[r*cols+c], &g.h[(r+sp.rows)*cols+c]
-				*top = chooseBorder(*top, cb)
-				*bottom = chooseBorder(*bottom, cb)
+				*top = chooseBorder(*top, borderSideOf(cs, 0, 2))
+				*bottom = chooseBorder(*bottom, borderSideOf(cs, 2, 2))
 			}
 			for rr := r; rr < r+sp.rows; rr++ {
 				left, right := &g.v[rr*(cols+1)+sp.col], &g.v[rr*(cols+1)+sp.col+sp.cols]
-				*left = chooseBorder(*left, cb)
-				*right = chooseBorder(*right, cb)
+				*left = chooseBorder(*left, borderSideOf(cs, 3, 2))
+				*right = chooseBorder(*right, borderSideOf(cs, 1, 2))
 			}
 		}
 	}

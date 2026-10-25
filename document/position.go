@@ -12,7 +12,8 @@ type positionFrame struct {
 	parent               *positionFrame
 	children             []*positionFrame
 	node                 *node
-	op, border           int
+	op                   int
+	border               [4]int
 	shift                image.Point
 	initial              image.Rectangle
 }
@@ -85,7 +86,8 @@ func (f *positionFrame) bounds(l *layout) image.Rectangle {
 	if f.op < 0 {
 		return f.initial
 	}
-	return l.ops[f.op].box.Bounds.Inset(f.border)
+	r := l.ops[f.op].box.Bounds
+	return image.Rect(r.Min.X+f.border[3], r.Min.Y+f.border[0], r.Max.X-f.border[1], r.Max.Y-f.border[2])
 }
 func (l *layout) placeAbsolute(job absoluteBox) {
 	if l.err != nil {
@@ -98,7 +100,7 @@ func (l *layout) placeAbsolute(job absoluteBox) {
 	// independently of the remaining width after offsets are applied.
 	for i := range s.margin {
 		if s.margin[i].unit == lengthPercent {
-			s.margin[i] = px(s.margin[i].resolve(width, 256))
+			s.margin[i] = px(s.margin[i].resolveSigned(width, 256))
 		}
 		if s.padding[i].unit == lengthPercent {
 			s.padding[i] = px(s.padding[i].resolve(width, 256))
@@ -124,7 +126,7 @@ func (l *layout) placeAbsolute(job absoluteBox) {
 	if right {
 		available -= s.inset[1].offset(width)
 	}
-	extra := padding[1] + padding[3] + 2*s.bw
+	extra := padding[1] + padding[3] + s.borderH()
 	if !s.width.definite(width) {
 		outer := max(0, available-margin[1]-margin[3])
 		if !(left && right) {
@@ -142,7 +144,7 @@ func (l *layout) placeAbsolute(job absoluteBox) {
 		if s.borderBox {
 			s.height = px(outer)
 		} else {
-			s.height = px(max(0, outer-padding[0]-padding[2]-2*s.bw))
+			s.height = px(max(0, outer-padding[0]-padding[2]-s.borderV()))
 		}
 	}
 	outerWidth := s.width.resolve(width, 4096)

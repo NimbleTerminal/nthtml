@@ -18,9 +18,16 @@ func borderWidth(v string) (cssLength, bool) {
 	return l, ok && l.absolute()
 }
 
-// Solid/none borders accept CSS's unordered width/style/color components.
-func borderValues(v string) (map[string]string, bool) {
-	parts := []string{}
+func isBorderStyle(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "none", "hidden", "solid", "dashed", "dotted":
+		return true
+	}
+	return false
+}
+
+func cssTokens(v string) ([]string, bool) {
+	var parts []string
 	start, depth := 0, 0
 	for i, r := range v {
 		if r == '(' {
@@ -45,10 +52,34 @@ func borderValues(v string) (map[string]string, bool) {
 	if start < len(v) {
 		parts = append(parts, v[start:])
 	}
-	if len(parts) == 0 || len(parts) > 3 {
+	return parts, len(parts) > 0
+}
+
+func expandFour(parts []string) ([4]string, bool) {
+	if len(parts) < 1 || len(parts) > 4 {
+		return [4]string{}, false
+	}
+	sides := [4]string{parts[0], parts[0], parts[0], parts[0]}
+	if len(parts) > 1 {
+		sides[1] = parts[1]
+		sides[3] = parts[1]
+	}
+	if len(parts) > 2 {
+		sides[2] = parts[2]
+	}
+	if len(parts) > 3 {
+		sides[3] = parts[3]
+	}
+	return sides, true
+}
+
+// Border shorthands accept CSS's unordered width/style/color components.
+func borderValues(v string) (map[string]string, bool) {
+	parts, ok := cssTokens(v)
+	if !ok || len(parts) > 3 {
 		return nil, false
 	}
-	result := map[string]string{"border-width": "medium", "border-style": "none", "border-color": "currentColor"}
+	result := map[string]string{"width": "medium", "style": "none", "color": "currentColor"}
 	width, style, hasColor := false, false, false
 	for _, part := range parts {
 		if _, ok := borderWidth(part); ok {
@@ -56,19 +87,19 @@ func borderValues(v string) (map[string]string, bool) {
 				return nil, false
 			}
 			width = true
-			result["border-width"] = part
-		} else if strings.EqualFold(part, "solid") || strings.EqualFold(part, "none") {
+			result["width"] = part
+		} else if isBorderStyle(part) {
 			if style {
 				return nil, false
 			}
 			style = true
-			result["border-style"] = strings.ToLower(part)
+			result["style"] = strings.ToLower(part)
 		} else if _, ok := cssColor(part, color.RGBA{}); ok {
 			if hasColor {
 				return nil, false
 			}
 			hasColor = true
-			result["border-color"] = part
+			result["color"] = part
 		} else {
 			return nil, false
 		}

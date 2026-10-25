@@ -88,7 +88,7 @@ func (a *floatArea) place(n *node, s style, x, y, w, parentHeight int) {
 	y = a.clear(y, s.clear)
 	for i := range s.margin {
 		if s.margin[i].unit == lengthPercent {
-			s.margin[i] = px(s.margin[i].resolve(w, 256))
+			s.margin[i] = px(s.margin[i].resolveSigned(w, 256))
 		}
 		if s.margin[i].unit == lengthAuto {
 			s.margin[i] = px(0)
@@ -119,7 +119,7 @@ func (a *floatArea) place(n *node, s style, x, y, w, parentHeight int) {
 		margin, padding := resolveEdges(s.margin, w), resolveEdges(s.padding, w)
 		size := max(0, min(preferred, max(minimum, room))-margin[1]-margin[3])
 		if !s.borderBox {
-			size = max(0, size-padding[1]-padding[3]-2*s.bw)
+			size = max(0, size-padding[1]-padding[3]-s.borderH())
 		}
 		s.width = px(size)
 	}
