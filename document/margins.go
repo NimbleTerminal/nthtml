@@ -72,7 +72,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 	if s.display == "none" {
 		return blockMargins{through: true}
 	}
-	if marginBoundary(n) || s.position == "absolute" {
+	if marginBoundary(n) || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" || s.clear != "" && s.clear != "none" {
 		return info
 	}
 	cw := max(1, width-padding[1]-padding[3]-2*s.bw)
@@ -119,7 +119,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 	}
 	for _, child := range n.children {
 		cs := l.d.styled(child, s)
-		if cs.display == "none" || cs.position == "absolute" {
+		if cs.display == "none" || cs.position == "absolute" || cs.floatSide == "left" || cs.floatSide == "right" {
 			continue
 		}
 		if child.tag == "" || cs.display == "inline" || child.tag == "br" {
@@ -128,6 +128,9 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 		}
 		flush()
 		childInfo := l.margins(child, cs, cw, height)
+		if cs.clear != "" && cs.clear != "none" {
+			childInfo.block = false
+		}
 		children = append(children, childInfo)
 		allThrough = allThrough && childInfo.through
 		if l.err != nil {
@@ -197,7 +200,7 @@ func (l *layout) inlineLine(nodes []*node, parent style) bool {
 			continue
 		}
 		s := l.d.styled(n, parent)
-		if s.display == "none" || s.position == "absolute" {
+		if s.display == "none" || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" {
 			continue
 		}
 		if n.tag == "br" {

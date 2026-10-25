@@ -42,6 +42,8 @@ type operation struct {
 	source image.Image
 }
 type layout struct {
+	floats                      *floatArea
+	floatWork                   int
 	frame, rootFrame            *positionFrame
 	absolute                    []absoluteBox
 	diagramCount, diagramPixels int
@@ -97,7 +99,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	}
 	l := &layout{ctx: ctx, d: d, opts: o, faces: map[faceKey]font.Face{}}
 	l.fonts = map[string]*opentype.Font{}
-	l.rootFrame = &positionFrame{op: -1, initial: image.Rect(0, 0, o.Width, 0)}
+	l.rootFrame = &positionFrame{containing: true, op: -1, initial: image.Rect(0, 0, o.Width, 0)}
 	l.frame = l.rootFrame
 	defer func() {
 		for _, f := range l.faces {
@@ -196,6 +198,12 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		return y
 	}
 
+	previousFloats := l.floats
+	containsFloats := floatContext(n, s)
+	if containsFloats {
+		l.floats = &floatArea{l: l}
+		defer func() { l.floats = previousFloats }()
+	}
 	basisWidth := w
 	tableStyle := s
 	if n.tag == "table" && s.collapse {
@@ -239,9 +247,9 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	start := y
 	opStart := len(l.ops)
 	l.add(Box{Tag: n.tag}, nil)
-	if s.position == "relative" || s.position == "absolute" {
+	if s.position == "relative" || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" {
 		previous := l.frame
-		frame := &positionFrame{parent: previous, node: n, op: opStart, border: s.bw}
+		frame := &positionFrame{parent: previous, node: n, op: opStart, border: s.bw, containing: s.position == "relative" || s.position == "absolute", floating: s.position != "relative" && s.position != "absolute"}
 		if s.position == "relative" {
 			frame.shift = relativeOffset(s, basisWidth, parentHeight)
 		}
@@ -331,6 +339,11 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 				l.queueAbsolute(c, cs, cx, cy)
 				continue
 			}
+			if cs.floatSide == "left" || cs.floatSide == "right" {
+				flush()
+				l.floats.place(c, cs, cx, cy, cw, height)
+				continue
+			}
 			kind, _ := diagramSource(c)
 			if kind == "" && (c.tag == "" || cs.display == "inline" || c.tag == "br") {
 				inline = append(inline, c)
@@ -341,6 +354,9 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			input := cy - min(pending, childMargins.before)
 			if atTop && profile.top {
 				input = cy - childMargins.before
+			}
+			if l.floats != nil {
+				input = max(input, l.floats.clear(input+childMargins.before, cs.clear)-childMargins.before)
 			}
 			cy = l.blockStyled(c, cx, input, cw, height, cs)
 			if atTop && profile.top && childMargins.through {
@@ -358,6 +374,9 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		if profile.bottom {
 			cy -= pending
 		}
+	}
+	if containsFloats && len(l.floats.boxes) > 0 {
+		cy = max(cy, l.floats.bottom())
 	}
 	// Definite block heights size the box even when content overflows.
 	// Tables/cells retain their minimum-height rules; replaced content keeps
@@ -399,15 +418,35 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	return cy + margin[2]
 }
 func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
-	px := x
+	baseX, baseW := x, w
 	lineHeight := s.line
+	px := x
 	lineStart := len(l.ops)
-	hasText := false
+	hasText, lineReady := false, false
+	prepareLine := func() {
+		if lineReady {
+			return
+		}
+		old := image.Pt(x, y)
+		if l.floats != nil && len(l.floats.boxes) > 0 {
+			x, y, w = l.floats.line(baseX, y, baseW, lineHeight)
+		}
+		delta := image.Pt(x, y).Sub(old)
+		for i := lineStart; i < len(l.ops); i++ {
+			op := &l.ops[i]
+			if op.owner == l.frame && (op.box.Tag == "anchor" || op.box.Tag == "position-anchor") {
+				op.box.Bounds = op.box.Bounds.Add(delta)
+			}
+		}
+		px = x
+		lineReady = true
+	}
 	pendingSpace := false
 	preStart := true
 	preColumn := 0
 	prefix := "\n"
 	newline := func() {
+		prepareLine()
 		used := px - x
 		shift := 0
 		if s.align == "center" {
@@ -416,14 +455,18 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			shift = max(0, w-used)
 		}
 		for i := lineStart; i < len(l.ops); i++ {
-			l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(image.Pt(shift, 0))
+			if l.ops[i].owner == l.frame {
+				l.ops[i].box.Bounds = l.ops[i].box.Bounds.Add(image.Pt(shift, 0))
+			}
 		}
 		y += lineHeight
 		if y > l.d.limits.Height {
 			l.err = limitError("height")
 		}
-		px = x
 		lineHeight = s.line
+		x, w = baseX, baseW
+		px = x
+		lineReady = false
 		lineStart = len(l.ops)
 		hasText = false
 	}
@@ -435,6 +478,14 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		if n.tag != "" {
 			computed := l.d.styled(n, st)
 			if computed.display == "none" {
+				return
+			}
+			if computed.floatSide == "left" || computed.floatSide == "right" {
+				if hasText {
+					newline()
+				}
+				l.floats.place(n, computed, baseX, y, baseW, -1)
+				lineReady = false
 				return
 			}
 			if computed.position == "absolute" {
@@ -503,6 +554,8 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					newline()
 					continue
 				}
+				lineHeight = max(lineHeight, st.line)
+				prepareLine()
 				if st.whiteSpace != "pre" && !cssSpace(r) && (index == 0 || cssSpace(runes[index-1])) {
 					end := index + 1
 					for end < len(runes) && !cssSpace(runes[end]) {
@@ -511,12 +564,14 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					ww := font.MeasureString(f, string(runes[index:end])).Ceil()
 					if px > x && px+ww > x+w {
 						newline()
+						prepareLine()
 					}
 				}
 				a, _ := f.GlyphAdvance(r)
 				adv := max(1, a.Ceil())
 				if st.whiteSpace != "pre" && (cssSpace(r) || st.overflowWrap != "normal") && px > x && px+adv > x+w {
 					newline()
+					prepareLine()
 				}
 				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), TextPrefix: prefix, FontSize: st.size, Bold: st.bold, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
 				prefix = ""
@@ -539,6 +594,8 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				word = text[:i]
 			}
 			if word != "" {
+				lineHeight = max(lineHeight, st.line)
+				prepareLine()
 				if pendingSpace && prefix == "" {
 					prefix = " "
 				}
@@ -549,6 +606,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				ww := font.MeasureString(f, word).Ceil()
 				if st.whiteSpace != "nowrap" && px > x && px+space+ww > x+w {
 					newline()
+					prepareLine()
 					space = 0
 				}
 				px += space
@@ -568,6 +626,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					if st.whiteSpace != "nowrap" && st.overflowWrap != "normal" && px > x && px+adv > x+w {
 						emit()
 						newline()
+						prepareLine()
 						runX = px
 					}
 					run.WriteRune(r)

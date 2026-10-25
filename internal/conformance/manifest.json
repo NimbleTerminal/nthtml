@@ -71,7 +71,8 @@
     "css/css-color/t421-rgb-hex3-expand-b.xht": "cf8cacadca7bbc212ed0def33dc338d3a630600a5b84f466cecd4f2adf966da1",
     "css/css-color/t421-rgb-hex3-expand-b-ref.html": "0daed90efa3a4a688fb9936df55a136a5a4b85f4a5f34353650d5aa123e2e1b6",
     "css/css-values/absolute-length-units-001.html": "10be9f5be4dbea6bf91b8aa7b08da29548dcfd3288f4d1c2963ba4de46551421",
-    "css/css-values/rem-unit-root-element.html": "c634036a28760c7ce1aaa19019c29339599df763c19e3bd306797a284a93c090"
+    "css/css-values/rem-unit-root-element.html": "c634036a28760c7ce1aaa19019c29339599df763c19e3bd306797a284a93c090",
+    "css/CSS2/normal-flow/support/black96x96.png": "4b4360c511aaeb81f6b614589d77fac8a28b2b7fdcc3c96857473dac834d8661"
   },
   "cases": [
     {
@@ -131,8 +132,8 @@
     },
     {
       "path": "css/css-sizing/box-sizing-border-box-001.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires floats and z-index."
+      "expected": "PASS",
+      "reason": "Percentage border-box widths place two left floats side by side; z-index is inapplicable to these static floats."
     },
     {
       "path": "css/CSS2/borders/border-001.xht",
@@ -216,8 +217,11 @@
     },
     {
       "path": "css/CSS2/normal-flow/max-height-025.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires allowlisted external images."
+      "expected": "PASS",
+      "reason": "Pica max-height and relative overlap match a pinned, allowlisted black PNG reference.",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/css-color/rgb-001.html",

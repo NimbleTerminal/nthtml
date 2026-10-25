@@ -141,6 +141,8 @@ func FuzzRender(f *testing.F) {
 	f.Add(`<table><thead><tr><th>Header</th><th>Qty</th></tr></thead><tr><td style="padding:4px;border:1px solid blue"><table><tr><td>Nested</td></tr></table></td><td style="vertical-align:bottom"><a href="https://example.com">2</a></td></tr></table>`)
 	f.Add("<ul><li><a href=\"https://example.com\">linked item</a><pre>\n  code\n\tmore</pre></li></ul>")
 	f.Add(spanExample)
+	f.Add(`<article style="position:absolute;top:10px;width:300px"><div style="float:left;box-sizing:border-box;width:50%;border:5px solid black">LEFT</div><div style="float:left;width:50%;box-sizing:border-box;border:5px solid black">RIGHT</div><p style="clear:both">after</p></article>`)
+	f.Add(`<article style="width:100px"><aside style="float:right;width:40px;height:44px"></aside><p>words around a float and then below</p></article>`)
 	f.Add(`<article style="position:relative;left:-2px;width:80%;height:60px"><aside style="position:absolute;right:10%;bottom:0;width:20px;height:10px"><a href='#target'>badge</a></aside></article><p id='target'>after</p>`)
 	f.Add(`<table><tr><td style="vertical-align:bottom;height:100px"><div style="position:relative"><span style="position:absolute;top:50%;left:-1em">nested</span>Cell</div></td></tr></table>`)
 	f.Add(`<article style="margin:10px 0 20px"><div style="margin:30px 0 40px"><section style="height:0;margin:5px 0 50px"></section></div></article><p>after</p>`)

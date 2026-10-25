@@ -8,12 +8,13 @@ import (
 )
 
 type positionFrame struct {
-	parent     *positionFrame
-	children   []*positionFrame
-	node       *node
-	op, border int
-	shift      image.Point
-	initial    image.Rectangle
+	containing, floating bool
+	parent               *positionFrame
+	children             []*positionFrame
+	node                 *node
+	op, border           int
+	shift                image.Point
+	initial              image.Rectangle
 }
 type absoluteBox struct {
 	node   *node
@@ -74,7 +75,11 @@ func (l *layout) queueAbsolute(n *node, s style, x, y int) {
 	}
 	index := len(l.ops)
 	l.add(Box{Tag: "position-anchor", Bounds: image.Rect(x, y, x, y)}, nil)
-	l.absolute = append(l.absolute, absoluteBox{n, s, l.frame, index})
+	scope := l.frame
+	for !scope.containing {
+		scope = scope.parent
+	}
+	l.absolute = append(l.absolute, absoluteBox{n, s, scope, index})
 }
 func (f *positionFrame) bounds(l *layout) image.Rectangle {
 	if f.op < 0 {
@@ -215,7 +220,12 @@ func (l *layout) position(height int) {
 			}
 			output = append(output, op)
 		}
-		sort.SliceStable(frame.children, func(i, j int) bool { return frame.children[i].node.id < frame.children[j].node.id })
+		sort.SliceStable(frame.children, func(i, j int) bool {
+			if frame.children[i].floating != frame.children[j].floating {
+				return frame.children[i].floating
+			}
+			return frame.children[i].node.id < frame.children[j].node.id
+		})
 		for _, child := range frame.children {
 			emit(child, shift)
 			if l.err != nil {

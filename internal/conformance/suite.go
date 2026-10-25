@@ -16,9 +16,7 @@ import (
 	"image/png"
 	"io"
 	"io/fs"
-	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -35,9 +33,10 @@ type Viewport struct {
 	Height int `json:"height"`
 }
 type Case struct {
-	Path     string `json:"path"`
-	Expected string `json:"expected"`
-	Reason   string `json:"reason"`
+	Assets   []string `json:"assets,omitempty"`
+	Path     string   `json:"path"`
+	Expected string   `json:"expected"`
+	Reason   string   `json:"reason"`
 }
 type Manifest struct {
 	Repository string            `json:"repository"`
@@ -103,6 +102,16 @@ func (s Suite) Verify() error {
 			return fmt.Errorf("invalid/duplicate case %q", c.Path)
 		}
 		seen[c.Path] = true
+		if len(c.Assets) > 16 {
+			return fmt.Errorf("too many assets: %s", c.Path)
+		}
+		assetSeen := map[string]bool{}
+		for _, asset := range c.Assets {
+			if m.Files[asset] == "" || assetSeen[asset] {
+				return fmt.Errorf("invalid asset %q", asset)
+			}
+			assetSeen[asset] = true
+		}
 		if c.Expected != "PASS" && c.Expected != "FAIL" && c.Expected != "UNSUPPORTED" {
 			return fmt.Errorf("invalid expectation: %s", c.Path)
 		}
@@ -112,7 +121,7 @@ func (s Suite) Verify() error {
 
 type Reference struct{ Path, Relation string }
 
-func references(name string, data []byte) ([]Reference, error) {
+func references(name string, data []byte, assets ...[]string) ([]Reference, error) {
 	data, err := fixtureInput(context.Background(), name, data)
 	if err != nil {
 		return nil, err
@@ -135,8 +144,26 @@ func references(name string, data []byte) ([]Reference, error) {
 		for _, v := range t.Attr {
 			a[v.Key] = v.Val
 		}
-		if t.Data == "script" || t.Data == "iframe" || t.Data == "img" || t.Data == "object" {
+		if t.Data == "script" || t.Data == "iframe" || t.Data == "object" {
 			return nil, fmt.Errorf("unreviewed external/scripted prerequisite: %s", t.Data)
+		}
+		if t.Data == "img" {
+			asset, err := fixturePath(name, a["src"])
+			if err != nil {
+				return nil, err
+			}
+			allowed := false
+			if len(assets) > 0 {
+				for _, candidate := range assets[0] {
+					if asset == candidate {
+						allowed = true
+						break
+					}
+				}
+			}
+			if !allowed {
+				return nil, fmt.Errorf("unreviewed image prerequisite: %s", asset)
+			}
 		}
 		if t.Data == "meta" && (a["name"] == "fuzzy" || a["name"] == "viewport") {
 			return nil, fmt.Errorf("unsupported comparison metadata: %s", a["name"])
@@ -156,16 +183,9 @@ func references(name string, data []byte) ([]Reference, error) {
 			if rel != "match" && rel != "mismatch" {
 				continue
 			}
-			u, e := url.Parse(a["href"])
-			if e != nil || u.IsAbs() || u.Host != "" || u.RawQuery != "" || u.Fragment != "" || u.Path == "" {
-				return nil, fmt.Errorf("unsupported reference URL %q", a["href"])
-			}
-			resolved := path.Clean(path.Join(path.Dir(name), u.Path))
-			if strings.HasPrefix(u.Path, "/") {
-				resolved = path.Clean(strings.TrimPrefix(u.Path, "/"))
-			}
-			if !fs.ValidPath(resolved) || strings.Contains(resolved, "\\") {
-				return nil, fmt.Errorf("unsafe reference %q", resolved)
+			resolved, e := fixturePath(name, a["href"])
+			if e != nil {
+				return nil, e
 			}
 			refs = append(refs, Reference{resolved, rel})
 			if len(refs) > 16 {
@@ -239,14 +259,14 @@ func (s Suite) runCase(ctx context.Context, c Case, o Options) (r Result) {
 	if e != nil {
 		return fail(e)
 	}
-	refs, e := references(c.Path, data)
+	refs, e := references(c.Path, data, c.Assets)
 	if e != nil {
 		return fail(e)
 	}
 	if len(refs) == 0 {
 		return fail(fmt.Errorf("no upstream match/mismatch references"))
 	}
-	img, e := render(ctx, c.Path, data, s.Manifest.Viewport)
+	img, e := s.render(ctx, c.Path, data, s.Manifest.Viewport, c.Assets)
 	if e != nil {
 		return fail(e)
 	}
@@ -258,10 +278,10 @@ func (s Suite) runCase(ctx context.Context, c Case, o Options) (r Result) {
 		if e != nil {
 			return fail(e)
 		}
-		if _, e = references(ref.Path, data); e != nil {
+		if _, e = references(ref.Path, data, c.Assets); e != nil {
 			return fail(e)
 		}
-		reference, e := render(ctx, ref.Path, data, s.Manifest.Viewport)
+		reference, e := s.render(ctx, ref.Path, data, s.Manifest.Viewport, c.Assets)
 		if e != nil {
 			return fail(e)
 		}
@@ -309,12 +329,20 @@ func Satisfies(comparisons []Comparison) bool {
 	}
 	return !hasMatch || matched
 }
-func render(ctx context.Context, name string, data []byte, v Viewport) (*image.RGBA, error) {
+func (s Suite) render(ctx context.Context, name string, data []byte, v Viewport, assets []string) (*image.RGBA, error) {
 	data, err := fixtureInput(ctx, name, data)
 	if err != nil {
 		return nil, err
 	}
-	r, e := document.Render(ctx, bytes.NewReader(data), document.Options{Width: v.Width})
+	d, e := document.Parse(ctx, bytes.NewReader(data), document.Limits{})
+	if e != nil {
+		return nil, e
+	}
+	images, e := s.images(ctx, name, d, assets)
+	if e != nil {
+		return nil, e
+	}
+	r, e := d.Render(ctx, document.Options{Width: v.Width, Images: images})
 	if e != nil {
 		return nil, e
 	}

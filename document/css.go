@@ -13,6 +13,7 @@ type rule struct {
 	specificity int
 }
 type style struct {
+	floatSide, clear                string
 	position                        string
 	inset                           [4]cssLength
 	borderSet                       bool
@@ -60,6 +61,18 @@ func declarations(s string) map[string]string {
 		v, important = importance(strings.TrimSpace(v))
 		if k == "color" || k == "background" || k == "background-color" || k == "border-color" {
 			if _, ok := cssColor(v, color.RGBA{}); !ok {
+				continue
+			}
+		}
+		if k == "float" {
+			v = strings.ToLower(v)
+			if v != "none" && v != "left" && v != "right" {
+				continue
+			}
+		}
+		if k == "clear" {
+			v = strings.ToLower(v)
+			if v != "none" && v != "left" && v != "right" && v != "both" {
 				continue
 			}
 		}
@@ -389,6 +402,10 @@ func (d *Document) styled(n *node, parent style) style {
 			s.minHeight, _ = parseLength(v, false, false)
 		case "max-height":
 			s.maxHeight, _ = parseLength(v, false, true)
+		case "float":
+			s.floatSide = v
+		case "clear":
+			s.clear = v
 		case "position":
 			s.position = v
 		case "top", "right", "bottom", "left":
@@ -454,11 +471,15 @@ func (d *Document) styled(n *node, parent style) style {
 	}
 	if n.tag == "document" || n.tag == "html" || n.tag == "li" || n.tag == "caption" || n.tag == "tr" || n.tag == "td" || n.tag == "th" || n.tag == "thead" || n.tag == "tbody" || n.tag == "tfoot" {
 		s.position = "static"
+		s.floatSide = "none"
 	}
 	if s.position == "relative" && s.display == "inline" {
 		s.position = "static"
 	}
-	if s.position == "absolute" && s.display != "none" {
+	if s.position == "absolute" {
+		s.floatSide = "none"
+	}
+	if (s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right") && s.display != "none" {
 		s.display = "block"
 	}
 	if values["border-style"] == "none" {

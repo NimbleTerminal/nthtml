@@ -15,12 +15,12 @@ Open `artifacts/conformance/index.html` for results and failure images. `report.
 
 | Result | Cases | Meaning |
 |---|---:|---|
-| PASS | 30 | Display-none, typography, selectors, zero/min/max dimensions, named/RGB/RGBA/hex colors, and collapsed paragraph margins. |
+| PASS | 32 | Display-none, typography, selectors, zero/min/max dimensions, named/RGB/RGBA/hex colors, and collapsed paragraph margins. |
 | FAIL | 3 | One default-foreground mismatch; two positioning cases whose references expose auto-width table sizing differences. |
-| UNSUPPORTED | 8 | Dependencies outside our reviewed subset; never counted as passes. |
+| UNSUPPORTED | 6 | Dependencies outside our reviewed subset; never counted as passes. |
 | ERROR | 0 | Harness errors, missing fixtures, or rejected prerequisites. |
 
-The manifest pins revision `ffe56d4420d270941329689aff42d925f615d0b4` and SHA-256 hashes for every vendored file. Original fixture bytes and upstream `LICENSE.md` are retained under `testdata/wpt`. Unsupported cases document gaps in positioning, floats, Ahem fonts, external resources and table prerequisites, including prerequisites in their reference documents.
+The manifest pins revision `ffe56d4420d270941329689aff42d925f615d0b4` and SHA-256 hashes for every vendored file. Original fixture bytes and upstream `LICENSE.md` are retained under `testdata/wpt`. Unsupported cases document gaps in Ahem fonts, external resources and table prerequisites, including prerequisites in their reference documents.
 
 Default exit status checks the reviewed baseline: an unexpected failure **or improvement** fails until reviewed. Known failures remain labelled FAIL. `-strict` also fails on known failures. Unsupported cases are deliberately skipped, so implementing a feature requires reviewing and enabling those cases explicitly.
 
@@ -30,7 +30,7 @@ Following [WPT reference-test semantics](https://web-platform-tests.org/writing-
 
 Both sides are rendered by nthtml with its own defaults. Shared rendering defects can therefore pass a reference comparison; these results do not establish pixel equivalence with a browser. No browser user-agent stylesheet is injected. The harness exercises image layout, not TTY tables, mouse navigation, search, or clipboard behavior; those retain their own tests.
 
-Fixtures are audited manually for supported prerequisites in **both** test and reference. Preflight additionally rejects scripts, external stylesheets/images, fuzzy metadata, custom viewport metadata, asynchronous/print test modes, and unreviewed prerequisites. `.xht` / `.xhtml` fixtures first pass through a bounded XML-to-HTML adapter. It decodes CSS CDATA and character/entity data, emits explicit closing tags for non-void elements, and ignores external DOCTYPE identifiers without fetching them. Custom DTD entities, foreign namespaces, and unsupported case-sensitive element names are rejected. The public renderer remains an HTML parser. There is no general CSS support detector: ignored CSS must never be justified by a matching screenshot alone.
+Fixtures are audited manually for supported prerequisites in **both** test and reference. Preflight additionally rejects scripts, external stylesheets, unallowlisted images, fuzzy metadata, custom viewport metadata, asynchronous/print test modes, and unreviewed prerequisites. `.xht` / `.xhtml` fixtures first pass through a bounded XML-to-HTML adapter. It decodes CSS CDATA and character/entity data, emits explicit closing tags for non-void elements, and ignores external DOCTYPE identifiers without fetching them. Custom DTD entities, foreign namespaces, and unsupported case-sensitive element names are rejected. The public renderer remains an HTML parser. There is no general CSS support detector: ignored CSS must never be justified by a matching screenshot alone.
 
 ## Adding or updating cases
 
@@ -43,8 +43,10 @@ Fetching/updating upstream fixtures is a separate, intentional maintenance opera
 
 Selector/cascade combinations, whitespace modes, and merged-table geometry/TTY output also have native and WASM regression tests in `document`. These local tests are not counted as upstream WPT passes.
 
-The current inventory is **41 selected HTML/CSS cases**, not the full HTML/CSS suite. Of 33 runnable reference cases, 30 pass and three fail; eight others are explicitly unsupported. Some unit tests upstream use JavaScript `getComputedStyle` assertions rather than visual references. They remain unsupported by this runner even when the underlying unit conversion is implemented and covered locally. The four color-square cases now match after paragraph defaults and vertical margin collapse were corrected. Original test/reference files remain unchanged.
+The current inventory is **41 selected HTML/CSS cases**, not the full HTML/CSS suite. Of 35 runnable reference cases, 32 pass and three fail; six others are explicitly unsupported. Some unit tests upstream use JavaScript `getComputedStyle` assertions rather than visual references. They remain unsupported by this runner even when the underlying unit conversion is implemented and covered locally. The four color-square cases now match after paragraph defaults and vertical margin collapse were corrected. Original test/reference files remain unchanged.
 
 The four formerly CDATA-blocked color cases now run. Three pass; the fourth exposes the renderer's dark default foreground versus explicit CSS black. It remains a visible FAIL in the baseline. Fixture integrity checks continue to use original upstream bytes.
 
-Constrained positioning enables three more cases. `border-collapse-offset-001` passes. The padding/margin cases render the intended positioned boxes, but their original table reference expands to the container width instead of its intrinsic width; both remain FAIL with image diffs. Remaining skips still require additional prerequisites such as floats, z-index, fonts, external images, or JavaScript.
+Constrained positioning enables three more cases. `border-collapse-offset-001` passes. The padding/margin cases render the intended positioned boxes, but their original table reference expands to the container width instead of its intrinsic width; both remain FAIL with image diffs. Remaining skips still require additional prerequisites such as fonts, per-side borders, external assets, or JavaScript.
+
+The box-sizing float case and `max-height-025` now pass. The former checks side-by-side 50% border-box floats; its static `z-index` declarations are inapplicable. The latter uses `assets` to allowlist `css/CSS2/normal-flow/support/black96x96.png`, pinned at the same revision and SHA-256 verified along with the documents. Image paths cannot resolve to network URLs or escape the fixture tree. Missing, unpinned, or corrupt images fail the run instead of silently rendering alt text. Per-document decoding is limited to 16 images, 4MiB encoded bytes, and four million pixels. No network access occurs during testing.
