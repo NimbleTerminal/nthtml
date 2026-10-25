@@ -130,7 +130,7 @@ func (a *floatArea) place(n *node, s style, x, y, w, parentHeight int) {
 	}
 	margin := resolveEdges(s.margin, w)
 	width := a.l.ops[first].box.Bounds.Dx() + margin[1] + margin[3]
-	left, right := x, x+w
+	var left, right int
 	for {
 		var next int
 		left, right, next = a.room(x, y, w, end)

@@ -263,13 +263,22 @@ To allow an image, decode it with `document.DecodeImage(reader)` or
 `document.DecodeDataURL(src)` and insert it into `Options.Images[src]`. HTML never
 opens a path or fetches a URL. `Document.ImageSources()` lists the distinct `src`
 values in document order, so a host can resolve and decode exactly those under
-its own policy and budget before `Render`.
+its own policy and budget before `Render`. The caller owns the lifetime and
+total memory of its image map and must keep images immutable during rendering,
+and for as long as it paints the result.
 
 To show a long result as pages (exports, printing), cut it with
 `Result.PageBreak(top, limit)`: the lowest y up to `limit` that cuts no line of
 text, list marker or image, or `limit` itself when keeping them whole would
-leave the page less than half full. The caller owns the lifetime and total memory of
-its image map and must keep images immutable during rendering.
+leave the page less than half full.
+
+To show part of a page, as a viewer scrolling a long one does, render with
+`Options.NoImage` and draw the part wanted with `Result.Paint(ctx, area,
+scale)`: `area` is a rectangle of the page in CSS pixels (`Result.Bounds()` is
+the whole page) and `scale` the device pixels to a CSS pixel, 1/16 to 16, for
+high-density screens. Paint at scale 1 draws exactly what `Render` puts in
+`Result.Image`. Each call is bounded by the pixel limit, and is safe to make
+concurrently.
 
 ## Resource limits
 

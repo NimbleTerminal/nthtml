@@ -32,6 +32,9 @@ type Options struct {
 	// Images is an explicit allowlist of already decoded images, keyed by src.
 	// The caller owns decoding and must keep these images immutable during Render.
 	Images map[string]image.Image
+	// NoImage lays the page out without painting it: Result.Image is nil,
+	// and Result.Paint draws the parts wanted, at the scale wanted.
+	NoImage bool
 }
 
 type node struct {

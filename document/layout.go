@@ -4,13 +4,10 @@ import (
 	"context"
 	"image"
 	"image/color"
-	"image/draw"
 	"strings"
 
-	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
-	"golang.org/x/image/math/fixed"
 )
 
 // Box describes a painted rectangle or text run in document pixel coordinates.
@@ -35,9 +32,13 @@ type Result struct {
 	Warnings []string
 	Anchors  map[string]image.Point
 	document *Document
-	Image    *image.RGBA
-	Boxes    []Box
-	Links    []Link
+	// Image is the whole page, unless Options.NoImage left it to Paint.
+	Image *image.RGBA
+	Boxes []Box
+	Links []Link
+	ops   []operation
+	opts  Options
+	size  image.Point
 }
 type operation struct {
 	owner  *positionFrame
@@ -61,6 +62,8 @@ type layout struct {
 	fonts                       map[string]*opentype.Font
 	fontBytes                   int
 	err                         error
+	// scale is device pixels per CSS pixel for the faces drawn; zero is one.
+	scale float64
 }
 
 func (l *layout) add(b Box, src image.Image) {
@@ -129,9 +132,8 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	if h > d.limits.Height || o.Width > d.limits.Pixels/h {
 		return nil, limitError("pixels")
 	}
-	img := image.NewRGBA(image.Rect(0, 0, o.Width, h))
-	draw.Draw(img, img.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
-	result := &Result{Anchors: map[string]image.Point{}, Warnings: l.warnings, document: d, Image: img, Boxes: make([]Box, 0, len(l.ops))}
+	page := image.Rect(0, 0, o.Width, h)
+	result := &Result{Anchors: map[string]image.Point{}, Warnings: l.warnings, document: d, Boxes: make([]Box, 0, len(l.ops)), ops: l.ops, opts: o, size: page.Max}
 	links, err := d.Links(ctx)
 	if err != nil {
 		return nil, err
@@ -141,9 +143,6 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		linkIndex[link.ID] = i
 	}
 	for _, op := range l.ops {
-		if e := ctx.Err(); e != nil {
-			return nil, e
-		}
 		b := op.box
 		result.Boxes = append(result.Boxes, b)
 		if b.Anchor != "" {
@@ -156,46 +155,16 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 			if region.Empty() {
 				region = b.InkBounds
 			}
-			region = region.Intersect(img.Bounds())
+			region = region.Intersect(page)
 			if !region.Empty() {
 				appendLinkRegion(&links[i], region)
 			}
 		}
-		dst := draw.Image(img)
-		if !b.Clip.Empty() {
-			sub := b.Clip.Intersect(img.Bounds())
-			if sub.Empty() {
-				continue
-			}
-			dst = img.SubImage(sub).(*image.RGBA)
-		}
-		if op.source != nil {
-			xdraw.ApproxBiLinear.Scale(dst, b.Bounds, op.source, op.source.Bounds(), draw.Over, nil)
-		} else if b.Text != "" {
-			if b.FontSize == 0 {
-				continue
-			}
-			f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
-			var scFace font.Face
-			if b.SmallCaps {
-				scFace = l.face(style{size: smallCapSize(b.FontSize), bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
-			}
-			dotY := fixed.I(b.Bounds.Min.Y + b.Baseline)
-			if strings.Contains(strings.ToLower(b.FontFamily), "ahem") {
-				dotY = fixed.I(b.Bounds.Min.Y+b.Baseline-f.Metrics().Ascent.Ceil()) + f.Metrics().Ascent
-			}
-			dr := font.Drawer{Dst: dst, Src: image.NewUniform(b.Color), Face: f, Dot: fixed.Point26_6{X: fixed.I(b.Bounds.Min.X), Y: dotY}}
-			drawTextWithLetter(&dr, scFace, b.Text, b.WordSpacing, b.LetterSpacing)
-			if b.Strike {
-				yy := b.Bounds.Min.Y + b.Baseline - f.Metrics().Ascent.Ceil()/3
-				draw.Draw(dst, image.Rect(b.Bounds.Min.X, yy, b.Bounds.Max.X, yy+1), image.NewUniform(b.Color), image.Point{}, draw.Over)
-			}
-			if b.Underline {
-				under := image.Rect(b.Bounds.Min.X, b.Bounds.Min.Y+b.Baseline+1, b.Bounds.Max.X, b.Bounds.Min.Y+b.Baseline+2)
-				draw.Draw(dst, under, image.NewUniform(b.Color), image.Point{}, draw.Over)
-			}
-		} else {
-			draw.Draw(dst, b.Bounds, image.NewUniform(b.Color), image.Point{}, draw.Over)
+	}
+	if !o.NoImage {
+		result.Image = image.NewRGBA(page)
+		if err := l.paint(result.Image, l.ops, page, 1); err != nil {
+			return nil, err
 		}
 	}
 	for _, link := range links {

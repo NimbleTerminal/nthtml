@@ -1,6 +1,7 @@
 package document
 
 import (
+	"cmp"
 	"fmt"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -130,7 +131,7 @@ func (l *layout) face(s style) font.Face {
 	if strings.Contains(strings.ToLower(k.family), "ahem") {
 		hinting = font.HintingNone
 	}
-	f, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: float64(s.size), DPI: 72, Hinting: hinting})
+	f, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: float64(s.size), DPI: 72 * cmp.Or(l.scale, 1), Hinting: hinting})
 	if err != nil {
 		l.err = err
 		return basicfont.Face7x13

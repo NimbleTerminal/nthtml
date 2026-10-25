@@ -6,11 +6,11 @@ package document
 // page less than half full (a picture or a cell taller than that), it
 // gives limit and the cut goes through it.
 func (r *Result) PageBreak(top, limit int) int {
-	if r == nil || r.Image == nil || limit >= r.Image.Bounds().Max.Y {
-		if r != nil && r.Image != nil {
-			return min(limit, r.Image.Bounds().Max.Y)
-		}
+	if r == nil || r.size.Y == 0 {
 		return limit
+	}
+	if limit >= r.size.Y {
+		return min(limit, r.size.Y)
 	}
 	floor := top + (limit-top)/2
 	y := limit
