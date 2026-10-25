@@ -31,7 +31,7 @@ func TestSelectorCascade(t *testing.T) {
 	}
 }
 func TestSelectorRejectionAndSpecificity(t *testing.T) {
-	for _, s := range []string{"", ".", "p >", "p >> a", "p + a", "p[attr]", "p:hover", "p*", ".123", "#123", strings.Repeat(".a", 65)} {
+	for _, s := range []string{"", ".", "p >", "p >> a", "p +", "p[attr", "p[attr~=]", "p:hover", "p*", ".123", "#123", strings.Repeat(".a", 65)} {
 		if _, _, ok := parseSelector(s); ok {
 			t.Errorf("accepted %q", s)
 		}
@@ -58,5 +58,66 @@ func TestInvalidSelectorList(t *testing.T) {
 	r := renderCSS(t, `<style>p{color:blue} p, p:hover {color:red}</style><p>Hello</p>`)
 	if tagged(r, "text").Color != (color.RGBA{0, 0, 255, 255}) {
 		t.Fatal("invalid selector list partially applied")
+	}
+}
+
+func TestAttributeSiblingAndStructuralSelectors(t *testing.T) {
+	for _, tc := range []struct {
+		name, html string
+		want       color.RGBA
+	}{
+		{
+			name: "attribute presence and exact",
+			html: `<style>p[data-role]{color:red} p[data-role="hero"]{color:green}</style><p data-role="hero">Hi</p>`,
+			want: color.RGBA{0, 128, 0, 255},
+		},
+		{
+			name: "attribute ~, |, ^, $, * and i flag",
+			html: `<style>p[data-tags~="beta"][lang|="en"][data-url^="https://"][data-url$=".org"][data-code*="xyz" i]{color:blue}</style><p data-tags="alpha beta" lang="en-US" data-url="https://example.org" data-code="aXyZb">Hi</p>`,
+			want: color.RGBA{0, 0, 255, 255},
+		},
+		{
+			name: "sibling combinators + and ~",
+			html: `<style>h1 + p {color:red} h1 ~ p + p {color:green}</style><div><h1>T</h1><p>One</p><p>Two</p></div>`,
+			want: color.RGBA{0, 128, 0, 255},
+		},
+		{
+			name: "structural pseudo-classes",
+			html: `<html><style>:root ul > li:nth-child(2n+1):not(:first-child):last-of-type {color:purple}</style><ul><li>1</li><li>2</li><li>3</li></ul></html>`,
+			want: color.RGBA{128, 0, 128, 255},
+		},
+	} {
+		r := renderCSS(t, tc.html)
+		var lastText Box
+		for _, b := range r.Boxes {
+			if b.Tag == "text" {
+				lastText = b
+			}
+		}
+		if lastText.Color != tc.want {
+			t.Fatalf("%s: got %v, want %v", tc.name, lastText.Color, tc.want)
+		}
+	}
+}
+
+func TestPseudoElementsBeforeAfterAndFirstLine(t *testing.T) {
+	r := renderCSS(t, `<style>p::before { content: "["; color: red; } p::after { content: "]"; color: blue; } div:first-line { color: green; }</style><p>Body</p><div>First</div>`)
+	var textBoxes []Box
+	var texts []string
+	for _, b := range r.Boxes {
+		if b.Tag == "text" {
+			textBoxes = append(textBoxes, b)
+			texts = append(texts, b.Text)
+		}
+	}
+	joined := strings.Join(texts, "")
+	if joined != "[Body]First" {
+		t.Fatalf("unexpected generated text sequence: %q (%v)", joined, texts)
+	}
+	if textBoxes[0].Color != (color.RGBA{255, 0, 0, 255}) {
+		t.Fatalf("expected red ::before, got %v", textBoxes[0].Color)
+	}
+	if textBoxes[len(textBoxes)-1].Color != (color.RGBA{0, 128, 0, 255}) {
+		t.Fatalf("expected green :first-line, got %v", textBoxes[len(textBoxes)-1].Color)
 	}
 }

@@ -132,3 +132,20 @@ func TestInvalidSignedInsets(t *testing.T) {
 		}
 	}
 }
+
+func TestZIndexStackingOrder(t *testing.T) {
+	r := renderCSS(t, `<div style="position:relative;width:40px;height:40px">`+
+		`<div style="background:lime;width:40px;height:40px"></div>`+
+		`<div style="position:absolute;left:0;top:0;width:40px;height:40px;background:red;z-index:-1"></div>`+
+		`</div>`+
+		`<div style="position:relative;width:40px;height:40px">`+
+		`<div style="position:absolute;left:0;top:0;width:40px;height:40px;background:blue;z-index:2"></div>`+
+		`<div style="position:absolute;left:0;top:0;width:40px;height:40px;background:red;z-index:1"></div>`+
+		`</div>`)
+	if got := r.Image.RGBAAt(10, 10); got != (color.RGBA{0, 255, 0, 255}) {
+		t.Fatalf("expected negative z-index behind normal flow (lime), got %v", got)
+	}
+	if got := r.Image.RGBAAt(10, 50); got != (color.RGBA{0, 0, 255, 255}) {
+		t.Fatalf("expected higher positive z-index on top (blue), got %v", got)
+	}
+}

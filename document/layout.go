@@ -267,7 +267,11 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	l.add(Box{Tag: n.tag}, nil)
 	if s.position == "relative" || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" {
 		previous := l.frame
-		frame := &positionFrame{parent: previous, node: n, op: opStart, border: s.bw, containing: s.position == "relative" || s.position == "absolute", floating: s.position != "relative" && s.position != "absolute"}
+		zIdx := 0
+		if s.position == "relative" || s.position == "absolute" {
+			zIdx = s.zIndex
+		}
+		frame := &positionFrame{parent: previous, node: n, op: opStart, zIndex: zIdx, border: s.bw, containing: s.position == "relative" || s.position == "absolute", floating: s.position != "relative" && s.position != "absolute"}
 		if s.position == "relative" {
 			frame.shift = relativeOffset(s, basisWidth, parentHeight)
 		}
@@ -359,7 +363,11 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		flush := func() {
 			if len(inline) > 0 {
 				before := cy
-				cy = l.flow(inline, cx, cy, cw, s)
+				flowStyle := s
+				if atTop && len(n.firstLineDecl) > 0 {
+					flowStyle = l.d.styled(&node{tag: "span", decl: n.firstLineDecl}, s)
+				}
+				cy = l.flow(inline, cx, cy, cw, flowStyle)
 				if cy != before {
 					pending = 0
 					pendingStrut = marginStrut{}
@@ -788,8 +796,28 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			if name := anchorName(n); name != "" {
 				l.add(Box{Tag: "anchor", Anchor: name, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
 			}
+			spanStartOp := len(l.ops)
 			for _, c := range n.children {
 				visit(c, st, inlineBg)
+			}
+			if st.hasBorder() {
+				minX, maxX := px, px
+				hasSpanBox := false
+				for i := max(spanStartOp, lineStart); i < len(l.ops); i++ {
+					b := l.ops[i].box
+					if b.Tag == "text" || b.Tag == "img" {
+						if !hasSpanBox {
+							minX, maxX = b.Bounds.Min.X, b.Bounds.Max.X
+							hasSpanBox = true
+						} else {
+							minX = min(minX, b.Bounds.Min.X)
+							maxX = max(maxX, b.Bounds.Max.X)
+						}
+					}
+				}
+				if hasSpanBox {
+					l.paintBorders(image.Rect(minX-padding[3]-st.bw[3], y, maxX+padding[1]+st.bw[1], y+st.line), st)
+				}
 			}
 			if hasText && !pendingSpace {
 				px += padding[1] + st.bw[1] + margin[1]

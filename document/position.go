@@ -12,7 +12,7 @@ type positionFrame struct {
 	parent               *positionFrame
 	children             []*positionFrame
 	node                 *node
-	op                   int
+	op, zIndex           int
 	border               [4]int
 	shift                image.Point
 	initial              image.Rectangle
@@ -207,9 +207,10 @@ func (l *layout) position(height int) {
 	var emit func(*positionFrame, image.Point)
 	emit = func(frame *positionFrame, inherited image.Point) {
 		shift := inherited.Add(frame.shift)
-		for _, op := range buckets[frame] {
+		ops := buckets[frame]
+		emitOp := func(op operation) {
 			if op.box.Tag == "position-anchor" {
-				continue
+				return
 			}
 			if err := l.ctx.Err(); err != nil {
 				l.err = err
@@ -222,13 +223,43 @@ func (l *layout) position(height int) {
 			}
 			output = append(output, op)
 		}
-		sort.SliceStable(frame.children, func(i, j int) bool {
-			if frame.children[i].floating != frame.children[j].floating {
-				return frame.children[i].floating
+		startIdx := 0
+		if frame.op >= 0 && len(ops) > 0 {
+			emitOp(ops[0])
+			startIdx = 1
+			if l.err != nil {
+				return
 			}
-			return frame.children[i].node.id < frame.children[j].node.id
+		}
+		sort.SliceStable(frame.children, func(i, j int) bool {
+			a, b := frame.children[i], frame.children[j]
+			if a.zIndex != b.zIndex {
+				return a.zIndex < b.zIndex
+			}
+			if a.floating != b.floating {
+				return a.floating
+			}
+			return a.node.id < b.node.id
 		})
 		for _, child := range frame.children {
+			if child.zIndex >= 0 {
+				break
+			}
+			emit(child, shift)
+			if l.err != nil {
+				return
+			}
+		}
+		for _, op := range ops[startIdx:] {
+			emitOp(op)
+			if l.err != nil {
+				return
+			}
+		}
+		for _, child := range frame.children {
+			if child.zIndex < 0 {
+				continue
+			}
 			emit(child, shift)
 			if l.err != nil {
 				return

@@ -11,10 +11,12 @@ type rule struct {
 	selector    selector
 	decl        map[string]string
 	specificity int
+	pseudo      string
 }
 type style struct {
 	lineMode                        uint8 // 0: document default; 1: absolute; 2: font-size multiplier
 	wordSpacing                     int
+	zIndex                          int
 	floatSide, clear                string
 	position                        string
 	inset                           [4]cssLength
@@ -314,6 +316,16 @@ func declarations(s string) map[string]string {
 			put("background-color", v)
 		case "text-decoration":
 			put("text-decoration-line", v)
+		case "z-index":
+			if strings.EqualFold(v, "auto") {
+				put(k, "auto")
+			} else if _, err := strconv.Atoi(v); err == nil {
+				put(k, v)
+			}
+		case "content":
+			if parsed, ok := parseContentValue(v); ok {
+				put(k, parsed)
+			}
 		default:
 			if strings.HasPrefix(k, "margin-") {
 				if _, ok := parseInset(v); !ok {
@@ -344,6 +356,54 @@ func declarations(s string) map[string]string {
 	}
 	return m
 }
+func parseContentValue(v string) (string, bool) {
+	v = strings.TrimSpace(v)
+	if strings.EqualFold(v, "none") || strings.EqualFold(v, "normal") {
+		return "none", true
+	}
+	var out strings.Builder
+	out.WriteByte('\x01')
+	for len(v) > 0 {
+		v = strings.TrimLeftFunc(v, cssSpace)
+		if len(v) == 0 {
+			break
+		}
+		if v[0] != '"' && v[0] != '\'' {
+			return "", false
+		}
+		quote := v[0]
+		v = v[1:]
+		closed := false
+		for i := 0; i < len(v); i++ {
+			if v[i] == '\\' && i+1 < len(v) {
+				i++
+				out.WriteByte(v[i])
+				continue
+			}
+			if v[i] == quote {
+				v = v[i+1:]
+				closed = true
+				break
+			}
+			out.WriteByte(v[i])
+		}
+		if !closed || out.Len()-1 > 256 {
+			return "", false
+		}
+	}
+	if out.Len() == 1 && !strings.HasPrefix(strings.TrimSpace(v), "\"") && !strings.HasPrefix(strings.TrimSpace(v), "'") {
+		// Ensure at least one quoted string was parsed.
+	}
+	return out.String(), true
+}
+
+func resolveContent(v string) (string, bool) {
+	if strings.HasPrefix(v, "\x01") {
+		return v[1:], true
+	}
+	return "", false
+}
+
 func parseCSS(s string, budget int) ([]rule, error) {
 	for {
 		a := strings.Index(s, "/*")
@@ -371,12 +431,12 @@ func parseCSS(s string, budget int) ([]rule, error) {
 		var group []rule
 		valid := true
 		for _, v := range strings.Split(sel, ",") {
-			compiled, sp, ok := parseSelector(strings.TrimSpace(v))
+			compiled, sp, pe, ok := parseSelectorWithPseudo(strings.TrimSpace(v))
 			if !ok {
 				valid = false
 				break
 			}
-			group = append(group, rule{compiled, nil, sp})
+			group = append(group, rule{compiled, nil, sp, pe})
 			if len(group) > budget {
 				return nil, limitError("more CSS rules than the budget")
 			}
@@ -680,6 +740,14 @@ func (d *Document) styled(n *node, parent style) style {
 			} else {
 				s.position = v
 			}
+		case "z-index":
+			if kw == "inherit" {
+				s.zIndex = parent.zIndex
+			} else if kw == "initial" || strings.EqualFold(v, "auto") {
+				s.zIndex = 0
+			} else if z, err := strconv.Atoi(v); err == nil {
+				s.zIndex = max(-1000000, min(1000000, z))
+			}
 		case "top", "right", "bottom", "left":
 			for i, side := range borderSides {
 				if k == side {
@@ -863,10 +931,14 @@ func (d *Document) styled(n *node, parent style) style {
 }
 
 func (d *Document) cascade(n *node) map[string]string {
+	return d.cascadePseudo(n, "")
+}
+
+func (d *Document) cascadePseudo(n *node, pseudo string) map[string]string {
 	values := map[string]string{}
 	scores := map[string]int{}
 	for _, r := range d.rules {
-		if r.selector.matches(n) {
+		if r.pseudo == pseudo && r.selector.matches(n) {
 			for k, v := range r.decl {
 				v, important := importance(v)
 				score := r.specificity
@@ -880,14 +952,16 @@ func (d *Document) cascade(n *node) map[string]string {
 			}
 		}
 	}
-	for k, v := range declarations(n.attrs["style"]) {
-		v, important := importance(v)
-		score := 1 << 29
-		if important {
-			score += 1 << 30
-		}
-		if score >= scores[k] {
-			values[k] = v
+	if pseudo == "" {
+		for k, v := range declarations(n.attrs["style"]) {
+			v, important := importance(v)
+			score := 1 << 29
+			if important {
+				score += 1 << 30
+			}
+			if score >= scores[k] {
+				values[k] = v
+			}
 		}
 	}
 	return values

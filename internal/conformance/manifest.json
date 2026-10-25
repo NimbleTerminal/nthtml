@@ -619,8 +619,8 @@
     },
     {
       "path": "css/CSS2/selectors/id-selector-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute selectors, including in competing rules.",
+      "expected": "PASS",
+      "reason": "Audited ID selector specificity overrides competing attribute selector rules.",
       "area": "selectors and cascade"
     },
     {
@@ -655,14 +655,14 @@
     },
     {
       "path": "css/CSS2/selectors/descendent-selector-008.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute selectors, including in competing rules.",
+      "expected": "PASS",
+      "reason": "Audited descendant and attribute selector specificity matches the reference.",
       "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/selectors/descendent-selector-009.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute selectors, including in competing rules.",
+      "expected": "PASS",
+      "reason": "Audited descendant and attribute selector specificity matches the reference.",
       "area": "selectors and cascade"
     },
     {
@@ -679,38 +679,38 @@
     },
     {
       "path": "css/CSS2/cascade/specificity-001.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "expected": "PASS",
+      "reason": "Audited ID, attribute, pseudo-class, and pseudo-element specificity cascade matches the reference.",
       "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/cascade/specificity-002.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "expected": "PASS",
+      "reason": "Audited ID, attribute, pseudo-class, and pseudo-element specificity cascade matches the reference.",
       "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/cascade/specificity-003.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "expected": "PASS",
+      "reason": "Audited ID, attribute, pseudo-class, and pseudo-element specificity cascade matches the reference.",
       "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/cascade/specificity-004.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "expected": "PASS",
+      "reason": "Audited ID, attribute, pseudo-class, and pseudo-element specificity cascade matches the reference.",
       "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/cascade/specificity-005.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "expected": "PASS",
+      "reason": "Audited ID, attribute, pseudo-class, and pseudo-element specificity cascade matches the reference.",
       "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/cascade/specificity-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "expected": "PASS",
+      "reason": "Audited ID, attribute, pseudo-class, and pseudo-element specificity cascade matches the reference.",
       "area": "selectors and cascade"
     },
     {
@@ -721,14 +721,14 @@
     },
     {
       "path": "css/CSS2/cascade/specificity-008.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "expected": "PASS",
+      "reason": "Audited ID, attribute, pseudo-class, and pseudo-element specificity cascade matches the reference.",
       "area": "selectors and cascade"
     },
     {
       "path": "css/CSS2/cascade/specificity-011.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires attribute/pseudo-class selectors or generated pseudo-elements.",
+      "expected": "PASS",
+      "reason": "Audited ID, attribute, pseudo-class, and pseudo-element specificity cascade matches the reference.",
       "area": "selectors and cascade"
     },
     {
@@ -890,8 +890,8 @@
     },
     {
       "path": "css/CSS2/text/white-space-008.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires negative z-index stacking.",
+      "expected": "PASS",
+      "reason": "Preformatted newlines and negative z-index stacking match the reference.",
       "area": "typography and whitespace"
     },
     {
@@ -1099,15 +1099,21 @@
     },
     {
       "path": "css/CSS2/normal-flow/height-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img).",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension, per-side border, and adjacent sibling reference geometry match; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/height-007.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img).",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension, per-side border, and adjacent sibling reference geometry match; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/width-003.xht",
@@ -1171,15 +1177,21 @@
     },
     {
       "path": "css/CSS2/normal-flow/min-height-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img).",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension, per-side border, and adjacent sibling reference geometry match; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/min-height-007.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img).",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension, per-side border, and adjacent sibling reference geometry match; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/max-height-003.xht",
@@ -1204,15 +1216,21 @@
     },
     {
       "path": "css/CSS2/normal-flow/max-height-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img).",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension, per-side border, and adjacent sibling reference geometry match; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/max-height-007.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img).",
-      "area": "boxes and positioning"
+      "expected": "PASS",
+      "reason": "Audited dimension, per-side border, and adjacent sibling reference geometry match; image dependencies are pinned.",
+      "area": "boxes and positioning",
+      "assets": [
+        "css/CSS2/normal-flow/support/black96x96.png"
+      ]
     },
     {
       "path": "css/CSS2/normal-flow/min-width-003.xht",

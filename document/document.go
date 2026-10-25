@@ -35,13 +35,17 @@ type Options struct {
 }
 
 type node struct {
-	decl      map[string]string
-	parent    *node
-	svg       string
-	id        int
-	tag, text string
-	attrs     map[string]string
-	children  []*node
+	decl          map[string]string
+	firstLineDecl map[string]string
+	parent        *node
+	prevSib       *node
+	nextSib       *node
+	pseudo        string
+	svg           string
+	id            int
+	tag, text     string
+	attrs         map[string]string
+	children      []*node
 }
 
 // Document is immutable and can be rendered concurrently.
@@ -190,6 +194,32 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 	if err := visit(root); err != nil {
 		return nil, err
 	}
+	var linkSiblings func(*node)
+	linkSiblings = func(n *node) {
+		var prev *node
+		for _, c := range n.children {
+			if c.tag != "" && c.pseudo == "" {
+				c.prevSib = prev
+				if prev != nil {
+					prev.nextSib = c
+				}
+				prev = c
+			}
+			linkSiblings(c)
+		}
+	}
+	linkSiblings(root)
+	hasBefore, hasAfter, hasFirstLine := false, false, false
+	for _, r := range d.rules {
+		switch r.pseudo {
+		case "before":
+			hasBefore = true
+		case "after":
+			hasAfter = true
+		case "first-line":
+			hasFirstLine = true
+		}
+	}
 	// Resolve author declarations once. Parent-dependent computed values still
 	// resolve during layout, but selector work cannot multiply during reflow
 	// or nested table measurement.
@@ -199,11 +229,11 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if n.tag != "" {
+		if n.tag != "" && n.pseudo == "" {
 			for _, r := range d.rules {
 				terms := 0
 				for _, part := range r.selector {
-					terms += len(part.terms)
+					terms += part.termCount()
 				}
 				work += 1 + depth*terms + len(r.decl) + len(n.attrs["class"])/16
 				if work > 8000000 {
@@ -212,13 +242,52 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			}
 			n.decl = d.cascade(n)
 			entries += len(n.decl)
+			if hasFirstLine && n.tag != "document" {
+				if fl := d.cascadePseudo(n, "first-line"); len(fl) > 0 {
+					n.firstLineDecl = fl
+					entries += len(fl)
+				}
+			}
 			if entries > 100000 {
 				return limitError("computed declarations")
 			}
 		}
-		for _, child := range n.children {
+		origChildren := n.children
+		for _, child := range origChildren {
 			if err := cascade(child, depth+1); err != nil {
 				return err
+			}
+		}
+		if n.tag != "" && n.tag != "document" && n.pseudo == "" {
+			if hasBefore {
+				if bDecl := d.cascadePseudo(n, "before"); len(bDecl) > 0 {
+					if text, ok := resolveContent(bDecl["content"]); ok {
+						count++
+						if count > l.Nodes {
+							return limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
+						}
+						bNode := &node{parent: n, id: count, tag: "span", pseudo: "before", decl: bDecl, attrs: map[string]string{}}
+						if text != "" {
+							bNode.children = []*node{{parent: bNode, text: text}}
+						}
+						n.children = append([]*node{bNode}, n.children...)
+					}
+				}
+			}
+			if hasAfter {
+				if aDecl := d.cascadePseudo(n, "after"); len(aDecl) > 0 {
+					if text, ok := resolveContent(aDecl["content"]); ok {
+						count++
+						if count > l.Nodes {
+							return limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
+						}
+						aNode := &node{parent: n, id: count, tag: "span", pseudo: "after", decl: aDecl, attrs: map[string]string{}}
+						if text != "" {
+							aNode.children = []*node{{parent: aNode, text: text}}
+						}
+						n.children = append(n.children, aNode)
+					}
+				}
 			}
 		}
 		return nil

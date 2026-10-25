@@ -14,9 +14,9 @@ Over the first 19 commits, `nthtml` has grown from an initial bounded HTML-to-im
 
 ### Current WPT Conformance Baseline ([internal/conformance/README.md](internal/conformance/README.md))
 Across the **200 pinned WPT visual reference tests**:
-* **151 PASS** (100% of the 151 runnable cases; 75.5% of total selected corpus)
-* **0 FAIL** (Phases 1, 2, & 3 complete)
-* **49 UNSUPPORTED** (explicitly gated on missing CSS/HTML prerequisites in test or reference fixtures)
+* **169 PASS** (100% of the 169 runnable cases; 84.5% of total selected corpus)
+* **0 FAIL** (Phases 1, 2, 3, & 4 complete)
+* **31 UNSUPPORTED** (explicitly gated on missing CSS/HTML prerequisites in test or reference fixtures)
 
 ---
 
