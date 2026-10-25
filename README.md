@@ -261,22 +261,24 @@ HTML engine.
 | Native terminal | `ntpicture` Kitty graphics with half-block fallback | Ordinary terminal text; no graphics protocol required |
 | Browser demo | Go WASM raster displayed on canvas | Go-generated text in a selectable `<pre>` |
 
-The native widget does **not** automatically rerender its Typeset document when
-resized: it changes the viewport of the supplied image. The browser demo's
-resizable container explicitly reruns layout. “Typeset” is the name of nthtml's
-raster view; it does **not** currently use the separate nttypeset engine.
+The native widget crops its supplied image by default when resized; pass
+`nthtml.ModelOptions{ReflowTypeset: true}` to `nthtml.NewWithOptions` (or call
+`viewer.SetReflowTypeset(true)`) to automatically re-render the underlying
+`Document` when terminal width changes. “Typeset” is the name of nthtml's
+built-in raster view; the optional `nimbleterminal.dev/nthtml/typeset` package
+bridges parsed documents and rendered boxes directly into `nttypeset.Document`.
 
 | Integration / target | Status |
 | --- | --- |
 | Pure-Go / no CGO common path | Supported |
 | Native Go and `js/wasm` document API | Supported and tested; small font antialiasing differences are covered by the golden tolerance |
-| Bubble Tea v2 component | Supported: mode toggle, zoom, pan, keyboard/mouse-wheel scrolling, and cleanup. Parent owns focus and quitting. |
-| Multiple positioned Kitty widgets | Not exposed by the current nthtml wrapper |
-| PNG export | Supported by `cmd/nthtml`; other image consumers can use `Result.Image` |
-| ntfonts integration | Embedded fonts by default; custom `document.Options.Fonts` sources supported |
+| Bubble Tea v2 component | Supported: mode toggle, zoom, pan, keyboard/mouse-wheel scrolling, responsive Typeset reflow (`ModelOptions.ReflowTypeset`), and cleanup. Parent owns focus and quitting. |
+| Multiple positioned Kitty widgets | Supported via `nthtml.NewWithOptions` (`Session`, `NextID`, `SetBounds`, `Bounds`, `SetVisible`, `Picture`) |
+| PNG export | Supported by `cmd/nthtml`; other image consumers can use `Result.Image` or `Result.Paint` |
+| ntfonts integration | Embedded fonts by default; `document.MinimalFonts` or custom `document.Options.Fonts` sources supported |
 | ntsvg integration | Embedded SVG and Mermaid rasterization on native and WASM |
-| Direct nttypeset integration | Not implemented; image and text-box outputs are available to host adapters |
-| TinyGo / embedded devices | Unverified architectural goal; not a supported target yet |
+| Direct nttypeset integration | Supported via `nimbleterminal.dev/nthtml/typeset` (`typeset.Build`, `typeset.FromResult`, `typeset.Raster`) and `Document.Blocks` |
+| Constrained / embedded budgets | `document.MinimalFonts`, `Options.NoImage` + `Result.Paint`, and configurable `document.Limits` |
 | Full browser rendering | Only the demo's optional reference iframe, rendered by the host browser; not an nthtml capability |
 
 To allow an image, decode it with `document.DecodeImage(reader)` or

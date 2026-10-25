@@ -21,6 +21,23 @@ const (
 	LayoutTTY
 )
 
+// ModelOptions configures a Bubble Tea document viewer Model.
+type ModelOptions struct {
+	// Session shares terminal discovery, cell geometry, and transport settings
+	// across multiple picture/document widgets.
+	Session *ntpicture.TerminalSession
+	// NextID allocates positive 24-bit Kitty image IDs across widgets.
+	NextID func() (int, error)
+	// Picture overrides underlying ntpicture.Options when nonzero.
+	Picture ntpicture.Options
+	// ReflowTypeset re-renders the underlying Document when terminal width
+	// changes significantly on SetSize/SetBounds, matching browser reflow.
+	ReflowTypeset bool
+	// RenderOptions supplies images, fonts, or diagram settings used when
+	// ReflowTypeset re-renders the Document.
+	RenderOptions document.Options
+}
+
 // Model follows ntpicture's pointer-mutating component convention. Forward all
 // messages and run returned commands. The host owns focus and quit handling.
 type Model struct {
@@ -33,6 +50,8 @@ type Model struct {
 	dragStart                     document.Match
 	pic                           *ntpicture.Picture
 	result                        *document.Result
+	renderOpts                    document.Options
+	reflowTypeset                 bool
 	mode                          LayoutMode
 	ttyLines                      []string
 	ttyResult                     *document.TTYResult
@@ -47,13 +66,104 @@ type Model struct {
 }
 
 func New(result *document.Result) *Model {
-	m := &Model{pic: ntpicture.New(ntpicture.Options{AutoMode: true}), cols: 80, rows: 24, match: -1}
+	return NewWithOptions(result, ModelOptions{})
+}
+
+func NewWithOptions(result *document.Result, opts ModelOptions) *Model {
+	picOpts := opts.Picture
+	if !picOpts.HostGeometry {
+		picOpts.AutoMode = true
+	}
+	if opts.Session != nil {
+		picOpts.Session = opts.Session
+	}
+	if opts.NextID != nil {
+		picOpts.NextID = opts.NextID
+	}
+	m := &Model{
+		pic:           ntpicture.New(picOpts),
+		cols:          80,
+		rows:          24,
+		match:         -1,
+		reflowTypeset: opts.ReflowTypeset,
+		renderOpts:    opts.RenderOptions,
+	}
 	if result != nil {
+		if m.renderOpts.Width == 0 {
+			m.renderOpts = result.Options()
+		}
 		m.result = result
-		m.source = result.Image
-		m.initial = m.pic.SetImage(m.source)
+		if result.Image != nil {
+			m.source = result.Image
+		} else if result.Document() != nil && !result.Bounds().Empty() {
+			if img, err := result.Paint(context.Background(), result.Bounds(), 1); err == nil && img != nil {
+				m.source = img
+			}
+		}
+		if m.source != nil {
+			m.initial = m.pic.SetImage(m.source)
+		}
 	}
 	return m
+}
+
+// Bounds returns the widget's terminal-cell rectangle (origin and size).
+func (m *Model) Bounds() image.Rectangle {
+	return image.Rect(m.origin.X, m.origin.Y, m.origin.X+m.cols, m.origin.Y+m.rows)
+}
+
+// Picture returns the underlying ntpicture.Picture for status, geometry, or
+// multi-widget Kitty placement management.
+func (m *Model) Picture() *ntpicture.Picture { return m.pic }
+
+// SetVisible shows or hides the widget and its Kitty placements.
+func (m *Model) SetVisible(visible bool) tea.Cmd { return m.pic.SetVisible(visible) }
+
+// Visible reports whether the widget's picture is visible.
+func (m *Model) Visible() bool { return m.pic.Visible() }
+
+// ReflowTypeset reports whether Typeset mode automatically re-renders on width changes.
+func (m *Model) ReflowTypeset() bool { return m.reflowTypeset }
+
+// SetReflowTypeset enables or disables responsive Typeset reflow on resize.
+func (m *Model) SetReflowTypeset(enabled bool) tea.Cmd {
+	m.reflowTypeset = enabled
+	if enabled && m.mode == LayoutTypeset {
+		return m.SetSize(m.cols, m.rows)
+	}
+	return nil
+}
+
+// Result returns the currently displayed document Result.
+func (m *Model) Result() *document.Result { return m.result }
+
+// SetResult replaces the displayed document Result and resets scroll/selection state.
+func (m *Model) SetResult(result *document.Result) tea.Cmd {
+	m.result = result
+	m.index = nil
+	m.focusID = 0
+	m.pressedLink = 0
+	m.clearSelection()
+	m.zoom, m.x, m.y, m.ttyTop = 0, 0, 0, 0
+	if result == nil {
+		m.source = nil
+		return nil
+	}
+	m.renderOpts = result.Options()
+	m.source = nil
+	if result.Image != nil {
+		m.source = result.Image
+	} else if result.Document() != nil && !result.Bounds().Empty() {
+		if img, err := result.Paint(context.Background(), result.Bounds(), 1); err == nil && img != nil {
+			m.source = img
+		}
+	}
+	m.resetTextLayout()
+	if m.mode == LayoutTTY {
+		m.reflowTTY()
+		return m.refreshHighlights()
+	}
+	return tea.Batch(m.pic.SetImage(m.source), m.refreshHighlights(), m.viewport())
 }
 func (m *Model) Init() tea.Cmd { return tea.Batch(m.pic.Init(), m.initial, m.SetSize(m.cols, m.rows)) }
 func (m *Model) View() string {
@@ -118,10 +228,36 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	m.cols = max(1, min(cols, 1000))
 	m.rows = max(1, min(rows, 1000))
 	m.clearSelection()
+	sizeCmd := m.pic.SetSize(m.cols, m.rows)
+	var reflowCmd tea.Cmd
+	if m.reflowTypeset && m.result != nil && m.result.Document() != nil {
+		targetW := m.pic.RasterGeometry().Pixels.X
+		if targetW <= 0 || targetW == m.cols {
+			targetW = m.cols * 10
+		}
+		targetW = max(32, min(4096, targetW))
+		curW := m.result.Bounds().Dx()
+		if curW == 0 && m.source != nil {
+			curW = m.source.Bounds().Dx()
+		}
+		if curW != targetW {
+			opts := m.renderOpts
+			opts.Width = targetW
+			opts.NoImage = false
+			if next, err := m.result.Document().Render(context.Background(), opts); err == nil {
+				m.result = next
+				m.source = next.Image
+				m.resetTextLayout()
+				reflowCmd = m.pic.SetImage(m.source)
+			} else {
+				m.err = err
+			}
+		}
+	}
 	if m.mode == LayoutTTY {
 		m.reflowTTY()
 	}
-	return tea.Batch(m.pic.SetSize(m.cols, m.rows), m.refreshHighlights(), m.viewport())
+	return tea.Batch(sizeCmd, reflowCmd, m.refreshHighlights(), m.viewport())
 }
 func (m *Model) Zoom(delta int) tea.Cmd {
 	m.pressedLink = 0

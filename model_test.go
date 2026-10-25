@@ -114,3 +114,47 @@ func TestKeyboardLinkNavigation(t *testing.T) {
 		t.Fatal("selection lost on reflow")
 	}
 }
+
+func TestResponsiveTypesetReflowAndMultiWidgetOptions(t *testing.T) {
+	ctx := context.Background()
+	doc, err := document.Parse(ctx, strings.NewReader("<h1>Responsive</h1><p>"+strings.Repeat("Reflowing paragraph text across widths. ", 20)+"</p>"), document.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := doc.Render(ctx, document.Options{Width: 800, NoImage: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocCalls := 0
+	nextID := func() (int, error) {
+		allocCalls++
+		return 1000 + allocCalls, nil
+	}
+	m1 := NewWithOptions(r, ModelOptions{
+		ReflowTypeset: true,
+		NextID:        nextID,
+	})
+	defer func() { _ = m1.Close() }()
+	m2 := NewWithOptions(r, ModelOptions{
+		ReflowTypeset: true,
+		NextID:        nextID,
+	})
+	defer func() { _ = m2.Close() }()
+
+	m1.SetBounds(0, 0, 40, 20)
+	m2.SetBounds(40, 0, 60, 20)
+
+	if m1.Bounds() != image.Rect(0, 0, 40, 20) || m2.Bounds() != image.Rect(40, 0, 100, 20) {
+		t.Fatalf("unexpected widget cell bounds: m1=%v m2=%v", m1.Bounds(), m2.Bounds())
+	}
+	if m1.Result().Bounds().Dx() == 800 || m1.Result().Bounds().Dx() == m2.Result().Bounds().Dx() {
+		t.Fatalf("expected responsive Typeset reflow to update document widths: m1=%v m2=%v", m1.Result().Bounds(), m2.Result().Bounds())
+	}
+	if m1.Picture() == nil || !m1.Visible() {
+		t.Fatal("expected underlying picture to be accessible and visible")
+	}
+	m1.SetVisible(false)
+	if m1.Visible() {
+		t.Fatal("expected m1 to be hidden after SetVisible(false)")
+	}
+}

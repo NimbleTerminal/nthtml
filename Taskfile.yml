@@ -4,6 +4,7 @@ version: '3'
 env:
   GOWORK: 'off'
   CGO_ENABLED: '0'
+  GIT_PAGER: 'cat'
 
 vars:
   EXE: '{{if eq OS "windows"}}.exe{{end}}'
@@ -111,7 +112,7 @@ tasks:
           exit 1
         fi
       - go mod tidy -diff
-      - git diff --check
+      - git --no-pager diff --check
 
   fuzz:
     desc: 'Fuzz the document renderer (DURATION=10s)'
@@ -146,7 +147,7 @@ tasks:
       GOARCH: wasm
     cmds:
       - go build -mod=readonly ./...
-      - go test -mod=readonly -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" {{.CLI_ARGS}} ./document ./examples/demo ./internal/conformance
+      - go test -mod=readonly -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" {{.CLI_ARGS}} ./document ./typeset ./examples/demo ./internal/conformance
 
   test-web:
     desc: Build and smoke-test all browser demos under Node

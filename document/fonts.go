@@ -23,6 +23,34 @@ import (
 type FaceSource interface {
 	Face(family, variant string) ([]byte, error)
 }
+
+// MinimalFonts is an opt-in FaceSource backed solely by the Go standard
+// library's embedded Go and Go Mono fonts, avoiding ntfonts family lookups on
+// memory-constrained or embedded targets.
+var MinimalFonts FaceSource = minimalFontSource{}
+
+type minimalFontSource struct{}
+
+func (minimalFontSource) Face(family, variant string) ([]byte, error) {
+	mono := strings.EqualFold(family, "Go Mono") || strings.EqualFold(family, "IBM Plex Mono") || strings.EqualFold(family, "monospace")
+	fonts := [][]byte{goregular.TTF, gobold.TTF, goitalic.TTF, gobolditalic.TTF}
+	if mono {
+		fonts = [][]byte{gomono.TTF, gomonobold.TTF, gomonoitalic.TTF, gomonobolditalic.TTF}
+	}
+	switch variant {
+	case "", "Regular":
+		return fonts[0], nil
+	case "Bold":
+		return fonts[1], nil
+	case "Italic":
+		return fonts[2], nil
+	case "BoldItalic":
+		return fonts[3], nil
+	default:
+		return nil, fmt.Errorf("unknown font variant %q", variant)
+	}
+}
+
 type faceKey struct {
 	size         int
 	family       string
