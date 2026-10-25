@@ -22,6 +22,17 @@ func (r *Result) Bounds() image.Rectangle {
 	return image.Rectangle{Max: r.size}
 }
 
+// Background is the canvas colour Paint (and Render's Image) fills before
+// drawing any box: the propagated root/body background when the page sets one,
+// else Options.Colors.Background when the page sets no author colours, else
+// white.
+func (r *Result) Background() color.RGBA {
+	if r == nil || r.bg.A == 0 {
+		return color.RGBA{255, 255, 255, 255}
+	}
+	return r.bg
+}
+
 // Paint draws area, a rectangle of the page in CSS pixels, scale device
 // pixels to the CSS pixel: a band of a long page as it scrolls by, or a
 // high-density picture, without painting the whole page. The image's
@@ -49,7 +60,7 @@ func (r *Result) Paint(ctx context.Context, area image.Rectangle, scale float64)
 	if w < 1 || h < 1 || w > pixLimit/h {
 		return nil, limitError("pixels")
 	}
-	l := &layout{ctx: ctx, d: r.document, opts: r.opts, lim: r.limits, maxHeight: max(r.size.Y, r.document.limits.Height), faces: map[faceKey]font.Face{}, fonts: map[string]*opentype.Font{}, scale: scale}
+	l := &layout{ctx: ctx, d: r.document, opts: r.opts, lim: r.limits, canvasBg: r.Background(), maxHeight: max(r.size.Y, r.document.limits.Height), faces: map[faceKey]font.Face{}, fonts: map[string]*opentype.Font{}, scale: scale}
 	defer func() {
 		for _, f := range l.faces {
 			f.Close()
@@ -65,9 +76,9 @@ func (r *Result) Paint(ctx context.Context, area image.Rectangle, scale float64)
 // paint draws the operations that reach area into dst, whose origin is
 // area.Min, scale device pixels to the CSS pixel.
 func (l *layout) paint(dst *image.RGBA, ops []operation, area image.Rectangle, scale float64) error {
-	bg := color.RGBA{255, 255, 255, 255}
-	if (l.d == nil || !l.d.hasAuthorColors) && l.opts.Colors.Background.A > 0 {
-		bg = l.opts.Colors.Background
+	bg := l.canvasBg
+	if bg.A == 0 {
+		bg = color.RGBA{255, 255, 255, 255}
 	}
 	draw.Draw(dst, dst.Bounds(), image.NewUniform(bg), image.Point{}, draw.Src)
 	x := func(v int) int { return int(math.Floor(float64(v-area.Min.X) * scale)) }

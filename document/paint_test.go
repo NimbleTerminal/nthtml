@@ -261,3 +261,62 @@ func TestCharacterSelectionHitAndRegions(t *testing.T) {
 		t.Fatalf("expected substring region %v to be strictly inside word bounds %v", subRegions[0], run.Bounds)
 	}
 }
+
+func TestCanvasBackgroundPropagationAndBackgroundMethod(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. body background, no html background: pixel (2,2) inside body's 8px
+	// margin is the body colour; Background() returns it, and Paint agrees.
+	bodyDark := color.RGBA{0x22, 0x22, 0x33, 0xff}
+	r1, err := Render(ctx, strings.NewReader(`<html><style>body{background:#223;color:#eee}</style><body><p>Short.</p></body></html>`), Options{Width: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r1.Background() != bodyDark || r1.Image.RGBAAt(2, 2) != bodyDark {
+		t.Fatalf("expected body background %v propagated to canvas (2,2), got Background()=%v pixel=%v", bodyDark, r1.Background(), r1.Image.RGBAAt(2, 2))
+	}
+	tile1, err := r1.Paint(ctx, image.Rect(0, 0, 8, 8), 1)
+	if err != nil || tile1.RGBAAt(2, 2) != bodyDark {
+		t.Fatalf("expected Paint(0,0,8,8) to match Background()=%v, got %v (err=%v)", bodyDark, tile1, err)
+	}
+
+	// 2. html background wins over body's for the canvas; body paints its own box.
+	htmlColor := color.RGBA{0x10, 0x20, 0x30, 0xff}
+	bodyBoxColor := color.RGBA{0x40, 0x50, 0x60, 0xff}
+	r2, err := Render(ctx, strings.NewReader(`<html><style>html{background:#102030}body{background:#405060}</style><body><p>Short.</p></body></html>`), Options{Width: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r2.Background() != htmlColor || r2.Image.RGBAAt(2, 2) != htmlColor {
+		t.Fatalf("expected html background %v on canvas, got Background()=%v pixel(2,2)=%v", htmlColor, r2.Background(), r2.Image.RGBAAt(2, 2))
+	}
+	if got := r2.Image.RGBAAt(180, 20); got != bodyBoxColor {
+		t.Fatalf("expected body box to paint its own background %v when html has one, got %v", bodyBoxColor, got)
+	}
+
+	// 3. No author colours, Options.Colors.Background set: Background() is that.
+	fallbackBg := color.RGBA{0x18, 0x1a, 0x20, 0xff}
+	r3, err := Render(ctx, strings.NewReader(`<html><body><p>Unstyled.</p></body></html>`), Options{
+		Width:  200,
+		Colors: Colors{Background: fallbackBg},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r3.Background() != fallbackBg || r3.Image.RGBAAt(2, 2) != fallbackBg {
+		t.Fatalf("expected fallback background %v, got Background()=%v pixel=%v", fallbackBg, r3.Background(), r3.Image.RGBAAt(2, 2))
+	}
+
+	// 4. Author colour present (.a{color:#666}), fallback set: Background() is white.
+	white := color.RGBA{0xff, 0xff, 0xff, 0xff}
+	r4, err := Render(ctx, strings.NewReader(`<html><style>.a{color:#666}</style><body><p class="a">Note.</p></body></html>`), Options{
+		Width:  200,
+		Colors: Colors{Background: fallbackBg},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r4.Background() != white || r4.Image.RGBAAt(2, 2) != white {
+		t.Fatalf("expected white canvas when author colour present, got Background()=%v pixel=%v", r4.Background(), r4.Image.RGBAAt(2, 2))
+	}
+}

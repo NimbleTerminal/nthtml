@@ -39,6 +39,7 @@ type Result struct {
 	ops    []operation
 	opts   Options
 	limits Limits
+	bg     color.RGBA
 	size   image.Point
 }
 type operation struct {
@@ -50,6 +51,8 @@ type layout struct {
 	floats                      *floatArea
 	floatWork, flexWork         int
 	frame, rootFrame            *positionFrame
+	canvasNode                  *node
+	canvasBg                    color.RGBA
 	absolute                    []absoluteBox
 	diagramCount, diagramPixels int
 	warnings                    []string
@@ -104,6 +107,59 @@ func (l *layout) rect(r image.Rectangle, c color.RGBA, tag string) {
 	}
 }
 
+func compositeOverWhite(c color.RGBA) color.RGBA {
+	if c.A == 255 {
+		return c
+	}
+	if c.A == 0 {
+		return color.RGBA{255, 255, 255, 255}
+	}
+	add := 255 - int(c.A)
+	return color.RGBA{
+		R: uint8(min(255, int(c.R)+add)),
+		G: uint8(min(255, int(c.G)+add)),
+		B: uint8(min(255, int(c.B)+add)),
+		A: 255,
+	}
+}
+
+func (l *layout) resolveCanvasBackground(rootStyle style) (color.RGBA, *node) {
+	var htmlNode, bodyNode *node
+	for _, c := range l.d.root.children {
+		if c.tag == "html" && htmlNode == nil {
+			htmlNode = c
+		} else if c.tag == "body" && bodyNode == nil {
+			bodyNode = c
+		}
+	}
+	if htmlNode != nil {
+		hs := l.d.styled(htmlNode, rootStyle)
+		if hs.display != "none" {
+			if hs.bg.A > 0 {
+				return compositeOverWhite(hs.bg), htmlNode
+			}
+			for _, c := range htmlNode.children {
+				if c.tag == "body" {
+					bs := l.d.styled(c, hs)
+					if bs.display != "none" && bs.bg.A > 0 {
+						return compositeOverWhite(bs.bg), c
+					}
+					break
+				}
+			}
+		}
+	} else if bodyNode != nil {
+		bs := l.d.styled(bodyNode, rootStyle)
+		if bs.display != "none" && bs.bg.A > 0 {
+			return compositeOverWhite(bs.bg), bodyNode
+		}
+	}
+	if !l.d.hasAuthorColors && l.opts.Colors.Background.A > 0 {
+		return compositeOverWhite(l.opts.Colors.Background), nil
+	}
+	return color.RGBA{255, 255, 255, 255}, nil
+}
+
 func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	if d == nil || d.root == nil {
 		return nil, limitError("nil document")
@@ -154,7 +210,9 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		}
 		linkColor = o.Colors.Link
 	}
-	h := l.block(d.root, 0, 0, o.Width, -1, style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor})
+	rootStyle := style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor}
+	l.canvasBg, l.canvasNode = l.resolveCanvasBackground(rootStyle)
+	h := l.block(d.root, 0, 0, o.Width, -1, rootStyle)
 	if l.err != nil {
 		return nil, l.err
 	}
@@ -174,7 +232,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		return nil, limitError("pixels")
 	}
 	page := image.Rect(0, 0, o.Width, h)
-	result := &Result{Anchors: map[string]image.Point{}, Warnings: l.warnings, document: d, Boxes: make([]Box, 0, len(l.ops)), ops: l.ops, opts: o, limits: lim, size: page.Max}
+	result := &Result{Anchors: map[string]image.Point{}, Warnings: l.warnings, document: d, Boxes: make([]Box, 0, len(l.ops)), ops: l.ops, opts: o, limits: lim, bg: l.canvasBg, size: page.Max}
 	links, err := d.Links(ctx)
 	if err != nil {
 		return nil, err
@@ -473,7 +531,11 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		return cy
 	}
 	if opStart < len(l.ops) {
-		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchorName(n), Color: s.bg}
+		bg := s.bg
+		if n == l.canvasNode {
+			bg = color.RGBA{}
+		}
+		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchorName(n), Color: bg}
 	}
 	if s.overflow == "hidden" || s.overflow == "clip" {
 		clip := image.Rect(x+s.bw[3], start+s.bw[0], x+w-s.bw[1], cy-s.bw[2])
