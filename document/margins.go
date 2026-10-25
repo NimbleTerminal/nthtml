@@ -79,7 +79,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 		return blockMargins{}
 	}
 	l.marginWork++
-	if l.marginWork > 1000000 {
+	if l.marginWork > max(1000000, l.d.limits.Nodes*100) {
 		l.err = limitError("margin collapse work")
 		return blockMargins{}
 	}
@@ -209,7 +209,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 func (l *layout) inlineLine(nodes []*node, parent style) bool {
 	for _, n := range nodes {
 		l.marginWork++
-		if l.marginWork > 1000000 {
+		if l.marginWork > max(1000000, l.d.limits.Nodes*100) {
 			l.err = limitError("margin collapse work")
 			return true
 		}

@@ -7,22 +7,74 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"io"
 	"strings"
 
 	"golang.org/x/net/html"
 )
 
-// Limits are hard ceilings; zero fields use defaults. Values above defaults are
-// rejected so callers cannot accidentally disable the resource budget.
-type Limits struct{ Bytes, Nodes, Depth, Rules, Pixels, Height int }
+// Limits are resource ceilings; zero fields use DefaultLimits. Callers may
+// lower any field or raise fields up to MaxLimits.
+type Limits struct {
+	Bytes, Nodes, Depth, Rules, Pixels, Height int
+	// LayoutHeight bounds page height in CSS pixels when Options.NoImage is
+	// true (where no whole-page image is allocated and Paint enforces Pixels
+	// per call). Zero defaults to DefaultLimits.LayoutHeight (262,144 px).
+	LayoutHeight int
+}
 
-var DefaultLimits = Limits{1 << 20, 10000, 64, 256, 16 << 20, 16384}
+var DefaultLimits = Limits{
+	Bytes:        1 << 20,
+	Nodes:        10000,
+	Depth:        64,
+	Rules:        256,
+	Pixels:       16 << 20,
+	Height:       16384,
+	LayoutHeight: 262144,
+}
+
+var MaxLimits = Limits{
+	Bytes:        16 << 20,
+	Nodes:        200000,
+	Depth:        256,
+	Rules:        4096,
+	Pixels:       64 << 20,
+	Height:       262144,
+	LayoutHeight: 1 << 20,
+}
+
 var ErrLimit = errors.New("nthtml: resource limit exceeded")
+
+// FontFamilies maps the default document font and CSS generic font families
+// (serif, sans-serif, monospace). Empty fields keep the built-in mappings
+// (Go for Default, Literata for Serif, IBM Plex Sans for SansSerif, and
+// IBM Plex Mono / Go Mono for Monospace).
+type FontFamilies struct {
+	Default   string
+	Serif     string
+	SansSerif string
+	Monospace string
+}
+
+// Colors sets fallback canvas background, body text, and hyperlink colors used
+// only when the document's own CSS does not specify them. Zero-alpha fields
+// keep the standard browser defaults (white canvas, black text, #285cba links).
+type Colors struct {
+	Background color.RGBA
+	Text       color.RGBA
+	Link       color.RGBA
+}
 
 type Options struct {
 	// Fonts defaults to ntfonts.Embedded; missing families fall back to Go fonts.
 	Fonts FaceSource
+	// FontFamilies overrides the default body font and generic CSS font families
+	// (serif, sans-serif, monospace) where the page sets none or names generics.
+	FontFamilies FontFamilies
+	// Colors overrides the default canvas background, text, and link colors
+	// where the page sets none.
+	Colors Colors
 	// Diagrams defaults to the pure-Go SVG/Mermaid renderer.
 	Diagrams DiagramRenderer
 	// DisableDiagrams keeps labels/source text without invoking a renderer.
@@ -59,15 +111,17 @@ type Document struct {
 }
 
 func limits(l Limits) (Limits, error) {
-	d := Limits{1 << 20, 10000, 64, 256, 16 << 20, 16384}
-	a := []*int{&l.Bytes, &l.Nodes, &l.Depth, &l.Rules, &l.Pixels, &l.Height}
-	b := []int{d.Bytes, d.Nodes, d.Depth, d.Rules, d.Pixels, d.Height}
+	d := DefaultLimits
+	m := MaxLimits
+	a := []*int{&l.Bytes, &l.Nodes, &l.Depth, &l.Rules, &l.Pixels, &l.Height, &l.LayoutHeight}
+	b := []int{d.Bytes, d.Nodes, d.Depth, d.Rules, d.Pixels, d.Height, d.LayoutHeight}
+	c := []int{m.Bytes, m.Nodes, m.Depth, m.Rules, m.Pixels, m.Height, m.LayoutHeight}
 	for i, p := range a {
 		if *p == 0 {
 			*p = b[i]
 		}
-		if *p < 1 || *p > b[i] {
-			return l, limitError(fmt.Sprintf("limit %d outside 1..%d", *p, b[i]))
+		if *p < 1 || *p > c[i] {
+			return l, limitError(fmt.Sprintf("limit %d outside 1..%d", *p, c[i]))
 		}
 	}
 	return l, nil
@@ -239,7 +293,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 					terms += part.termCount()
 				}
 				work += 1 + depth*terms + len(r.decl) + len(n.attrs["class"])/16
-				if work > 8000000 {
+				if work > max(8000000, l.Nodes*800) {
 					return limitError("CSS matching work")
 				}
 			}
@@ -251,7 +305,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 					entries += len(fl)
 				}
 			}
-			if entries > 100000 {
+			if entries > max(100000, l.Nodes*10) {
 				return limitError("computed declarations")
 			}
 		}

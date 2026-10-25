@@ -1,7 +1,10 @@
 package document
 
 import (
+	"context"
 	"github.com/charmbracelet/x/ansi"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
 	"image"
 	"net/url"
 	"strings"
@@ -10,9 +13,12 @@ import (
 )
 
 // TextRun maps UTF-8 byte offsets to a visible text rectangle.
+// For Typeset runs, CharX holds the right-edge X coordinate of each rune in
+// Text[Start:End].
 type TextRun struct {
 	Start, End int
 	Bounds     image.Rectangle
+	CharX      []int
 }
 
 // TextIndex is a layout-specific text snapshot. Typeset runs are words or
@@ -75,6 +81,22 @@ func (r *Result) TextIndex() *TextIndex {
 	if r == nil {
 		return out
 	}
+	var l *layout
+	if r.document != nil {
+		l = &layout{
+			ctx:   context.Background(),
+			d:     r.document,
+			opts:  r.opts,
+			lim:   r.limits,
+			faces: map[faceKey]font.Face{},
+			fonts: map[string]*opentype.Font{},
+		}
+		defer func() {
+			for _, f := range l.faces {
+				f.Close()
+			}
+		}()
+	}
 	var text strings.Builder
 	for _, b := range r.Boxes {
 		if b.Tag != "text" || b.Text == "" {
@@ -84,21 +106,62 @@ func (r *Result) TextIndex() *TextIndex {
 			text.WriteString(b.TextPrefix)
 		}
 		start := text.Len()
-		text.WriteString(strings.Map(func(r rune) rune {
+		clean := strings.Map(func(r rune) rune {
 			if unicode.IsControl(r) && r != '\n' && r != '\t' {
 				return -1
 			}
 			return r
-		}, b.Text))
+		}, b.Text)
+		text.WriteString(clean)
 		bounds := b.Bounds
 		if bounds.Empty() {
 			bounds = b.InkBounds
 		}
-		out.Runs = append(out.Runs, TextRun{start, text.Len(), bounds})
+		out.Runs = append(out.Runs, TextRun{
+			Start:  start,
+			End:    text.Len(),
+			Bounds: bounds,
+			CharX:  measureRunCharX(l, b, clean, bounds),
+		})
 	}
 	out.Text = text.String()
 	return out
 }
+
+func measureRunCharX(l *layout, b Box, clean string, bounds image.Rectangle) []int {
+	n := utf8.RuneCountInString(clean)
+	if n == 0 {
+		return nil
+	}
+	charX := make([]int, 0, n)
+	if l != nil && b.FontSize > 0 {
+		st := style{
+			size:          b.FontSize,
+			bold:          b.Bold,
+			mono:          b.Monospace,
+			family:        b.FontFamily,
+			italic:        b.Italic,
+			smallCaps:     b.SmallCaps,
+			wordSpacing:   b.WordSpacing,
+			letterSpacing: b.LetterSpacing,
+		}
+		f := l.face(st)
+		x := bounds.Min.X
+		for _, ch := range clean {
+			x += l.glyphAdvanceStyled(st, f, ch)
+			charX = append(charX, min(bounds.Max.X, max(bounds.Min.X, x)))
+		}
+		if len(charX) > 0 {
+			charX[len(charX)-1] = bounds.Max.X
+		}
+		return charX
+	}
+	for i := 0; i < n; i++ {
+		charX = append(charX, bounds.Min.X+(i+1)*bounds.Dx()/n)
+	}
+	return charX
+}
+
 func (r *TTYResult) TextIndex() *TextIndex {
 	out := &TextIndex{Cells: true}
 	if r == nil {
@@ -108,7 +171,7 @@ func (r *TTYResult) TextIndex() *TextIndex {
 	offset := 0
 	for y, line := range strings.Split(r.Text, "\n") {
 		if line != "" {
-			out.Runs = append(out.Runs, TextRun{offset, offset + len(line), image.Rect(0, y, ansi.StringWidth(line), y+1)})
+			out.Runs = append(out.Runs, TextRun{Start: offset, End: offset + len(line), Bounds: image.Rect(0, y, ansi.StringWidth(line), y+1)})
 		}
 		offset += len(line) + 1
 	}
@@ -201,10 +264,35 @@ func (t *TextIndex) Regions(start, end int) []image.Rectangle {
 			continue
 		}
 		rect := run.Bounds
+		a, b := max(start, run.Start), min(end, run.End)
 		if t.Cells {
-			a, b := max(start, run.Start), min(end, run.End)
 			rect.Min.X += ansi.StringWidth(t.Text[run.Start:a])
 			rect.Max.X = run.Bounds.Min.X + ansi.StringWidth(t.Text[run.Start:b])
+		} else if a > run.Start || b < run.End {
+			sub := t.Text[run.Start:run.End]
+			nRunes := max(1, utf8.RuneCountInString(sub))
+			x := run.Bounds.Min.X
+			minX, maxX := run.Bounds.Min.X, run.Bounds.Max.X
+			i := 0
+			for offset, r := range sub {
+				pos := run.Start + offset
+				var nextX int
+				if i < len(run.CharX) {
+					nextX = run.CharX[i]
+				} else {
+					nextX = run.Bounds.Min.X + (i+1)*run.Bounds.Dx()/nRunes
+				}
+				if pos == a {
+					minX = x
+				}
+				if pos+utf8.RuneLen(r) == b {
+					maxX = nextX
+				}
+				x = nextX
+				i++
+			}
+			rect.Min.X = minX
+			rect.Max.X = max(minX+1, maxX)
 		}
 		if !rect.Empty() {
 			regions = append(regions, rect)
@@ -213,8 +301,8 @@ func (t *TextIndex) Regions(start, end int) []image.Rectangle {
 	return regions
 }
 
-// Hit returns the visible text range nearest an area. Typeset selection snaps
-// to painted runs; TTY selection snaps to UTF-8 runes and terminal cell widths.
+// Hit returns the visible character range nearest an area in both Typeset and
+// TTY modes.
 func (t *TextIndex) Hit(area image.Rectangle) (Match, bool) {
 	if t == nil || area.Empty() {
 		return Match{}, false
@@ -234,16 +322,24 @@ func (t *TextIndex) Hit(area image.Rectangle) (Match, bool) {
 		return Match{}, false
 	}
 	run := t.Runs[best]
-	if !t.Cells {
-		return Match{run.Start, run.End}, true
-	}
+	sub := t.Text[run.Start:run.End]
+	nRunes := max(1, utf8.RuneCountInString(sub))
 	x := run.Bounds.Min.X
-	for offset, r := range t.Text[run.Start:run.End] {
-		width := ansi.StringWidth(string(r))
-		if x+max(1, width) > area.Min.X {
+	i := 0
+	for offset, r := range sub {
+		var nextX int
+		if t.Cells {
+			nextX = x + ansi.StringWidth(string(r))
+		} else if i < len(run.CharX) {
+			nextX = run.CharX[i]
+		} else {
+			nextX = run.Bounds.Min.X + (i+1)*run.Bounds.Dx()/nRunes
+		}
+		if max(x+1, nextX) > area.Min.X {
 			return Match{run.Start + offset, run.Start + offset + utf8.RuneLen(r)}, true
 		}
-		x += width
+		x = nextX
+		i++
 	}
 	return Match{run.End, run.End}, true
 }

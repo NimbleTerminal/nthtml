@@ -217,7 +217,7 @@ func (l *layout) position(height int) {
 				return
 			}
 			op.box.translate(shift)
-			if op.box.Bounds.Max.Y > l.d.limits.Height || op.box.Bounds.Min.Y < -l.d.limits.Height {
+			if op.box.Bounds.Max.Y > l.pageHeightLimit() || op.box.Bounds.Min.Y < -l.d.limits.Height {
 				l.err = limitError("positioned height")
 				return
 			}

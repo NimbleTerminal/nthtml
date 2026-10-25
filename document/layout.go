@@ -33,12 +33,13 @@ type Result struct {
 	Anchors  map[string]image.Point
 	document *Document
 	// Image is the whole page, unless Options.NoImage left it to Paint.
-	Image *image.RGBA
-	Boxes []Box
-	Links []Link
-	ops   []operation
-	opts  Options
-	size  image.Point
+	Image  *image.RGBA
+	Boxes  []Box
+	Links  []Link
+	ops    []operation
+	opts   Options
+	limits Limits
+	size   image.Point
 }
 type operation struct {
 	owner  *positionFrame
@@ -57,6 +58,8 @@ type layout struct {
 	ctx                         context.Context
 	d                           *Document
 	opts                        Options
+	lim                         Limits
+	maxHeight                   int
 	ops                         []operation
 	faces                       map[faceKey]font.Face
 	fonts                       map[string]*opentype.Font
@@ -64,6 +67,13 @@ type layout struct {
 	err                         error
 	// scale is device pixels per CSS pixel for the faces drawn; zero is one.
 	scale float64
+}
+
+func (l *layout) pageHeightLimit() int {
+	if l.maxHeight > 0 {
+		return l.maxHeight
+	}
+	return l.d.limits.Height
 }
 
 func (l *layout) add(b Box, src image.Image) {
@@ -78,11 +88,11 @@ func (l *layout) add(b Box, src image.Image) {
 		f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
 		b.InkBounds = textInk(f, b)
 	}
-	if b.paintBottom() > l.d.limits.Height {
+	if b.paintBottom() > l.pageHeightLimit() {
 		l.err = limitError("height")
 		return
 	}
-	if len(l.ops) >= 100000 {
+	if len(l.ops) >= max(250000, l.d.limits.Nodes*25) {
 		l.err = limitError("paint operations")
 		return
 	}
@@ -107,7 +117,27 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	if o.Width < 32 || o.Width > 4096 {
 		return nil, limitError("width")
 	}
-	l := &layout{ctx: ctx, d: d, opts: o, faces: map[faceKey]font.Face{}}
+	lim := d.limits
+	if o.Limits != (Limits{}) {
+		ol, err := limits(o.Limits)
+		if err != nil {
+			return nil, err
+		}
+		if o.Limits.Pixels != 0 {
+			lim.Pixels = ol.Pixels
+		}
+		if o.Limits.Height != 0 {
+			lim.Height = ol.Height
+		}
+		if o.Limits.LayoutHeight != 0 {
+			lim.LayoutHeight = ol.LayoutHeight
+		}
+	}
+	maxH := lim.Height
+	if o.NoImage {
+		maxH = max(lim.LayoutHeight, lim.Height)
+	}
+	l := &layout{ctx: ctx, d: d, opts: o, lim: lim, maxHeight: maxH, faces: map[faceKey]font.Face{}}
 	l.fonts = map[string]*opentype.Font{}
 	l.rootFrame = &positionFrame{containing: true, op: -1, initial: image.Rect(0, 0, o.Width, 0)}
 	l.frame = l.rootFrame
@@ -116,7 +146,11 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 			f.Close()
 		}
 	}()
-	h := l.block(d.root, 0, 0, o.Width, -1, style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: color.RGBA{0, 0, 0, 255}})
+	fg := color.RGBA{0, 0, 0, 255}
+	if o.Colors.Text.A > 0 {
+		fg = o.Colors.Text
+	}
+	h := l.block(d.root, 0, 0, o.Width, -1, style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: o.Colors.Link})
 	if l.err != nil {
 		return nil, l.err
 	}
@@ -129,11 +163,14 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		h = max(h, op.box.paintBottom())
 	}
 	h = max(1, h)
-	if h > d.limits.Height || o.Width > d.limits.Pixels/h {
+	if h > maxH {
+		return nil, limitError("height")
+	}
+	if !o.NoImage && o.Width > lim.Pixels/h {
 		return nil, limitError("pixels")
 	}
 	page := image.Rect(0, 0, o.Width, h)
-	result := &Result{Anchors: map[string]image.Point{}, Warnings: l.warnings, document: d, Boxes: make([]Box, 0, len(l.ops)), ops: l.ops, opts: o, size: page.Max}
+	result := &Result{Anchors: map[string]image.Point{}, Warnings: l.warnings, document: d, Boxes: make([]Box, 0, len(l.ops)), ops: l.ops, opts: o, limits: lim, size: page.Max}
 	links, err := d.Links(ctx)
 	if err != nil {
 		return nil, err
@@ -452,7 +489,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		}
 	}
 	l.paintBorders(image.Rect(x, start, x+w, cy), s)
-	if cy+margin[2] > l.d.limits.Height {
+	if cy+margin[2] > l.pageHeightLimit() {
 		l.err = limitError("height")
 	}
 	if profile.through {
@@ -635,7 +672,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			}
 		}
 		y += lineHeight
-		if y > l.d.limits.Height {
+		if y > l.pageHeightLimit() {
 			l.err = limitError("height")
 		}
 		lineHeight = 0

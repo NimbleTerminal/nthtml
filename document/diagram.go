@@ -163,7 +163,7 @@ func (l *layout) diagram(n *node, kind, source string, x, y, w, height int, s st
 		return y
 	}
 	remaining := min(4<<20, l.d.limits.Pixels) - l.diagramPixels
-	maxH := min(2048, l.d.limits.Height-y, (1<<20)/w, remaining/w)
+	maxH := min(2048, l.pageHeightLimit()-y, (1<<20)/w, remaining/w)
 	if height > 0 {
 		maxH = min(maxH, height)
 	}

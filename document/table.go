@@ -25,7 +25,7 @@ func (l *layout) tableStep() bool {
 		return false
 	}
 	l.tableWork++
-	if l.tableWork > 100000 {
+	if l.tableWork > max(100000, l.d.limits.Nodes*20) {
 		l.err = limitError("table measurement")
 		return false
 	}
@@ -257,7 +257,7 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 	for _, h := range heights {
 		rowY = append(rowY, rowY[len(rowY)-1]+h+sy)
 	}
-	if rowY[len(rowY)-1] > l.d.limits.Height {
+	if rowY[len(rowY)-1] > l.pageHeightLimit() {
 		l.err = limitError("table height")
 		return y, w
 	}

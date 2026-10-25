@@ -151,7 +151,7 @@ func (a *floatArea) place(n *node, s style, x, y, w, parentHeight int) {
 		a.l.ops[i].box.translate(shift)
 	}
 	r := image.Rect(target, y, target+width, y+end)
-	if r.Max.Y > a.l.d.limits.Height {
+	if r.Max.Y > a.l.pageHeightLimit() {
 		a.l.err = limitError("float height")
 		return
 	}

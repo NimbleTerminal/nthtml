@@ -59,8 +59,10 @@ type faceKey struct {
 
 func (l *layout) face(s style) font.Face {
 	k := faceKey{s.size, s.family, s.bold, s.italic}
-	if s.mono && k.family == "" {
-		k.family = "Go Mono"
+	if s.mono && (k.family == "" || k.family == "Go Mono") {
+		k.family = cmp.Or(l.opts.FontFamilies.Monospace, "Go Mono")
+	} else if k.family == "" && l.opts.FontFamilies.Default != "" {
+		k.family = l.opts.FontFamilies.Default
 	}
 	if f := l.faces[k]; f != nil {
 		return f
@@ -93,11 +95,11 @@ func (l *layout) face(s style) font.Face {
 		family = strings.Trim(strings.TrimSpace(family), "'\"")
 		switch strings.ToLower(family) {
 		case "serif":
-			family = "Literata"
+			family = cmp.Or(l.opts.FontFamilies.Serif, "Literata")
 		case "sans-serif":
-			family = "IBM Plex Sans"
+			family = cmp.Or(l.opts.FontFamilies.SansSerif, "IBM Plex Sans")
 		case "monospace":
-			family = "IBM Plex Mono"
+			family = cmp.Or(l.opts.FontFamilies.Monospace, "IBM Plex Mono")
 		case "":
 			continue
 		}

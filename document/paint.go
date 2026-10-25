@@ -42,10 +42,14 @@ func (r *Result) Paint(ctx context.Context, area image.Rectangle, scale float64)
 		return nil, limitError("scale outside 1/16..16")
 	}
 	w, h := int(math.Ceil(float64(area.Dx())*scale)), int(math.Ceil(float64(area.Dy())*scale))
-	if w < 1 || h < 1 || w > r.document.limits.Pixels/h {
+	pixLimit := r.limits.Pixels
+	if pixLimit <= 0 {
+		pixLimit = r.document.limits.Pixels
+	}
+	if w < 1 || h < 1 || w > pixLimit/h {
 		return nil, limitError("pixels")
 	}
-	l := &layout{ctx: ctx, d: r.document, opts: r.opts, faces: map[faceKey]font.Face{}, fonts: map[string]*opentype.Font{}, scale: scale}
+	l := &layout{ctx: ctx, d: r.document, opts: r.opts, lim: r.limits, maxHeight: max(r.size.Y, r.document.limits.Height), faces: map[faceKey]font.Face{}, fonts: map[string]*opentype.Font{}, scale: scale}
 	defer func() {
 		for _, f := range l.faces {
 			f.Close()
@@ -61,7 +65,11 @@ func (r *Result) Paint(ctx context.Context, area image.Rectangle, scale float64)
 // paint draws the operations that reach area into dst, whose origin is
 // area.Min, scale device pixels to the CSS pixel.
 func (l *layout) paint(dst *image.RGBA, ops []operation, area image.Rectangle, scale float64) error {
-	draw.Draw(dst, dst.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
+	bg := color.RGBA{255, 255, 255, 255}
+	if l.opts.Colors.Background.A > 0 {
+		bg = l.opts.Colors.Background
+	}
+	draw.Draw(dst, dst.Bounds(), image.NewUniform(bg), image.Point{}, draw.Src)
 	x := func(v int) int { return int(math.Floor(float64(v-area.Min.X) * scale)) }
 	y := func(v int) int { return int(math.Floor(float64(v-area.Min.Y) * scale)) }
 	rect := func(r image.Rectangle) image.Rectangle {

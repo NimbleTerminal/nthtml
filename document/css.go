@@ -36,6 +36,7 @@ type style struct {
 	collapse                                   bool
 	size, line                                 int
 	fg, bg                                     color.RGBA
+	defaultFg, defaultLink                     color.RGBA
 	border                                     [4]color.RGBA
 	margin, padding                            [4]cssLength // top, right, bottom, left
 	bw                                         [4]int       // top, right, bottom, left
@@ -539,7 +540,7 @@ func parseCSS(s string, budget int) ([]rule, error) {
 	return out, nil
 }
 func (d *Document) styled(n *node, parent style) style {
-	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
 	if n.tag == "svg" {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
 		s.height, _ = parseLength(n.attrs["height"], true, false)
@@ -653,7 +654,11 @@ func (d *Document) styled(n *node, parent style) style {
 		if SafeURL(n.attrs["href"]) != "" {
 			s.linkID = n.id
 			s.underline = true
-			s.fg = color.RGBA{40, 92, 186, 255}
+			if s.defaultLink.A > 0 {
+				s.fg = s.defaultLink
+			} else {
+				s.fg = color.RGBA{40, 92, 186, 255}
+			}
 		}
 	}
 	if n.tag == "strong" || n.tag == "b" || n.tag == "th" {
@@ -663,6 +668,8 @@ func (d *Document) styled(n *node, parent style) style {
 	if cv := values["color"]; isCSSKeyword(cv) {
 		if resolveCSSKeyword("color", cv) == "inherit" {
 			s.fg = parent.fg
+		} else if s.defaultFg.A > 0 {
+			s.fg = s.defaultFg
 		} else {
 			s.fg = color.RGBA{0, 0, 0, 255}
 		}

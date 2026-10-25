@@ -139,7 +139,7 @@ func (d *Document) Links(ctx context.Context) ([]Link, error) {
 					text = href
 				}
 				metadataBytes += len(href) + len(text)
-				if metadataBytes > maxTTYBytes {
+				if metadataBytes > max(maxTTYBytes, d.limits.Bytes) {
 					return limitError("link metadata")
 				}
 				out = append(out, Link{ID: n.id, Href: href, Text: text})
