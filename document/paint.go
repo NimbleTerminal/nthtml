@@ -66,7 +66,7 @@ func (r *Result) Paint(ctx context.Context, area image.Rectangle, scale float64)
 // area.Min, scale device pixels to the CSS pixel.
 func (l *layout) paint(dst *image.RGBA, ops []operation, area image.Rectangle, scale float64) error {
 	bg := color.RGBA{255, 255, 255, 255}
-	if l.opts.Colors.Background.A > 0 {
+	if (l.d == nil || !l.d.hasAuthorColors) && l.opts.Colors.Background.A > 0 {
 		bg = l.opts.Colors.Background
 	}
 	draw.Draw(dst, dst.Bounds(), image.NewUniform(bg), image.Point{}, draw.Src)

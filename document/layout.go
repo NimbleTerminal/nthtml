@@ -147,10 +147,14 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		}
 	}()
 	fg := color.RGBA{0, 0, 0, 255}
-	if o.Colors.Text.A > 0 {
-		fg = o.Colors.Text
+	var linkColor color.RGBA
+	if !d.hasAuthorColors {
+		if o.Colors.Text.A > 0 {
+			fg = o.Colors.Text
+		}
+		linkColor = o.Colors.Link
 	}
-	h := l.block(d.root, 0, 0, o.Width, -1, style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: o.Colors.Link})
+	h := l.block(d.root, 0, 0, o.Width, -1, style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor})
 	if l.err != nil {
 		return nil, l.err
 	}

@@ -58,8 +58,9 @@ type FontFamilies struct {
 }
 
 // Colors sets fallback canvas background, body text, and hyperlink colors used
-// only when the document's own CSS does not specify them. Zero-alpha fields
-// keep the standard browser defaults (white canvas, black text, #285cba links).
+// only when the document sets neither text nor background colors of its own.
+// Zero-alpha fields keep the standard browser defaults (white canvas, black
+// text, #285cba links).
 type Colors struct {
 	Background color.RGBA
 	Text       color.RGBA
@@ -105,9 +106,26 @@ type node struct {
 
 // Document is immutable and can be rendered concurrently.
 type Document struct {
-	root   *node
-	rules  []rule
-	limits Limits
+	root            *node
+	rules           []rule
+	limits          Limits
+	hasAuthorColors bool
+}
+
+func hasAuthorColorDecl(decl map[string]string) bool {
+	for _, prop := range []string{"color", "background-color"} {
+		v, ok := decl[prop]
+		if !ok || v == "" {
+			continue
+		}
+		if isCSSKeyword(v) {
+			return true
+		}
+		if _, ok := cssColor(v, color.RGBA{0, 0, 0, 255}); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func limits(l Limits) (Limits, error) {
@@ -299,10 +317,16 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			}
 			n.decl = d.cascade(n)
 			entries += len(n.decl)
+			if !strings.Contains(" document script style head meta link title template ", " "+n.tag+" ") && hasAuthorColorDecl(n.decl) {
+				d.hasAuthorColors = true
+			}
 			if hasFirstLine && n.tag != "document" {
 				if fl := d.cascadePseudo(n, "first-line"); len(fl) > 0 {
 					n.firstLineDecl = fl
 					entries += len(fl)
+					if hasAuthorColorDecl(fl) {
+						d.hasAuthorColors = true
+					}
 				}
 			}
 			if entries > max(100000, l.Nodes*10) {
@@ -324,6 +348,9 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 							return limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
 						}
 						bNode := &node{parent: n, id: count, tag: "span", pseudo: "before", decl: bDecl, attrs: map[string]string{}}
+						if hasAuthorColorDecl(bDecl) {
+							d.hasAuthorColors = true
+						}
 						if text != "" {
 							bNode.children = []*node{{parent: bNode, text: text}}
 						}
@@ -339,6 +366,9 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 							return limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
 						}
 						aNode := &node{parent: n, id: count, tag: "span", pseudo: "after", decl: aDecl, attrs: map[string]string{}}
+						if hasAuthorColorDecl(aDecl) {
+							d.hasAuthorColors = true
+						}
 						if text != "" {
 							aNode.children = []*node{{parent: aNode, text: text}}
 						}

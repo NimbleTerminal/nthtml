@@ -199,6 +199,35 @@ func TestFontFamiliesAndDefaultColorsOptions(t *testing.T) {
 	if !foundText || !foundLink {
 		t.Fatalf("expected custom default text (%v) and link (%v) colors", foundText, foundLink)
 	}
+
+	// If a page sets any text or background color of its own (e.g. #666 note or
+	// white background), fallback theme colors must not apply and clash with it.
+	for _, partial := range []string{
+		`<p>Body</p><p style="color:#666">Grey note</p>`,
+		`<div style="background:#ffffff"><p>White card</p></div>`,
+	} {
+		res, err := Render(ctx, strings.NewReader(partial), Options{
+			Width: 320,
+			Colors: Colors{
+				Background: color.RGBA{20, 24, 32, 255},
+				Text:       color.RGBA{230, 235, 240, 255},
+				Link:       color.RGBA{120, 200, 255, 255},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := res.Image.RGBAAt(0, 0); got != (color.RGBA{255, 255, 255, 255}) {
+			t.Fatalf("expected partially-styled page %q to keep white canvas, got %v", partial, got)
+		}
+		for _, b := range res.Boxes {
+			if b.Text == "Body" || b.Text == "White" {
+				if b.Color != (color.RGBA{0, 0, 0, 255}) {
+					t.Fatalf("expected partially-styled page %q to keep black default text, got %v", partial, b.Color)
+				}
+			}
+		}
+	}
 }
 
 func TestCharacterSelectionHitAndRegions(t *testing.T) {
