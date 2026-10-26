@@ -69,6 +69,8 @@ task render INPUT=examples/demo/documents/invoice.html OUTPUT=invoice.png
 task previews                # regenerate the checked-in demo PNGs
 task check                   # native tests, vet, formatting, module checks
 task test -- -count=1
+task conformance             # pinned offline WPT reference subset
+task differential            # optional Chromium differential geometry/screenshot report
 task ci                      # native + WASM builds/tests and browser smoke checks
 ```
 

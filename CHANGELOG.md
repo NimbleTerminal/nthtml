@@ -15,6 +15,8 @@
    * Measure whole words with OpenType kerning, collapse whitespace across inline element boundaries without extending link/underline styles into trailing spaces, and merge contiguous link hit regions on a line.
  * **Canvas background & `nttypeset` bridge**:
    * Expose `Result.Background()`, `Document.ExtractTypeset`, and `typeset.BuildWithSources` for nested section decorations and source-anchor mapping.
+ * **Chromium differential conformance harness (`task differential`)**:
+   * Add an optional offline headless-Chromium differential harness (`internal/conformance`, `cmd/nthtml-differential`) comparing `nthtml` `Result.Boxes` geometry, document dimensions, and `800×600` screenshots against Chromium `getBoundingClientRect()` across 20 representative WPT fixtures (`artifacts/differential/index.html` and `report.json`).
 
 ## v0.1.0 (2026-10-25)
 

@@ -5,6 +5,7 @@ This harness runs audited visual reference tests from [Web Platform Tests](https
 ```sh
 task conformance                 # offline baseline check and report
 task conformance -- -strict       # fail on any rendering failure
+task differential                # Chromium differential geometry/screenshot report
 go test ./internal/conformance   # regression check, also in normal tests
 task test-wasm                   # runs the same subset under Node/WASM
 ```
@@ -61,3 +62,35 @@ Selector/cascade combinations, whitespace modes, and merged-table geometry/TTY o
 Cases opt into `ahem: true` to use the original pinned `fonts/Ahem.ttf` through `document.Options.Fonts`. Only the accompanying `/fonts/ahem.css` stylesheet is accepted, and only when explicitly enabled. No stylesheet fetching or general `@font-face` implementation is involved. Other fonts use the renderer's usual embedded source. Synthetic bold/italic Ahem variants are rejected. See [Ahem provenance and license](AHEM-LICENSE.md). Local tests independently assert exact Ahem square pixels and advances, half-leading, zero/short line heights, and positive/negative word spacing; those tests do not count as upstream passes.
 
 Images require explicit per-case `assets` paths, pinned hashes, and bounded decoding. Paths cannot resolve to network URLs or escape the fixture tree. Missing, unpinned, or corrupt images fail instead of silently rendering alt text. Per-document decoding is limited to 16 images, 4MiB encoded bytes, and four million pixels. Fonts are limited to 1MiB in this harness. Ordinary tests and reports perform no network access. Original documents are never rewritten to hide rendering differences.
+
+
+## Chromium differential harness (`task differential`)
+
+Because standard WPT reference tests render both the test document and its reference with `nthtml`, shared layout defects or invisible white-background box sizing errors can pass self-referential pixel comparisons. The differential harness complements the reftest suite by rendering the **same** WPT test document in both `nthtml` and headless Chromium at `800×600` (`deviceScaleFactor: 1`).
+
+```sh
+task differential                                       # auto-detect local Chromium/Chrome and write artifacts/differential/
+NTHTML_CHROMIUM=/path/to/chromium task differential     # use an explicit browser binary
+go run ./cmd/nthtml-differential -strict                # fail if Chromium is unavailable or any case has GEOMETRY_MISMATCH
+```
+
+### How it works
+
+- **Offline CDP execution**: `internal/conformance` drives a local headless Chromium or Chrome binary directly over `--remote-debugging-pipe` using standard-library Go (`os/exec` + JSON-RPC). No Playwright, Node, or third-party Go dependencies are added.
+- **Zero network access**: All requests are intercepted via CDP `Fetch.enable`. Only the active WPT fixture, its allowlisted `assets`, and the pinned `/fonts/ahem.css` + `/fonts/Ahem.ttf` files are served from the embedded `testdata/wpt` filesystem; any other URL fails with `BlockedByClient`.
+- **Deterministic rendering**: Animations and transitions are disabled, `Ahem.ttf` is loaded via `@font-face` when `ahem: true`, and `document.fonts.ready` + image decode promises complete before layout extraction and screenshot capture.
+
+### Interpreting `artifacts/differential/index.html` and `report.json`
+
+For each of the 20 representative fixtures (covering block layout/margins, width/height, padding/borders, selectors/cascade, inline text layout, and tables), the report records:
+
+1. **Element geometry (`MATCH`, `MISMATCH`, `UNAVAILABLE`)**:
+   - Compares `nthtml`'s `Result.Boxes` against Chromium's `getBoundingClientRect()`.
+   - Elements are matched only when unambiguous: by DOM `#id` (`Box.Anchor` or union of inline `Box.SourceID` runs) or by 1-to-1 pre-order tag count for block/table/replaced elements.
+   - Where `nthtml` does not emit a standalone element box (such as an un-ID'd inline `<span>` merged into text runs), geometry is reported as `UNAVAILABLE` rather than guessed.
+   - Preceding unstyled `<p>` instruction lines use `nthtml`'s default 16px line-height (`22px`) vs Chromium's default serif line-height (`18px`); the resulting `+4px` normal-flow vertical shift is explicitly accounted for and noted alongside the raw coordinates.
+2. **Overall document dimensions**:
+   - Compares `nthtml`'s rendered canvas size (`Result.Image.Bounds()`) against Chromium's rendered document bounds.
+3. **Screenshots and pixel difference percentage**:
+   - Side-by-side `nthtml`, Chromium, and magenta diff PNGs at `800×600`.
+   - **Cosmetic pixel differences vs. geometry mismatches**: A nonzero pixel difference percentage (typically 0.3%–3% from glyph rasterization, antialiasing, or the `+4px` intro `<p>` line-height shift) does **not** imply a geometry failure. Fixtures where all comparable boxes match are classified as `GEOMETRY_MATCH`; fixtures with actual box size or position discrepancies are classified as `GEOMETRY_MISMATCH`.

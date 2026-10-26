@@ -161,6 +161,11 @@ tasks:
     cmds:
       - go run ./cmd/nthtml-conformance {{.CLI_ARGS}}
 
+  differential:
+    desc: Run the Chromium differential conformance subset and write an HTML/JSON report
+    cmds:
+      - go run ./cmd/nthtml-differential {{.CLI_ARGS}}
+
   ci:
     desc: Run native checks, builds, WASM tests, and browser smoke checks
     cmds:
