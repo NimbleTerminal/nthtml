@@ -600,20 +600,25 @@ func mergeSpans(spans []Span) []Span {
 }
 
 func hasExplicitBoxDecl(n *node) (hasMarginTop, hasMarginBottom, hasPadding, hasBg bool) {
-	if n == nil || len(n.decl) == 0 {
+	if n == nil {
 		return false, false, false, false
 	}
-	_, hasMarginTop = n.decl["margin-top"]
-	_, hasMarginBottom = n.decl["margin-bottom"]
-	for _, side := range borderSides {
-		if _, ok := n.decl["padding-"+side]; ok {
-			hasPadding = true
-			break
+	if len(n.decl) > 0 {
+		_, hasMarginTop = n.decl["margin-top"]
+		_, hasMarginBottom = n.decl["margin-bottom"]
+		for _, side := range borderSides {
+			if _, ok := n.decl["padding-"+side]; ok {
+				hasPadding = true
+				break
+			}
 		}
+		_, hasBg = n.decl["background-color"]
 	}
-	_, hasBg = n.decl["background-color"]
-	if !hasBg && n.tag != "mark" && n.tag != "hr" {
-		_, hasBg = htmlColor(n.attrs["bgcolor"])
+	if !hasBg {
+		switch n.tag {
+		case "body", "table", "thead", "tbody", "tfoot", "tr", "td", "th":
+			_, hasBg = htmlColor(n.attrs["bgcolor"])
+		}
 	}
 	return
 }
@@ -868,7 +873,7 @@ func (w *blockExtractor) walkContainer(n *node, s style, indent, availW int, id,
 	if err != nil {
 		return err
 	}
-	if len(w.blocks) == start && (id != "" || len(w.pendingIDs) > pendingStart) {
+	if len(w.blocks) == start && (id != "" || len(w.pendingIDs) > pendingStart || (wantSection && s.bg.A != 0)) {
 		if err := w.addBlock(StyledBlock{
 			Kind:   BlockParagraph,
 			Size:   max(1, s.size),
@@ -1100,8 +1105,17 @@ func (w *blockExtractor) extractImage(n *node, s style, indent int, id, parentID
 		}
 		return nil
 	}
-	iw := min(max(64, w.opts.Width-indent), pixelAttr(n.attrs["width"]))
-	ih := min(1024, pixelAttr(n.attrs["height"]))
+	availW := max(64, w.opts.Width-indent)
+	rawW := pixelAttr(n.attrs["width"])
+	if s.width.definite(availW) {
+		rawW = s.width.resolve(availW, availW)
+	}
+	rawH := pixelAttr(n.attrs["height"])
+	if s.height.absolute() {
+		rawH = s.height.resolve(0, 1024)
+	}
+	iw := min(availW, rawW)
+	ih := min(1024, rawH)
 	align := ""
 	if s.align == "center" || s.align == "right" {
 		align = s.align
@@ -1181,14 +1195,125 @@ func (w *blockExtractor) extractDiagram(n *node, kind, source string, s style, i
 	return nil
 }
 
-func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, parentID string, margin [4]int, pad Insets) error {
-	var rows [][][]Span
-	var innerIDs []string
-	collectRow := func(tr *node, rowStyle style, forceBold bool) {
-		if rid := anchorName(tr); rid != "" {
-			innerIDs = append(innerIDs, rid)
+func cellHasNestedStructure(n *node, d *Document, parent style) bool {
+	for _, c := range n.children {
+		if c.tag == "" {
+			continue
 		}
-		var cells [][]Span
+		if kind, _ := diagramSource(c); kind != "" {
+			return true
+		}
+		cs := d.styled(c, parent)
+		if cs.display == "none" {
+			continue
+		}
+		switch c.tag {
+		case "table", "ul", "ol", "dl", "pre", "blockquote", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "main", "header", "footer", "nav", "aside":
+			return true
+		}
+		if cs.display == "table" || cs.display == "list-item" {
+			return true
+		}
+		if cellHasNestedStructure(c, d, cs) {
+			return true
+		}
+	}
+	return false
+}
+
+func tableHasNestedStructure(n *node, d *Document, tableStyle style) bool {
+	checkRow := func(tr *node, rowStyle style) bool {
+		for _, cell := range tr.children {
+			if cell.tag != "td" && cell.tag != "th" {
+				continue
+			}
+			cs := d.styled(cell, rowStyle)
+			if cs.display == "none" {
+				continue
+			}
+			if cellHasNestedStructure(cell, d, cs) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, child := range n.children {
+		switch child.tag {
+		case "thead", "tbody", "tfoot":
+			gs := d.styled(child, tableStyle)
+			if gs.display == "none" {
+				continue
+			}
+			for _, tr := range child.children {
+				if tr.tag == "tr" {
+					rs := d.styled(tr, gs)
+					if rs.display != "none" && checkRow(tr, rs) {
+						return true
+					}
+				}
+			}
+		case "tr":
+			rs := d.styled(child, tableStyle)
+			if rs.display != "none" && checkRow(child, rs) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (w *blockExtractor) extractLayoutTable(n *node, s style, indent, availW int, id, parentID string, margin [4]int, pad Insets) error {
+	hasMarginTop, hasMarginBottom, hasPadding, hasBg := hasExplicitBoxDecl(n)
+	wantSection := id != "" || hasPadding || hasBg || s.bg.A != 0 || hasMarginTop || hasMarginBottom
+	start := len(w.blocks)
+	pendingStart := len(w.pendingIDs)
+	secIdx := -1
+	if wantSection && w.sectionDepth < 64 && len(w.sections) < maxStyledBlocks {
+		var secPad Insets
+		if hasPadding {
+			secPad = pad
+		}
+		spaceBefore, spaceAfter := 0, 0
+		if hasMarginTop {
+			spaceBefore = max(0, margin[0])
+		}
+		if hasMarginBottom {
+			spaceAfter = max(0, margin[2])
+		}
+		secIdx = len(w.sections)
+		w.sections = append(w.sections, Section{
+			Start:       start,
+			SpaceBefore: spaceBefore,
+			SpaceAfter:  spaceAfter,
+			SourceID:    id,
+			ParentID:    parentID,
+			Padding:     secPad,
+			Background:  s.bg,
+		})
+		w.sectionDepth++
+	}
+	walkRow := func(tr *node, rowStyle style) error {
+		rid := w.claimID(anchorName(tr))
+		prevRowParent := w.parentID
+		if rid != "" {
+			w.parentID = rid
+		}
+		defer func() { w.parentID = prevRowParent }()
+
+		_, _, rowHasPad, rowHasBg := hasExplicitBoxDecl(tr)
+		wantRowSec := rid != "" || rowHasPad || rowHasBg || rowStyle.bg.A != 0
+		rowStart := len(w.blocks)
+		rowSecIdx := -1
+		if wantRowSec && w.sectionDepth < 64 && len(w.sections) < maxStyledBlocks {
+			rowSecIdx = len(w.sections)
+			w.sections = append(w.sections, Section{
+				Start:      rowStart,
+				SourceID:   rid,
+				ParentID:   prevRowParent,
+				Background: rowStyle.bg,
+			})
+			w.sectionDepth++
+		}
 		for _, cell := range tr.children {
 			if cell.tag != "td" && cell.tag != "th" {
 				continue
@@ -1197,17 +1322,174 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 			if cs.display == "none" {
 				continue
 			}
+			cid := w.claimID(anchorName(cell))
+			prevCellParent := w.parentID
+			if cid != "" {
+				w.parentID = cid
+			}
+			cellMargin, cellPad := resolveEdges(cs.margin, availW), resolveEdges(cs.padding, availW)
+			_, _, cellHasPad, cellHasBg := hasExplicitBoxDecl(cell)
+			var cellPadInsets Insets
+			if cellHasPad || (rowStyle.hasCellPadding && rowStyle.cellPadding > 0) {
+				cellPadInsets = Insets{Top: cellPad[0], Right: cellPad[1], Bottom: cellPad[2], Left: cellPad[3]}
+			}
+			cellStyle := cs
+			cellStyle.bw = [4]int{}
+			wantCellSec := cid != "" || cellHasPad || cellHasBg || cs.bg.A != 0
+			if err := w.walkContainer(cell, cellStyle, indent, availW, cid, prevCellParent, cellMargin, cellPadInsets, wantCellSec); err != nil {
+				w.parentID = prevCellParent
+				if rowSecIdx >= 0 {
+					w.sectionDepth--
+				}
+				return err
+			}
+			w.parentID = prevCellParent
+		}
+		if rowSecIdx >= 0 {
+			w.sectionDepth--
+			if len(w.blocks) > rowStart {
+				w.sections[rowSecIdx].End = len(w.blocks)
+			} else if rid != "" {
+				w.pendingIDs = append(w.pendingIDs, pendingID{id: rid, parentID: prevRowParent})
+			}
+		} else if rid != "" && len(w.blocks) == rowStart {
+			w.pendingIDs = append(w.pendingIDs, pendingID{id: rid, parentID: prevRowParent})
+		}
+		return nil
+	}
+	for _, child := range n.children {
+		switch child.tag {
+		case "caption":
+			if err := w.walk(child, s, indent, availW); err != nil {
+				if secIdx >= 0 {
+					w.sectionDepth--
+				}
+				return err
+			}
+		case "thead", "tbody", "tfoot":
+			gs := w.d.styled(child, s)
+			if gs.display == "none" {
+				continue
+			}
+			gid := w.claimID(anchorName(child))
+			prevGroupParent := w.parentID
+			if gid != "" {
+				w.parentID = gid
+			}
+			gStart := len(w.blocks)
+			for _, tr := range child.children {
+				if tr.tag == "tr" {
+					rs := w.d.styled(tr, gs)
+					if rs.display != "none" {
+						if err := walkRow(tr, rs); err != nil {
+							w.parentID = prevGroupParent
+							if secIdx >= 0 {
+								w.sectionDepth--
+							}
+							return err
+						}
+					}
+				}
+			}
+			if gid != "" {
+				if len(w.blocks) > gStart && len(w.sections) < maxStyledBlocks {
+					w.sections = append(w.sections, Section{Start: gStart, End: len(w.blocks), SourceID: gid, ParentID: prevGroupParent, Background: gs.bg})
+				} else {
+					w.pendingIDs = append(w.pendingIDs, pendingID{id: gid, parentID: prevGroupParent})
+				}
+			}
+			w.parentID = prevGroupParent
+		case "tr":
+			rs := w.d.styled(child, s)
+			if rs.display != "none" {
+				if err := walkRow(child, rs); err != nil {
+					if secIdx >= 0 {
+						w.sectionDepth--
+					}
+					return err
+				}
+			}
+		}
+	}
+	if secIdx >= 0 {
+		w.sectionDepth--
+	}
+	if len(w.blocks) == start && (id != "" || len(w.pendingIDs) > pendingStart || (wantSection && s.bg.A != 0)) {
+		if err := w.addBlock(StyledBlock{
+			Kind:   BlockParagraph,
+			Size:   max(1, s.size),
+			Indent: indent,
+			Format: &BlockFormat{LineHeight: 1},
+		}); err != nil {
+			return err
+		}
+	} else if len(w.blocks) > start && len(w.pendingIDs) > 0 {
+		w.attachPendingIDs(len(w.blocks) - 1)
+	}
+	if secIdx >= 0 {
+		w.sections[secIdx].End = len(w.blocks)
+	}
+	return nil
+}
+
+func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, parentID string, margin [4]int, pad Insets) error {
+	if tableHasNestedStructure(n, w.d, s) {
+		return w.extractLayoutTable(n, s, indent, availW, id, parentID, margin, pad)
+	}
+	var rows [][][]Span
+	var innerIDs []string
+	hasHeader := false
+	var uniformCellBg color.RGBA
+	allCellsSameBg := true
+	sawAnyCell := false
+	collectRow := func(tr *node, rowStyle style, forceBold bool) {
+		if forceBold {
+			hasHeader = true
+		}
+		if rid := anchorName(tr); rid != "" {
+			innerIDs = append(innerIDs, rid)
+		}
+		var cells [][]Span
+		rowHasSpans := false
+		for _, cell := range tr.children {
+			if cell.tag != "td" && cell.tag != "th" {
+				continue
+			}
+			cs := w.d.styled(cell, rowStyle)
+			if cs.display == "none" {
+				continue
+			}
+			sawAnyCell = true
 			if cid := anchorName(cell); cid != "" {
 				innerIDs = append(innerIDs, cid)
 			}
 			if cell.tag == "th" || forceBold {
 				cs.bold = true
+				hasHeader = true
+			}
+			cellBg := cs.bg
+			if cellBg.A == 0 {
+				cellBg = rowStyle.bg
+			}
+			if cellBg.A == 0 {
+				allCellsSameBg = false
+			} else if uniformCellBg.A == 0 {
+				uniformCellBg = cellBg
+			} else if uniformCellBg != cellBg {
+				allCellsSameBg = false
 			}
 			spans, inlIDs := w.inlineSpansWithIDs(cell, cs)
 			innerIDs = append(innerIDs, inlIDs...)
+			if len(spans) > 0 {
+				rowHasSpans = true
+			}
 			cells = append(cells, spans)
+			colSpan := min(16, spanValue(cell.attrs["colspan"], false))
+			for k := 1; k < colSpan; k++ {
+				cells = append(cells, nil)
+			}
 		}
-		if len(cells) > 0 {
+		if rowHasSpans {
 			rows = append(rows, cells)
 		}
 	}
@@ -1225,6 +1507,9 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 				if tr.tag == "tr" {
 					rs := w.d.styled(tr, gs)
 					if rs.display != "none" {
+						if rs.bg.A == 0 {
+							rs.bg = gs.bg
+						}
 						collectRow(tr, rs, child.tag == "thead")
 					}
 				}
@@ -1236,10 +1521,55 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 			}
 		}
 	}
+	hasMarginTop, hasMarginBottom, hasPadding, hasBg := hasExplicitBoxDecl(n)
+	tableBg := s.bg
+	if tableBg.A == 0 && sawAnyCell && allCellsSameBg && uniformCellBg.A != 0 {
+		tableBg = uniformCellBg
+		hasBg = true
+	}
 	if len(rows) == 0 {
+		if hasBg && tableBg.A != 0 {
+			tableStyle := s
+			tableStyle.bw = [4]int{}
+			tableStyle.bg = tableBg
+			if err := w.addBlock(StyledBlock{
+				Kind:   BlockParagraph,
+				Size:   max(1, s.size),
+				Indent: indent,
+				Format: &BlockFormat{LineHeight: 2, Padding: pad, Background: tableBg},
+			}); err != nil {
+				return err
+			}
+			w.wrapLeaf(len(w.blocks)-1, id, parentID, tableStyle, margin, pad, innerIDs)
+		}
 		return nil
 	}
-	hasMarginTop, hasMarginBottom, hasPadding, hasBg := hasExplicitBoxDecl(n)
+	maxCols := 0
+	for _, r := range rows {
+		maxCols = max(maxCols, len(r))
+	}
+	if maxCols > 1 {
+		var kept []int
+		for c := 0; c < maxCols; c++ {
+			for _, r := range rows {
+				if c < len(r) && len(r[c]) > 0 {
+					kept = append(kept, c)
+					break
+				}
+			}
+		}
+		if len(kept) > 0 {
+			for i, r := range rows {
+				norm := make([][]Span, len(kept))
+				for j, c := range kept {
+					if c < len(r) {
+						norm[j] = r[c]
+					}
+				}
+				rows[i] = norm
+			}
+		}
+	}
 	var fmt *BlockFormat
 	if hasMarginTop || hasMarginBottom || hasPadding || hasBg || s.lineMode != 0 {
 		spaceBefore, spaceAfter := 8, 8
@@ -1254,12 +1584,38 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 			SpaceBefore: spaceBefore,
 			SpaceAfter:  spaceAfter,
 			Padding:     pad,
-			Background:  s.bg,
+			Background:  tableBg,
 		}
 	}
-	// Table CSS borders apply to the table grid; don't wrap the whole table in a Section border.
 	tableStyle := s
 	tableStyle.bw = [4]int{}
+	tableStyle.bg = tableBg
+	if len(rows) == 1 && !hasHeader {
+		var merged []Span
+		for _, cell := range rows[0] {
+			if len(cell) == 0 {
+				continue
+			}
+			if len(merged) > 0 {
+				last := merged[len(merged)-1]
+				merged = append(merged, Span{Text: "  ", Size: max(1, last.Size), Color: s.fg, ExplicitColor: s.explicitFg})
+			}
+			merged = append(merged, cell...)
+		}
+		merged = mergeSpans(merged)
+		if err := w.addBlock(StyledBlock{
+			Kind:   BlockParagraph,
+			Size:   max(1, s.size),
+			Indent: indent,
+			Spans:  merged,
+			Format: fmt,
+		}); err != nil {
+			return err
+		}
+		w.wrapLeaf(len(w.blocks)-1, id, parentID, tableStyle, margin, pad, innerIDs)
+		return nil
+	}
+	// Table CSS borders apply to the table grid; don't wrap the whole table in a Section border.
 	if err := w.addBlock(StyledBlock{
 		Kind:   BlockTable,
 		Size:   max(1, s.size),

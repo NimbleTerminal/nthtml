@@ -585,6 +585,131 @@ func TestExplicitAssetAllowlistNoImplicitIO(t *testing.T) {
 	}
 }
 
+func TestPresentationalAndLayoutTablesBridge(t *testing.T) {
+	const src = `<html><head><style>
+		@media only screen and (max-width: 750px) {
+			#hnmain { width: 100%; }
+		}
+		a:link, a:visited { color: #000000; text-decoration: none; }
+	</style></head>
+	<body bgcolor="f6f6ef" text="#222222" link="#ff6600">
+		<center>
+			<table id="hnmain" border="0" cellpadding="0" cellspacing="0" width="85%" bgcolor="#f6f6ef">
+				<tr>
+					<td bgcolor="#ff6600">
+						<table border="0" cellpadding="0" cellspacing="0" width="100%" style="padding:2px">
+							<tr>
+								<td style="width:18px;padding-right:4px"><a href="https://news.ycombinator.com"><img src="y18.svg" width="18" height="18"></a></td>
+								<td><b><a href="news">Hacker News</a></b> <a href="newest">new</a> | <a href="front">past</a></td>
+								<td style="text-align:right"><a href="login">login</a></td>
+							</tr>
+						</table>
+					</td>
+				</tr>
+				<tr id="pagespace" style="height:10px"></tr>
+				<tr>
+					<td>
+						<table border="0" cellpadding="0" cellspacing="0">
+							<tr class="athing" id="story-1">
+								<td align="right" valign="top" class="title">1.</td>
+								<td valign="top" class="votelinks"><center><a href="vote?id=1"><div class="votearrow" title="upvote"></div></a></center></td>
+								<td class="title"><a href="https://example.com/1">First Story</a></td>
+							</tr>
+							<tr>
+								<td colspan="2"></td>
+								<td class="subtext">100 points by <a href="user?id=alice">alice</a></td>
+							</tr>
+							<tr class="spacer" style="height:5px"></tr>
+							<tr class="athing" id="story-2">
+								<td align="right" valign="top" class="title">2.</td>
+								<td valign="top" class="votelinks"><center><a href="vote?id=2"><div class="votearrow" title="upvote"></div></a></center></td>
+								<td class="title"><a href="https://example.com/2">Second Story</a> <font color="#008000" size="5" face="monospace">tag</font></td>
+							</tr>
+							<tr>
+								<td colspan="2"></td>
+								<td class="subtext">50 points by <a href="user?id=bob">bob</a></td>
+							</tr>
+						</table>
+					</td>
+				</tr>
+			</table>
+		</center>
+		<p><img id="sized-img" src="diagram.png" alt="Diagram" style="width:120px;height:60px"></p>
+	</body></html>`
+
+	ctx := context.Background()
+	doc, err := document.Parse(ctx, strings.NewReader(src), document.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	extracted, err := doc.ExtractTypeset(ctx, document.Options{Width: 800})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Resolved CSS image dimensions in ExtractTypeset.
+	var foundSizedImg bool
+	var foundStoryTable bool
+	for _, b := range extracted.Blocks {
+		if b.Kind == document.BlockImage && b.ImageKey == "diagram.png" {
+			foundSizedImg = true
+			if b.ImageWidth != 120 || b.ImageHeight != 60 {
+				t.Fatalf("expected CSS image size 120x60, got %dx%d", b.ImageWidth, b.ImageHeight)
+			}
+		}
+		if b.Kind == document.BlockTable && len(b.Rows) >= 4 {
+			foundStoryTable = true
+		}
+	}
+	if !foundSizedImg {
+		t.Fatal("missing sized-img BlockImage")
+	}
+	if !foundStoryTable {
+		t.Fatalf("expected inner story table to remain a multi-row BlockTable, got blocks: %+v", extracted.Blocks)
+	}
+
+	// 2. Rasterize via nttypeset and verify #f6f6ef and #ff6600 backgrounds and absence of "[image: ]".
+	eng, err := nttypeset.NewEngine(nttypeset.WithFonts(ntfonts.Embedded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tdoc, sm, err := BuildWithSources(ctx, doc, Options{Document: document.Options{Width: 800}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lay, err := eng.Layout(tdoc, 800, nttypeset.LayoutOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lay.Complete(ctx); err != nil {
+		t.Fatal(err)
+	}
+	txt := layoutText(t, ctx, lay)
+	if strings.Contains(txt, "[image:") && !strings.Contains(txt, "[image: Diagram]") {
+		t.Fatalf("unexpected empty image fallback in text: %q", txt)
+	}
+	if strings.Contains(txt, "y18.svg") || strings.Contains(txt, "[image: ]") {
+		t.Fatalf("empty/missing alt image leaked into typeset text: %q", txt)
+	}
+	for _, id := range []string{"hnmain", "story-1", "story-2"} {
+		if a, ok, err := sm.AnchorBounds(ctx, lay, id, true); err != nil || !ok || a.Rect.Empty() {
+			t.Fatalf("missing anchor %s in bridged layout: %+v, ok=%v, err=%v", id, a, ok, err)
+		}
+	}
+
+	view := nttypeset.View{Width: 800, Height: lay.Extent(), Scale: 1}
+	img, err := lay.Raster(ctx, view, nttypeset.RasterOptions{Palette: sm.Palette()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !imageHasColor(img, color.RGBA{0xf6, 0xf6, 0xef, 0xff}) {
+		t.Fatal("bridged raster missing #f6f6ef background")
+	}
+	if !imageHasColor(img, color.RGBA{0xff, 0x66, 0x00, 0xff}) {
+		t.Fatal("bridged raster missing #ff6600 banner background")
+	}
+}
+
 func containsString(list []string, target string) bool {
 	for _, s := range list {
 		if s == target {
