@@ -269,7 +269,7 @@ func parseAttrSelector(s string) (attrSelector, string, bool) {
 
 func parsePseudoClass(name, s string) (pseudoSelector, int, string, bool) {
 	switch name {
-	case "root", "first-child", "last-child", "only-child", "empty", "first-of-type", "last-of-type", "only-of-type", "link":
+	case "root", "first-child", "last-child", "only-child", "empty", "first-of-type", "last-of-type", "only-of-type", "link", "visited", "hover", "active", "focus":
 		if len(s) > 0 && s[0] == '(' {
 			return pseudoSelector{}, 0, "", false
 		}

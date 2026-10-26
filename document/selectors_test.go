@@ -31,7 +31,7 @@ func TestSelectorCascade(t *testing.T) {
 	}
 }
 func TestSelectorRejectionAndSpecificity(t *testing.T) {
-	for _, s := range []string{"", ".", "p >", "p >> a", "p +", "p[attr", "p[attr~=]", "p:hover", "p*", ".123", "#123", strings.Repeat(".a", 65)} {
+	for _, s := range []string{"", ".", "p >", "p >> a", "p +", "p[attr", "p[attr~=]", "p:foo", "p:visited(x)", "p*", ".123", "#123", strings.Repeat(".a", 65)} {
 		if _, _, ok := parseSelector(s); ok {
 			t.Errorf("accepted %q", s)
 		}
@@ -55,9 +55,41 @@ func TestSelectorBudget(t *testing.T) {
 	}
 }
 func TestInvalidSelectorList(t *testing.T) {
-	r := renderCSS(t, `<style>p{color:blue} p, p:hover {color:red}</style><p>Hello</p>`)
+	r := renderCSS(t, `<style>p{color:blue} p, p:foo {color:red}</style><p>Hello</p>`)
 	if tagged(r, "text").Color != (color.RGBA{0, 0, 255, 255}) {
 		t.Fatal("invalid selector list partially applied")
+	}
+}
+
+func TestDynamicPseudoClassesInSelectorLists(t *testing.T) {
+	red := color.RGBA{255, 0, 0, 255}
+	white := color.RGBA{255, 255, 255, 255}
+	blocks := `<body style="margin:0"><div class="a" style="height:40px">A</div><div class="b" style="height:40px"><a href="https://example.com">B</a></div></body>`
+
+	// .a, .b:visited{background:red} paints .a and never matches :visited
+	r := renderCSS(t, `<style>.a, .b:visited{background:red}</style>`+blocks)
+	if gotA, gotB := r.Image.RGBAAt(20, 20), r.Image.RGBAAt(20, 60); gotA != red || gotB != white {
+		t.Fatalf(".a, .b:visited: got A=%v B=%v, want red, white", gotA, gotB)
+	}
+
+	// .x a:link, .x a:hover, .x a:active, .x a:focus styles the link
+	rLink := renderCSS(t, `<style>.x a:link, .x a:hover, .x a:active, .x a:focus { color: red; text-decoration: none; }</style><div class="x"><a href="https://example.com">Link</a></div>`)
+	txt := tagged(rLink, "text")
+	if txt.Color != red || txt.Underline {
+		t.Fatalf("expected red non-underlined link, got color=%v underline=%v", txt.Color, txt.Underline)
+	}
+
+	// .a, .b:foo{background:red} drops the whole rule and paints nothing
+	rUnknown := renderCSS(t, `<style>.a, .b:foo{background:red}</style>`+blocks)
+	if gotA := rUnknown.Image.RGBAAt(20, 20); gotA != white {
+		t.Fatalf(".a, .b:foo: got A=%v, want white", gotA)
+	}
+
+	// Dynamic pseudo-classes with an argument are rejected
+	for _, bad := range []string{":visited(x)", ":hover()", ":active(1)", ":focus(a)"} {
+		if _, _, ok := parseSelector(bad); ok {
+			t.Fatalf("unexpectedly accepted %q", bad)
+		}
 	}
 }
 
