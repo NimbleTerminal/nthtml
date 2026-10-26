@@ -45,7 +45,7 @@ type style struct {
 	vertical                                   string
 	display, align, family                     string
 	bold, italic, underline, strike, smallCaps bool
-	mono, pre                                  bool
+	mono, pre, hidden                          bool
 	linkID                                     int
 	lineMultiplier                             float64
 }
@@ -74,7 +74,7 @@ func isCSSKeyword(v string) bool {
 
 func isInheritedProperty(k string) bool {
 	switch k {
-	case "color", "font-family", "font-size", "font-style", "font-variant", "font-weight", "line-height", "word-spacing", "letter-spacing", "text-indent", "text-transform", "list-style-type", "caption-side", "white-space", "overflow-wrap", "word-wrap", "border-collapse", "border-spacing", "text-align":
+	case "color", "font-family", "font-size", "font-style", "font-variant", "font-weight", "line-height", "word-spacing", "letter-spacing", "text-indent", "text-transform", "list-style-type", "caption-side", "white-space", "overflow-wrap", "word-wrap", "border-collapse", "border-spacing", "text-align", "visibility":
 		return true
 	}
 	return false
@@ -134,6 +134,26 @@ func declarations(s string) map[string]string {
 				for _, side := range borderSides {
 					put(k+"-"+side, kw)
 				}
+			case "inset":
+				for _, side := range borderSides {
+					put(side, kw)
+				}
+			case "margin-block", "padding-block":
+				base := strings.TrimSuffix(k, "-block")
+				put(base+"-top", kw)
+				put(base+"-bottom", kw)
+			case "margin-inline", "padding-inline":
+				base := strings.TrimSuffix(k, "-inline")
+				put(base+"-left", kw)
+				put(base+"-right", kw)
+			case "margin-block-start", "padding-block-start":
+				put(strings.TrimSuffix(k, "-block-start")+"-top", kw)
+			case "margin-block-end", "padding-block-end":
+				put(strings.TrimSuffix(k, "-block-end")+"-bottom", kw)
+			case "margin-inline-start", "padding-inline-start":
+				put(strings.TrimSuffix(k, "-inline-start")+"-left", kw)
+			case "margin-inline-end", "padding-inline-end":
+				put(strings.TrimSuffix(k, "-inline-end")+"-right", kw)
 			case "border":
 				for _, side := range borderSides {
 					for _, sub := range []string{"width", "style", "color"} {
@@ -199,8 +219,10 @@ func declarations(s string) map[string]string {
 			}
 		}
 		if k == "font-size" {
-			if _, ok := parseLength(v, false, false); !ok {
-				continue
+			if _, ok := fontSizeKeyword(v, 16); !ok {
+				if _, ok := parseLength(v, false, false); !ok {
+					continue
+				}
 			}
 		}
 		if k == "line-height" {
@@ -241,7 +263,7 @@ func declarations(s string) map[string]string {
 					put(key, value)
 				}
 			}
-		case "margin", "padding":
+		case "margin", "padding", "inset":
 			parts := strings.Fields(v)
 			sides, ok := expandFour(parts)
 			if !ok {
@@ -249,7 +271,7 @@ func declarations(s string) map[string]string {
 			}
 			valid := true
 			for _, part := range parts {
-				if k == "margin" {
+				if k == "margin" || k == "inset" {
 					_, ok = parseInset(part)
 				} else {
 					_, ok = parseLength(part, false, false)
@@ -262,7 +284,74 @@ func declarations(s string) map[string]string {
 				continue
 			}
 			for j, side := range borderSides {
-				put(k+"-"+side, sides[j])
+				if k == "inset" {
+					put(side, sides[j])
+				} else {
+					put(k+"-"+side, sides[j])
+				}
+			}
+		case "margin-block", "padding-block", "margin-inline", "padding-inline":
+			parts := strings.Fields(v)
+			if len(parts) < 1 || len(parts) > 2 {
+				continue
+			}
+			isMargin := strings.HasPrefix(k, "margin")
+			valid := true
+			for _, part := range parts {
+				if isMargin {
+					_, ok = parseInset(part)
+				} else {
+					_, ok = parseLength(part, false, false)
+				}
+				if !ok {
+					valid = false
+				}
+			}
+			if !valid {
+				continue
+			}
+			first, second := parts[0], parts[0]
+			if len(parts) == 2 {
+				second = parts[1]
+			}
+			base := "padding"
+			if isMargin {
+				base = "margin"
+			}
+			if strings.HasSuffix(k, "-block") {
+				put(base+"-top", first)
+				put(base+"-bottom", second)
+			} else {
+				put(base+"-left", first)
+				put(base+"-right", second)
+			}
+		case "margin-block-start", "margin-block-end", "margin-inline-start", "margin-inline-end":
+			if _, ok := parseInset(v); !ok {
+				continue
+			}
+			switch k {
+			case "margin-block-start":
+				put("margin-top", v)
+			case "margin-block-end":
+				put("margin-bottom", v)
+			case "margin-inline-start":
+				put("margin-left", v)
+			case "margin-inline-end":
+				put("margin-right", v)
+			}
+		case "padding-block-start", "padding-block-end", "padding-inline-start", "padding-inline-end":
+			if _, ok := parseLength(v, false, false); !ok {
+				continue
+			}
+			switch k {
+			case "padding-block-start":
+				put("padding-top", v)
+			case "padding-block-end":
+				put("padding-bottom", v)
+			case "padding-inline-start":
+				put("padding-left", v)
+			case "padding-inline-end":
+				put("padding-right", v)
 			}
 		case "border":
 			if values, ok := borderValues(v); ok {
@@ -540,7 +629,7 @@ func parseCSS(s string, budget int) ([]rule, error) {
 	return out, nil
 }
 func (d *Document) styled(n *node, parent style) style {
-	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
 	if n.tag == "svg" {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
 		s.height, _ = parseLength(n.attrs["height"], true, false)
@@ -682,6 +771,8 @@ func (d *Document) styled(n *node, parent style) style {
 		} else {
 			s.size = 16
 		}
+	} else if sz, ok := fontSizeKeyword(fsv, parent.size); ok {
+		s.size = sz
 	} else if value, ok := parseLength(fsv, false, false); ok {
 		value = value.computed(parent.size, s.rootSize)
 		s.size = value.resolve(parent.size, 128)
@@ -744,9 +835,9 @@ func (d *Document) styled(n *node, parent style) style {
 				s.bold = parent.bold
 			} else if kw == "initial" {
 				s.bold = false
-			} else if v == "bold" {
+			} else if strings.EqualFold(v, "bold") || strings.EqualFold(v, "bolder") {
 				s.bold = true
-			} else if v == "normal" {
+			} else if strings.EqualFold(v, "normal") || strings.EqualFold(v, "lighter") {
 				s.bold = false
 			} else if weight, e := strconv.Atoi(v); e == nil && weight >= 100 && weight <= 900 {
 				s.bold = weight >= 600
@@ -1144,8 +1235,28 @@ func (d *Document) styled(n *node, parent style) style {
 				s.align = parent.align
 			} else if kw == "initial" {
 				s.align = ""
-			} else if v == "left" || v == "right" || v == "center" || v == "justify" {
-				s.align = v
+			} else {
+				switch strings.ToLower(v) {
+				case "left", "right", "center", "justify":
+					s.align = strings.ToLower(v)
+				case "start":
+					s.align = "left"
+				case "end":
+					s.align = "right"
+				}
+			}
+		case "visibility":
+			if kw == "inherit" {
+				s.hidden = parent.hidden
+			} else if kw == "initial" {
+				s.hidden = false
+			} else {
+				switch strings.ToLower(v) {
+				case "hidden", "collapse":
+					s.hidden = true
+				case "visible":
+					s.hidden = false
+				}
 			}
 		default:
 			for i, side := range borderSides {

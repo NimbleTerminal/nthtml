@@ -114,7 +114,7 @@ func (l *layout) paint(dst *image.RGBA, ops []operation, area image.Rectangle, s
 		case op.source != nil:
 			xdraw.ApproxBiLinear.Scale(opDst, rect(b.Bounds), op.source, op.source.Bounds(), draw.Over, nil)
 		case b.Text != "":
-			if b.FontSize == 0 {
+			if b.FontSize == 0 || b.Color.A == 0 {
 				continue
 			}
 			f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})

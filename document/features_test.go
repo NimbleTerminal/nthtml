@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"image"
+	"image/color"
 	"strings"
 	"testing"
 
@@ -321,5 +322,85 @@ func TestHeadingAlignmentTablePaddingAndSpaceUnderlines(t *testing.T) {
 	px := r.Image.RGBAAt(spaceX, underY)
 	if px.R == 255 && px.G == 255 && px.B == 255 {
 		t.Fatalf("expected underline across space between link words at (%d,%d), got white %v", spaceX, underY, px)
+	}
+}
+
+func TestFirstLineScopingCurrentColorVisibilityAndLogicalCSS(t *testing.T) {
+	const src = `<html><head><style>
+		body { margin: 0; }
+		div.fl { color: red; }
+		div.fl::first-line { color: green; }
+		br { line-height: 0; }
+		span.box {
+			line-height: 40px;
+			background-color: currentColor;
+			border: 4px solid currentColor;
+		}
+		.hide { visibility: hidden; background: red; border: 4px solid red; }
+		.show { visibility: visible; color: blue; }
+		.logical {
+			position: relative;
+			width: 100px;
+			height: 20px;
+			margin-block: 6px 10px;
+			margin-inline: 12px 8px;
+			padding-block: 2px 4px;
+			padding-inline: 5px 7px;
+			text-align: end;
+		}
+		.abs {
+			position: absolute;
+			inset: 2px 4px 6px 8px;
+			background: lime;
+		}
+		.kw { font: bolder x-large/1.5 sans-serif; }
+		.kw-sub { font-size: smaller; font-weight: lighter; }
+	</style></head><body>
+		<div class="fl"><span class="box">First<br>Second</span></div>
+		<div class="hide">Hidden<span class="show">Visible</span></div>
+		<div class="logical"><div class="abs"></div>End</div>
+		<div class="kw">Big <span class="kw-sub">Small</span></div>
+	</body></html>`
+	r, err := Render(context.Background(), strings.NewReader(src), Options{Width: 300})
+	if err != nil {
+		t.Fatal(err)
+	}
+	green := color.RGBA{0, 128, 0, 255}
+	red := color.RGBA{255, 0, 0, 255}
+	blue := color.RGBA{0, 0, 255, 255}
+	var firstBox, secondBox, hiddenBox, visibleBox, bigBox, smallBox Box
+	for _, b := range r.Boxes {
+		switch b.Text {
+		case "First":
+			firstBox = b
+		case "Second":
+			secondBox = b
+		case "Hidden":
+			hiddenBox = b
+		case "Visible":
+			visibleBox = b
+		case "Big":
+			bigBox = b
+		case "Small":
+			smallBox = b
+		}
+	}
+	if firstBox.Color != green || secondBox.Color != red {
+		t.Fatalf("expected First=green and Second=red after <br>, got First=%v Second=%v", firstBox.Color, secondBox.Color)
+	}
+	if got := r.Image.RGBAAt(2, 2); got != green {
+		t.Fatalf("expected line 1 span border to be green at (2,2), got %v", got)
+	}
+	if got := r.Image.RGBAAt(2, 42); got != red {
+		t.Fatalf("expected line 2 span border to be red at (2,42), got %v", got)
+	}
+	if hiddenBox.Color.A != 0 || visibleBox.Color != blue {
+		t.Fatalf("expected Hidden alpha=0 and Visible=blue, got Hidden=%v Visible=%v", hiddenBox.Color, visibleBox.Color)
+	}
+	if visibleBox.Bounds.Min.X <= hiddenBox.Bounds.Min.X {
+		t.Fatalf("expected hidden text to reserve horizontal advance before visible child: hidden=%v visible=%v", hiddenBox.Bounds, visibleBox.Bounds)
+	}
+	if bigBox.FontSize != 24 || !bigBox.Bold || smallBox.FontSize != 20 || smallBox.Bold {
+		t.Fatalf("unexpected keyword font sizes/weights: big=%+v small=%+v", bigBox, smallBox)
 	}
 }

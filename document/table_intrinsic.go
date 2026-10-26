@@ -114,14 +114,23 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 			return 1, 1
 		}
 		sx := s.spacing[0]
+		var grid *collapsedGrid
 		if s.collapse {
 			sx = 0
+			grid = l.collapseGrid(rows, cols, s)
+			if l.err != nil {
+				return 1, 1
+			}
 		}
 		mins, prefs := make([]int, cols), make([]int, cols)
-		for _, row := range rows {
+		for ri, row := range rows {
 			for i, cell := range row.cells {
-				a, b := l.preferredCell(cell, row.styles[i], basis)
+				cs := row.styles[i]
 				sp := row.spans[i]
+				if grid != nil {
+					cs.bw = grid.spanInsets(ri, sp)
+				}
+				a, b := l.preferredCell(cell, cs, basis)
 				spreadRequirement(mins, sp.col, sp.cols, max(1, a-sx*(sp.cols-1)))
 				spreadRequirement(prefs, sp.col, sp.cols, max(1, b-sx*(sp.cols-1)))
 			}

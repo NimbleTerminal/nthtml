@@ -152,7 +152,7 @@ func (l *layout) diagram(n *node, kind, source string, x, y, w, height int, s st
 			s.mono = true
 			s.family = "Go Mono"
 		}
-		return l.flow([]*node{{text: text}}, x, y, w, s)
+		return l.flow([]*node{{text: text}}, x, y, w, s, s)
 	}
 	if l.opts.DisableDiagrams {
 		return fallback()

@@ -61,6 +61,11 @@ func fontValues(value string) (map[string]string, bool) {
 	i := 0
 	for ; i < len(tokens); i++ {
 		t := strings.ToLower(tokens[i].text)
+		if _, ok := fontSizeKeyword(t, 16); ok {
+			result["font-size"] = t
+			i++
+			break
+		}
 		if l, ok := parseLength(t, false, false); ok && (!cssNumber.MatchString(t) || l.value == 0) {
 			result["font-size"] = t
 			i++
@@ -80,7 +85,7 @@ func fontValues(value string) (map[string]string, bool) {
 			}
 			variantSet = true
 			result["font-variant"] = t
-		case "bold":
+		case "bold", "bolder", "lighter":
 			if weightSet {
 				return nil, false
 			}
@@ -145,6 +150,32 @@ func wordSpacingValue(v string) (cssLength, bool) {
 	}
 	l, ok := parseInset(v)
 	return l, ok && l.absolute()
+}
+
+func fontSizeKeyword(s string, parentSize int) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "xx-small":
+		return 9, true
+	case "x-small":
+		return 10, true
+	case "small":
+		return 13, true
+	case "medium":
+		return 16, true
+	case "large":
+		return 18, true
+	case "x-large":
+		return 24, true
+	case "xx-large":
+		return 32, true
+	case "xxx-large":
+		return 48, true
+	case "smaller":
+		return max(1, (parentSize*85+50)/100), true
+	case "larger":
+		return max(1, min(128, (parentSize*120+50)/100)), true
+	}
+	return 0, false
 }
 
 func smallCapSize(size int) int {

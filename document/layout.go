@@ -413,7 +413,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 					break
 				}
 			}
-			if marker != "" {
+			if marker != "" && !cs.hidden {
 				l.add(Box{Bounds: image.Rect(cx, markerY, cx+indent, markerY+s.line), Tag: "marker", Text: marker, Baseline: l.baseline(s), WordSpacing: s.wordSpacing, LetterSpacing: s.letterSpacing, FontSize: s.size, Bold: s.bold, SmallCaps: s.smallCaps, FontFamily: s.family, Italic: s.italic, Color: s.fg}, nil)
 			}
 			cy = max(cy, markerY+s.line)
@@ -425,10 +425,13 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		if src != nil && !src.Bounds().Empty() {
 			iw, h := imageSize(n, src.Bounds().Size(), s.width.definite(cw), cw, height)
 			h = min(h, l.d.limits.Height)
+			if s.hidden {
+				src = nil
+			}
 			l.add(Box{Bounds: image.Rect(cx, cy, cx+iw, cy+h), Tag: "img", LinkID: s.linkID}, src)
 			cy += h
 		} else {
-			cy = l.flow([]*node{{text: "[image: " + n.attrs["alt"] + "]"}}, cx, cy, cw, s)
+			cy = l.flow([]*node{{text: "[image: " + n.attrs["alt"] + "]"}}, cx, cy, cw, s, s)
 		}
 	} else if n.tag == "tr" {
 		cells := []*node{}
@@ -449,11 +452,11 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		flush := func() {
 			if len(inline) > 0 {
 				before := cy
-				flowStyle := s
+				firstStyle := s
 				if atTop && len(n.firstLineDecl) > 0 {
-					flowStyle = l.d.styled(&node{tag: "span", decl: n.firstLineDecl}, s)
+					firstStyle = l.d.styled(&node{tag: "span", decl: n.firstLineDecl}, s)
 				}
-				cy = l.flow(inline, cx, cy, cw, flowStyle)
+				cy = l.flow(inline, cx, cy, cw, s, firstStyle)
 				if cy != before {
 					pending = 0
 					pendingStrut = marginStrut{}
@@ -532,7 +535,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	}
 	if opStart < len(l.ops) {
 		bg := s.bg
-		if n == l.canvasNode {
+		if n == l.canvasNode || s.hidden {
 			bg = color.RGBA{}
 		}
 		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchorName(n), Color: bg}
@@ -554,7 +557,9 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			}
 		}
 	}
-	l.paintBorders(image.Rect(x, start, x+w, cy), s)
+	if !s.hidden {
+		l.paintBorders(image.Rect(x, start, x+w, cy), s)
+	}
 	if cy+margin[2] > l.pageHeightLimit() {
 		l.err = limitError("height")
 	}
@@ -648,12 +653,44 @@ func (l *layout) resolveInlineBlock(n *node, ib style, baseW int) (style, int) {
 	return ib, target + m[1] + m[3]
 }
 
-func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
+func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle style) int {
+	s := firstLineStyle
 	baseX, baseW := x, w
 	lineHeight := 0
 	px := x
 	lineStart := len(l.ops)
 	hasText, lineReady, firstLine := false, false, true
+	type activeSpan struct {
+		node    *node
+		st      style
+		bg      color.RGBA
+		margin  [4]int
+		padding [4]int
+		startOp int
+	}
+	var activeSpans []*activeSpan
+	paintSpanBorder := func(sp *activeSpan) {
+		if !sp.st.hasBorder() || sp.st.hidden {
+			return
+		}
+		minX, maxX := px, px
+		hasSpanBox := false
+		for i := max(sp.startOp, lineStart); i < len(l.ops); i++ {
+			b := l.ops[i].box
+			if b.Tag == "text" || b.Tag == "img" {
+				if !hasSpanBox {
+					minX, maxX = b.Bounds.Min.X, b.Bounds.Max.X
+					hasSpanBox = true
+				} else {
+					minX = min(minX, b.Bounds.Min.X)
+					maxX = max(maxX, b.Bounds.Max.X)
+				}
+			}
+		}
+		if hasSpanBox {
+			l.paintBorders(image.Rect(minX-sp.padding[3]-sp.st.bw[3], y, maxX+sp.padding[1]+sp.st.bw[1], y+sp.st.line), sp.st)
+		}
+	}
 	prepareLine := func() {
 		if lineReady {
 			return
@@ -685,7 +722,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 	preColumn := 0
 	prefix := "\n"
 	paintSpace := func(px, space int) {
-		if space <= 0 {
+		if space <= 0 || pendingSpaceStyle.hidden {
 			return
 		}
 		if pendingSpaceBg.A > 0 {
@@ -710,6 +747,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 	}
 	finishLine := func(wrapped bool) {
 		prepareLine()
+		for _, sp := range activeSpans {
+			paintSpanBorder(sp)
+		}
 		used := px - x
 		shift := 0
 		if s.align == "center" {
@@ -745,12 +785,30 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		x, w = baseX, baseW
 		px = x
 		firstLine = false
+		s = normalStyle
 		lineReady = false
 		lineStart = len(l.ops)
 		hasText = false
 		pendingSpace = false
 		pendingSpaceBg = color.RGBA{}
+		pendingLeft = 0
 		spaceWraps = false
+		parentSt := s
+		var parentBg color.RGBA
+		for _, sp := range activeSpans {
+			sp.st = l.d.styled(sp.node, parentSt)
+			sp.bg = parentBg
+			if sp.st.hidden {
+				sp.bg = color.RGBA{}
+			} else if sp.st.bg.A > 0 {
+				sp.bg = sp.st.bg
+			}
+			sp.margin, sp.padding = resolveEdges(sp.st.margin, baseW), resolveEdges(sp.st.padding, baseW)
+			sp.startOp = len(l.ops)
+			pendingLeft += sp.margin[3] + sp.st.bw[3] + sp.padding[3]
+			parentSt = sp.st
+			parentBg = sp.bg
+		}
 	}
 	newline := func() { finishLine(false) }
 	wrapLine := func() { finishLine(true) }
@@ -758,13 +816,21 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 	if s.height.definite(-1) {
 		parentH = s.height.resolve(-1, l.d.limits.Height)
 	}
-	var visit func(*node, style, color.RGBA)
-	visit = func(n *node, st style, inlineBg color.RGBA) {
+	curContext := func(sp *activeSpan) (style, color.RGBA) {
+		if sp != nil {
+			return sp.st, sp.bg
+		}
+		return s, color.RGBA{}
+	}
+	var visit func(*node, *activeSpan)
+	visit = func(n *node, parentSpan *activeSpan) {
 		if l.err != nil {
 			return
 		}
+		st, inlineBg := curContext(parentSpan)
+		var computed style
 		if n.tag != "" {
-			computed := l.d.styled(n, st)
+			computed = l.d.styled(n, st)
 			if computed.display == "none" {
 				return
 			}
@@ -782,13 +848,13 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			}
 		}
 		if n.tag == "br" {
-			lineHeight = max(lineHeight, st.line)
+			lineHeight = max(lineHeight, computed.line)
 			prefix += "\n"
 			newline()
 			return
 		}
 		if kind, _ := diagramSource(n); kind != "" {
-			if l.d.styled(n, st).display == "none" {
+			if computed.display == "none" {
 				return
 			}
 			if hasText {
@@ -804,7 +870,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			return
 		}
 		if n.tag != "" {
-			st = l.d.styled(n, st)
+			st = computed
 			if st.position == "absolute" {
 				l.queueAbsolute(n, st, px, y)
 				return
@@ -815,10 +881,11 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			if n.tag == "img" {
 				src := l.opts.Images[n.attrs["src"]]
 				if src == nil || src.Bounds().Empty() {
+					sp := &activeSpan{node: n, st: st, bg: inlineBg}
 					if st.bg.A > 0 {
-						inlineBg = st.bg
+						sp.bg = st.bg
 					}
-					visit(&node{text: "[image: " + n.attrs["alt"] + "]"}, st, inlineBg)
+					visit(&node{text: "[image: " + n.attrs["alt"] + "]"}, sp)
 					return
 				}
 				margin, padding := resolveEdges(st.margin, baseW), resolveEdges(st.padding, baseW)
@@ -892,15 +959,27 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				pendingSpace = false
 				pendingSpaceBg = color.RGBA{}
 				spaceWraps = false
+				lh := max(max(lineHeight, st.line), outerH)
+				vOff := 0
+				switch st.vertical {
+				case "bottom":
+					vOff = lh - outerH
+				case "middle":
+					vOff = (lh - outerH) / 2
+				}
 				ix := px + margin[3] + st.bw[3] + padding[3]
-				iy := y + margin[0] + st.bw[0] + padding[0]
+				iy := y + vOff + margin[0] + st.bw[0] + padding[0]
 				var shift image.Point
 				if st.position == "relative" {
 					shift = relativeOffset(st, baseW, parentH)
 				}
-				l.add(Box{Bounds: image.Rect(ix, iy, ix+iw, iy+ih).Add(shift), Tag: "img", Anchor: anchorName(n), LinkID: st.linkID}, src)
-				if st.hasBorder() {
-					bRect := image.Rect(px+margin[3], y+margin[0], px+margin[3]+iw+padding[1]+padding[3]+st.borderH(), y+margin[0]+ih+padding[0]+padding[2]+st.borderV()).Add(shift)
+				imgSrc := src
+				if st.hidden {
+					imgSrc = nil
+				}
+				l.add(Box{Bounds: image.Rect(ix, iy, ix+iw, iy+ih).Add(shift), Tag: "img", Anchor: anchorName(n), LinkID: st.linkID}, imgSrc)
+				if st.hasBorder() && !st.hidden {
+					bRect := image.Rect(px+margin[3], y+vOff+margin[0], px+margin[3]+iw+padding[1]+padding[3]+st.borderH(), y+vOff+margin[0]+ih+padding[0]+padding[2]+st.borderV()).Add(shift)
 					l.paintBorders(bRect, st)
 				}
 				px += outerW
@@ -940,7 +1019,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				prefix = ""
 				return
 			}
-			if st.bg.A > 0 {
+			if st.hidden {
+				inlineBg = color.RGBA{}
+			} else if st.bg.A > 0 {
 				inlineBg = st.bg
 			}
 			margin, padding := resolveEdges(st.margin, baseW), resolveEdges(st.padding, baseW)
@@ -948,33 +1029,17 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			if name := anchorName(n); name != "" {
 				l.add(Box{Tag: "anchor", Anchor: name, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
 			}
-			spanStartOp := len(l.ops)
+			sp := &activeSpan{node: n, st: st, bg: inlineBg, margin: margin, padding: padding, startOp: len(l.ops)}
+			activeSpans = append(activeSpans, sp)
 			for _, c := range n.children {
-				visit(c, st, inlineBg)
+				visit(c, sp)
 			}
-			if st.hasBorder() {
-				minX, maxX := px, px
-				hasSpanBox := false
-				for i := max(spanStartOp, lineStart); i < len(l.ops); i++ {
-					b := l.ops[i].box
-					if b.Tag == "text" || b.Tag == "img" {
-						if !hasSpanBox {
-							minX, maxX = b.Bounds.Min.X, b.Bounds.Max.X
-							hasSpanBox = true
-						} else {
-							minX = min(minX, b.Bounds.Min.X)
-							maxX = max(maxX, b.Bounds.Max.X)
-						}
-					}
-				}
-				if hasSpanBox {
-					l.paintBorders(image.Rect(minX-padding[3]-st.bw[3], y, maxX+padding[1]+st.bw[1], y+st.line), st)
-				}
-			}
+			activeSpans = activeSpans[:len(activeSpans)-1]
+			paintSpanBorder(sp)
 			if hasText && !pendingSpace {
-				px += padding[1] + st.bw[1] + margin[1]
+				px += sp.padding[1] + sp.st.bw[1] + sp.margin[1]
 			} else {
-				pendingLeft += padding[1] + st.bw[1] + margin[1]
+				pendingLeft += sp.padding[1] + sp.st.bw[1] + sp.margin[1]
 			}
 			return
 		}
@@ -987,13 +1052,22 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 			}
 			return
 		}
-		f := l.face(st)
-		baseOffset := l.baseline(st)
-		if st.vertical == "sub" {
-			baseOffset += max(2, st.size/4)
-		} else if st.vertical == "sup" || st.vertical == "super" {
-			baseOffset = max(st.size, baseOffset-max(2, st.size/3))
+		var f font.Face
+		baseOffset := 0
+		refreshTextStyle := func() {
+			st, inlineBg = curContext(parentSpan)
+			if st.size == 0 {
+				return
+			}
+			f = l.face(st)
+			baseOffset = l.baseline(st)
+			if st.vertical == "sub" {
+				baseOffset += max(2, st.size/4)
+			} else if st.vertical == "sup" || st.vertical == "super" {
+				baseOffset = max(st.size, baseOffset-max(2, st.size/3))
+			}
 		}
+		refreshTextStyle()
 		rawText := applyTextTransform(n.text, st.textTransform)
 		if st.pre {
 			text, nextColumn := preTextAt(rawText, preColumn)
@@ -1017,6 +1091,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					lineHeight = max(lineHeight, st.line)
 					prefix += "\n"
 					newline()
+					refreshTextStyle()
 					continue
 				}
 				lineHeight = max(lineHeight, st.line)
@@ -1039,18 +1114,24 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					ww := l.measureTextStyled(st, f, string(runes[index:end]))
 					if px > x && px+ww > x+w {
 						wrapLine()
+						refreshTextStyle()
 						prepareLine()
 					}
 				}
 				adv := l.glyphAdvanceStyled(st, f, r)
 				if st.whiteSpace != "pre" && (cssSpace(r) || st.overflowWrap != "normal") && px > x && px+adv > x+w {
 					wrapLine()
+					refreshTextStyle()
 					prepareLine()
 				}
-				if inlineBg.A > 0 && adv > 0 {
+				fgColor := st.fg
+				if st.hidden {
+					fgColor = color.RGBA{}
+				}
+				if inlineBg.A > 0 && adv > 0 && !st.hidden {
 					l.rect(image.Rect(px, y, px+adv, y+st.line), inlineBg, "span")
 				}
-				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), Baseline: baseOffset, WordSpacing: st.wordSpacing, LetterSpacing: st.letterSpacing, TextPrefix: prefix, FontSize: st.size, Bold: st.bold, SmallCaps: st.smallCaps, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Monospace: st.mono, Color: st.fg, LinkID: st.linkID}, nil)
+				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), Baseline: baseOffset, WordSpacing: st.wordSpacing, LetterSpacing: st.letterSpacing, TextPrefix: prefix, FontSize: st.size, Bold: st.bold, SmallCaps: st.smallCaps, FontFamily: st.family, Italic: st.italic, Underline: st.underline && !st.hidden, Strike: st.strike && !st.hidden, Monospace: st.mono, Color: fgColor, LinkID: st.linkID}, nil)
 				prefix = ""
 				px += adv
 				hasText = true
@@ -1087,6 +1168,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				}
 				if (st.whiteSpace != "nowrap" || spaceWraps) && px > x && px+space+pendingLeft+checkW > x+w {
 					wrapLine()
+					refreshTextStyle()
 					prepareLine()
 					space = 0
 				}
@@ -1097,10 +1179,14 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 				runX := px
 				emit := func() {
 					if run.Len() > 0 {
-						if inlineBg.A > 0 && px > runX {
+						fgColor := st.fg
+						if st.hidden {
+							fgColor = color.RGBA{}
+						}
+						if inlineBg.A > 0 && px > runX && !st.hidden {
 							l.rect(image.Rect(runX, y, px, y+st.line), inlineBg, "span")
 						}
-						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), Baseline: baseOffset, WordSpacing: st.wordSpacing, LetterSpacing: st.letterSpacing, TextPrefix: prefix, FontSize: st.size, Bold: st.bold, SmallCaps: st.smallCaps, FontFamily: st.family, Italic: st.italic, Underline: st.underline, Strike: st.strike, Color: st.fg, Monospace: st.mono, LinkID: st.linkID}, nil)
+						l.add(Box{Bounds: image.Rect(runX, y, px, y+st.line), Tag: "text", Text: run.String(), Baseline: baseOffset, WordSpacing: st.wordSpacing, LetterSpacing: st.letterSpacing, TextPrefix: prefix, FontSize: st.size, Bold: st.bold, SmallCaps: st.smallCaps, FontFamily: st.family, Italic: st.italic, Underline: st.underline && !st.hidden, Strike: st.strike && !st.hidden, Color: fgColor, Monospace: st.mono, LinkID: st.linkID}, nil)
 						run.Reset()
 						prefix = ""
 						hasText = true
@@ -1129,7 +1215,10 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					if st.whiteSpace != "nowrap" && st.overflowWrap != "normal" && px > x && px+adv > x+w {
 						emit()
 						wrapLine()
+						refreshTextStyle()
 						prepareLine()
+						px += pendingLeft
+						pendingLeft = 0
 						runX = px
 					}
 					run.WriteRune(r)
@@ -1153,6 +1242,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 					lineHeight = max(lineHeight, st.line)
 					prefix += "\n"
 					newline()
+					refreshTextStyle()
 				} else if hasText {
 					if !pendingSpace {
 						pendingSpace = true
@@ -1168,7 +1258,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, s style) int {
 		}
 	}
 	for _, n := range nodes {
-		visit(n, s, color.RGBA{})
+		visit(n, nil)
 	}
 	if hasText {
 		newline()

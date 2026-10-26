@@ -2,6 +2,7 @@ package document
 
 import (
 	"image"
+	"image/color"
 )
 
 type tableRow struct {
@@ -116,6 +117,13 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 		}
 		return y, w
 	}
+	var grid *collapsedGrid
+	if s.collapse {
+		grid = l.collapseGrid(rows, columns, s)
+		if l.err != nil {
+			return y, w
+		}
+	}
 	minimum, preferred := make([]int, columns), make([]int, columns)
 	sx, sy := s.spacing[0], s.spacing[1]
 	if s.collapse {
@@ -123,10 +131,14 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 	}
 	// Keep one content pixel per column; constrain spacing on narrow viewports.
 	sx = min(sx, max(0, (w-columns)/(columns+1)))
-	for _, row := range rows {
+	for ri, row := range rows {
 		for i, cell := range row.cells {
-			a, b := l.preferredCell(cell, row.styles[i], w)
+			cs := row.styles[i]
 			sp := row.spans[i]
+			if grid != nil {
+				cs.bw = grid.spanInsets(ri, sp)
+			}
+			a, b := l.preferredCell(cell, cs, w)
 			spreadRequirement(minimum, sp.col, sp.cols, max(1, a-sx*(sp.cols-1)))
 			spreadRequirement(preferred, sp.col, sp.cols, max(1, b-sx*(sp.cols-1)))
 		}
@@ -172,13 +184,6 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 	xs := []int{x + sx}
 	for _, width := range widths {
 		xs = append(xs, xs[len(xs)-1]+width+sx)
-	}
-	var grid *collapsedGrid
-	if s.collapse {
-		grid = l.collapseGrid(rows, columns, s)
-		if l.err != nil {
-			return y, w
-		}
 	}
 	type laidCell struct {
 		start, end, height, row int
@@ -266,11 +271,15 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 	}
 	for ri, row := range rows {
 		top, bottom := rowY[ri], rowY[ri+1]-sy
-		l.ops[rowOps[ri]].box = Box{Tag: "tr", Bounds: image.Rect(x+sx, top, x+w-sx, bottom), Color: row.style.bg}
+		rowBg := row.style.bg
+		if row.style.hidden {
+			rowBg = color.RGBA{}
+		}
+		l.ops[rowOps[ri]].box = Box{Tag: "tr", Bounds: image.Rect(x+sx, top, x+w-sx, bottom), Color: rowBg}
 		if len(rowPieces[ri]) > 0 {
 			l.ops[rowOps[ri]].box.Color.A = 0
 			for col, op := range rowPieces[ri] {
-				l.ops[op].box = Box{Tag: "row-background", Bounds: image.Rect(xs[col], top, xs[col]+widths[col], bottom), Color: row.style.bg}
+				l.ops[op].box = Box{Tag: "row-background", Bounds: image.Rect(xs[col], top, xs[col]+widths[col], bottom), Color: rowBg}
 			}
 		}
 		for _, name := range row.anchors {
@@ -298,7 +307,9 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 		for i := cell.start + 1; i < cell.end; i++ {
 			l.ops[i].box.translate(image.Pt(0, shift))
 		}
-		l.paintBorders(l.ops[cell.start].box.Bounds, cell.s)
+		if !cell.s.hidden {
+			l.paintBorders(l.ops[cell.start].box.Bounds, cell.s)
+		}
 	}
 	if grid != nil {
 		grid.paint(l, x, widths, rowY)

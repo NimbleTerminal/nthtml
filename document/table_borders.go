@@ -15,7 +15,11 @@ func borderSideOf(s style, side, priority int) tableBorder {
 	if s.borderStyle[side] == "hidden" {
 		return tableBorder{width: 0, priority: 100, hidden: true}
 	}
-	return tableBorder{width: s.bw[side], priority: priority, color: s.borderColor(side)}
+	c := s.borderColor(side)
+	if s.hidden {
+		c = color.RGBA{}
+	}
+	return tableBorder{width: s.bw[side], priority: priority, color: c}
 }
 
 func chooseBorder(a, b tableBorder) tableBorder {
@@ -132,6 +136,29 @@ func (g *collapsedGrid) paint(l *layout, x int, widths, ys []int) {
 		xs = append(xs, xs[len(xs)-1]+w)
 	}
 	bounds := image.Rect(x, ys[0], xs[len(xs)-1], ys[len(ys)-1])
+	vWidthAt := func(r, c int) int {
+		w := 0
+		if r > 0 {
+			w = max(w, g.v[(r-1)*(g.cols+1)+c].width)
+		}
+		if r < g.rows {
+			w = max(w, g.v[r*(g.cols+1)+c].width)
+		}
+		return w
+	}
+	for r := 0; r < g.rows; r++ {
+		for c := 0; c <= g.cols; c++ {
+			b := g.v[r*(g.cols+1)+c]
+			vx := xs[c] - b.width/2
+			if c == 0 {
+				vx = xs[c]
+			}
+			if c == g.cols {
+				vx = xs[c] - b.width
+			}
+			l.rect(image.Rect(vx, ys[r], vx+b.width, ys[r+1]).Intersect(bounds), b.color, "collapsed-border")
+		}
+	}
 	for r := 0; r <= g.rows; r++ {
 		for c := 0; c < g.cols; c++ {
 			b := g.h[r*g.cols+c]
@@ -142,20 +169,26 @@ func (g *collapsedGrid) paint(l *layout, x int, widths, ys []int) {
 			if r == g.rows {
 				y = ys[r] - b.width
 			}
-			l.rect(image.Rect(xs[c], y, xs[c+1], y+b.width).Intersect(bounds), b.color, "collapsed-border")
-		}
-	}
-	for r := 0; r < g.rows; r++ {
-		for c := 0; c <= g.cols; c++ {
-			b := g.v[r*(g.cols+1)+c]
-			x := xs[c] - b.width/2
-			if c == 0 {
-				x = xs[c]
+			hx0, hx1 := xs[c], xs[c+1]
+			if c > 0 {
+				vW := vWidthAt(r, c)
+				leftH := g.h[r*g.cols+c-1]
+				if chooseBorder(leftH, b) == b {
+					hx0 = xs[c] - vW/2
+				} else {
+					hx0 = xs[c] - vW/2 + vW
+				}
 			}
-			if c == g.cols {
-				x = xs[c] - b.width
+			if c < g.cols-1 {
+				vW := vWidthAt(r, c+1)
+				rightH := g.h[r*g.cols+c+1]
+				if chooseBorder(b, rightH) == rightH {
+					hx1 = xs[c+1] - vW/2
+				} else {
+					hx1 = xs[c+1] - vW/2 + vW
+				}
 			}
-			l.rect(image.Rect(x, ys[r], x+b.width, ys[r+1]).Intersect(bounds), b.color, "collapsed-border")
+			l.rect(image.Rect(hx0, y, hx1, y+b.width).Intersect(bounds), b.color, "collapsed-border")
 		}
 	}
 }

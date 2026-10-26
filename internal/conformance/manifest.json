@@ -65,6 +65,7 @@
     "css/CSS2/linebox/line-height-006-ref.xht": "18990b76af1812d32ef6ccd93a17fa50132d2d839b3615faef16ec5e2ea12cb0",
     "css/CSS2/linebox/line-height-006.xht": "eeb1a2f0ac07b6fe39de5e974edbe24e673e5e275e2cd563d31e2c94b465c211",
     "css/CSS2/linebox/line-height-007.xht": "d032a2ba96cf4999df2a65b9f20447e653602754a999216b08b171e482526936",
+    "css/CSS2/linebox/support/black15x15.png": "4797fabddca807b837064f5640b4603674053cdc1d9f2f5cd6f1cb90c5fe1caa",
     "css/CSS2/margin-padding-clear/margin-001-ref.xht": "96f2cdeea6ad5902b1f1c0bd28b80ef1d13975e31880f539c5a978455db92b6f",
     "css/CSS2/margin-padding-clear/margin-001.xht": "5d7a4c3e10f254e45c1ae0fcd91e2c8506b92f8862b01bca669f1e444e0c21ab",
     "css/CSS2/margin-padding-clear/padding-001.xht": "c0266a2fde6bba214758ef108b7707dbed9499d35ab39287a6b97c03e6f8a96e",
@@ -159,11 +160,21 @@
     "css/CSS2/selectors/id-selector-004.xht": "85af07871e831d8a4e76280a21e30c7314b2fcb8af7fd8b2a51654ee59c050f4",
     "css/CSS2/selectors/id-selector-005.xht": "d45e68d10f653ed96dd3171304c4cf87aa74ac5db7099240f0dbb58c90c1b392",
     "css/CSS2/selectors/id-selector-006.xht": "0744a9f3691b12109996953fa14f06d70de11f1e3505a452eed12ab73a184141",
+    "css/CSS2/support/swatch-blue.png": "a2cb741be17fd94f176247f4dca28146b237f34a6df1d46c813d4e0072e41578",
+    "css/CSS2/support/swatch-green.png": "bfdf34690a36ddebb5f08029df544183f3d5a3e9e21dbff0f4d4315f862236c0",
+    "css/CSS2/support/swatch-orange.png": "8f6d8b04d0f5f7dd0d153f9e5dfc0c54ed822ae9623410baf71759ec4ea02692",
+    "css/CSS2/support/swatch-yellow.png": "57775b7c1cf308219fb03c6ccfd04d2f47797bb47b79bbb7c9ffb656b108405f",
     "css/CSS2/tables/border-collapse-001.xht": "2378a0025e0f64ad669937db8c8d303cc6d98f2d12c90dab908d959ab071ca36",
     "css/CSS2/tables/border-collapse-offset-001-ref.xht": "a50ef5eb9e3739768078e57a181660184e6c684e7bec85bf2719f515d3305731",
     "css/CSS2/tables/border-collapse-offset-001.xht": "c296f066c41f168d35e63acb3175d3efaf5d3f9ca73c03d494cd503ec20e6ab1",
     "css/CSS2/tables/border-conflict-element-001d-ref.xht": "adcb809fde777c1cdb97449faef3e8fe634b034d03bfadcd2dc81e616c32bca1",
     "css/CSS2/tables/border-conflict-element-001d.xht": "217226caba0c452831eeb9692d8f939946811d3a4404719ca2e3e4fb67db60fc",
+    "css/CSS2/tables/support/swatch-blue.png": "a2cb741be17fd94f176247f4dca28146b237f34a6df1d46c813d4e0072e41578",
+    "css/CSS2/tables/support/swatch-green.png": "bfdf34690a36ddebb5f08029df544183f3d5a3e9e21dbff0f4d4315f862236c0",
+    "css/CSS2/tables/support/swatch-orange.png": "8f6d8b04d0f5f7dd0d153f9e5dfc0c54ed822ae9623410baf71759ec4ea02692",
+    "css/CSS2/tables/support/swatch-yellow.png": "57775b7c1cf308219fb03c6ccfd04d2f47797bb47b79bbb7c9ffb656b108405f",
+    "css/CSS2/text/support/swatch-green.png": "bfdf34690a36ddebb5f08029df544183f3d5a3e9e21dbff0f4d4315f862236c0",
+    "css/CSS2/text/support/swatch-lime.png": "618311c47a5bb42bca83e0a1b975a509efea452557139e3121596cb1175f038d",
     "css/CSS2/text/white-space-001-ref.xht": "28f61b29c2944957be4a9d7ea253c6849ebc72dcbc82e48771d6a359888d44c8",
     "css/CSS2/text/white-space-001.xht": "df4bef53f1d56c441c240911d030511d2d9307079269f96c5652db1e5391a33c",
     "css/CSS2/text/white-space-002-ref.xht": "10d2d65d959608c69a76f4216ab8ae9fc3084f237082246d4a0cb61e389d5448",
@@ -358,9 +369,20 @@
     },
     {
       "path": "css/CSS2/tables/border-conflict-element-001d.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Requires Ahem, external image assets, per-side border colors.",
-      "area": "tables"
+      "expected": "PASS",
+      "reason": "Audited collapsed table border conflict resolution (left/top priority for equal width and style) matches the swatch-image reference.",
+      "area": "tables",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/tables/support/swatch-blue.png",
+        "css/CSS2/tables/support/swatch-yellow.png",
+        "css/CSS2/tables/support/swatch-green.png",
+        "css/CSS2/tables/support/swatch-orange.png",
+        "css/CSS2/support/swatch-blue.png",
+        "css/CSS2/support/swatch-yellow.png",
+        "css/CSS2/support/swatch-green.png",
+        "css/CSS2/support/swatch-orange.png"
+      ]
     },
     {
       "path": "css/CSS2/tables/border-collapse-001.xht",
@@ -903,27 +925,43 @@
     },
     {
       "path": "css/CSS2/text/white-space-normal-001.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited white-space collapsing across empty/inline-containing blocks matches the pinned swatch-image reference.",
+      "area": "typography and whitespace",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/text/support/swatch-lime.png"
+      ]
     },
     {
       "path": "css/CSS2/text/white-space-normal-002.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited multi-space white-space collapsing across empty/inline-containing blocks matches the pinned swatch-image reference.",
+      "area": "typography and whitespace",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/text/support/swatch-lime.png"
+      ]
     },
     {
       "path": "css/CSS2/text/white-space-normal-003.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited Unicode space, tab, NBSP, and zero-width no-break space collapsing with Ahem ascender/descender glyphs matches the pinned swatch-image reference.",
+      "area": "typography and whitespace",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/text/support/swatch-green.png"
+      ]
     },
     {
       "path": "css/CSS2/text/white-space-normal-004.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited Unicode space collapsing across nested inline elements matches the pinned swatch-image reference.",
+      "area": "typography and whitespace",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/text/support/swatch-green.png"
+      ]
     },
     {
       "path": "css/CSS2/text/white-space-normal-005.xht",
@@ -934,9 +972,13 @@
     },
     {
       "path": "css/CSS2/text/white-space-nowrap-001.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited white-space:nowrap overflow past a narrower container covers the red outer box and matches the pinned swatch-image reference.",
+      "area": "typography and whitespace",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/text/support/swatch-green.png"
+      ]
     },
     {
       "path": "css/CSS2/text/white-space-nowrap-005.xht",
@@ -955,13 +997,13 @@
     {
       "path": "css/CSS2/text/white-space-pre-001.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
+      "reason": "Reference hardcodes browser UA stylesheet 1px table-cell padding and 1em pre margin offsets (margin-left: 3px; margin-top: 39px).",
       "area": "typography and whitespace"
     },
     {
       "path": "css/CSS2/text/white-space-pre-002.xht",
       "expected": "UNSUPPORTED",
-      "reason": "Reference requires unpinned external swatch image assets (support/swatch-lime.png or support/swatch-green.png).",
+      "reason": "Reference hardcodes browser UA stylesheet 1px table-cell padding and 1em pre margin offsets (margin-left: 3px; margin-top: 39px).",
       "area": "typography and whitespace"
     },
     {
@@ -1543,27 +1585,43 @@
     },
     {
       "path": "css/CSS2/linebox/line-height-002.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img) and unpinned support/black15x15.png asset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited 0px line-height half-leading and adjacent sibling (img + img) reference geometry match with the pinned black15x15.png asset.",
+      "area": "typography and whitespace",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/linebox/support/black15x15.png"
+      ]
     },
     {
       "path": "css/CSS2/linebox/line-height-004.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img) and unpinned support/black15x15.png asset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited -0px line-height half-leading and adjacent sibling (img + img) reference geometry match with the pinned black15x15.png asset.",
+      "area": "typography and whitespace",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/linebox/support/black15x15.png"
+      ]
     },
     {
       "path": "css/CSS2/linebox/line-height-006.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img) and unpinned support/black15x15.png asset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited 96px line-height half-leading and adjacent sibling (img + img) reference geometry match with the pinned black15x15.png asset.",
+      "area": "typography and whitespace",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/linebox/support/black15x15.png"
+      ]
     },
     {
       "path": "css/CSS2/linebox/line-height-007.xht",
-      "expected": "UNSUPPORTED",
-      "reason": "Reference requires adjacent sibling selector (img + img) and unpinned support/black15x15.png asset.",
-      "area": "typography and whitespace"
+      "expected": "PASS",
+      "reason": "Audited +96px line-height half-leading and adjacent sibling (img + img) reference geometry match with the pinned black15x15.png asset.",
+      "area": "typography and whitespace",
+      "ahem": true,
+      "assets": [
+        "css/CSS2/linebox/support/black15x15.png"
+      ]
     }
   ]
 }
