@@ -34,8 +34,16 @@ type TTYResult struct {
 }
 
 // TTYLayout returns plain text plus link spans, without terminal escape codes.
+// @media width queries are evaluated at columns * 10 CSS pixels (80 cols = 800 px).
 func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error) {
 	clampedW := max(2, min(1000, width))
+	if d != nil && d.root != nil {
+		var err error
+		d, err = d.forWidth(ctx, clampedW*ttyWidthPxPerColumn)
+		if err != nil {
+			return nil, err
+		}
+	}
 	raw, e := d.tty(ctx, clampedW)
 	if e != nil {
 		return nil, e
@@ -67,6 +75,7 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 	var text strings.Builder
 	var active []string
 	startY := map[string]int{}
+	pendingStart := map[string]bool{}
 	curLineSource := ""
 	x, y, current := 0, 0, 0
 	for len(raw) > 0 {
@@ -109,9 +118,9 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 				if _, ok := result.Anchors[name]; !ok {
 					result.Anchors[name] = image.Pt(x, y)
 					startY[name] = y
+					pendingStart[name] = true
 				}
 				active = append(active, name)
-				curLineSource = name
 			}
 			raw = raw[end+1:]
 			continue
@@ -132,9 +141,6 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 		if raw[0] == '\n' {
 			result.lineSources = append(result.lineSources, curLineSource)
 			curLineSource = ""
-			if len(active) > 0 {
-				curLineSource = active[len(active)-1]
-			}
 			text.WriteByte('\n')
 			x = 0
 			y++
@@ -152,6 +158,17 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 		chunk := raw[:end]
 		if curLineSource == "" && len(active) > 0 {
 			curLineSource = active[len(active)-1]
+		}
+		// Structural markers may sit after the previous paragraph's text.
+		// Anchor scopes start at their first visible content, not that marker.
+		if ansi.StringWidth(chunk) > 0 {
+			for _, name := range active {
+				if pendingStart[name] {
+					result.Anchors[name] = image.Pt(x, y)
+					startY[name] = y
+					delete(pendingStart, name)
+				}
+			}
 		}
 		start := text.Len()
 		text.WriteString(chunk)

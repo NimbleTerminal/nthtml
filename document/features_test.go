@@ -404,3 +404,134 @@ func TestFirstLineScopingCurrentColorVisibilityAndLogicalCSS(t *testing.T) {
 		t.Fatalf("unexpected keyword font sizes/weights: big=%+v small=%+v", bigBox, smallBox)
 	}
 }
+
+func TestAtRulesAndMediaQueries(t *testing.T) {
+	ctx := context.Background()
+	white := color.RGBA{255, 255, 255, 255}
+	red := color.RGBA{255, 0, 0, 255}
+	blue := color.RGBA{0, 0, 255, 255}
+	green := color.RGBA{0, 128, 0, 255}
+
+	blocks := `<body style="margin:0"><div class="a" style="height:40px">A</div><div class="b" style="height:40px">B</div><div class="c" style="height:40px">C</div></body>`
+	src := `<style>@media (max-width:750px){.a{background:red}.b{background:blue}} .c{background:green}</style>` + blocks
+
+	doc, err := Parse(ctx, strings.NewReader(src), Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Width 800: only .c painted
+	r800, err := doc.Render(ctx, Options{Width: 800})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotA, gotB, gotC := r800.Image.RGBAAt(20, 20), r800.Image.RGBAAt(20, 60), r800.Image.RGBAAt(20, 100); gotA != white || gotB != white || gotC != green {
+		t.Fatalf("Width 800: got A=%v B=%v C=%v, want white, white, green", gotA, gotB, gotC)
+	}
+
+	// Width 700: .a, .b, and .c painted
+	r700, err := doc.Render(ctx, Options{Width: 700})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotA, gotB, gotC := r700.Image.RGBAAt(20, 20), r700.Image.RGBAAt(20, 60), r700.Image.RGBAAt(20, 100); gotA != red || gotB != blue || gotC != green {
+		t.Fatalf("Width 700: got A=%v B=%v C=%v, want red, blue, green", gotA, gotB, gotC)
+	}
+
+	// Statement and non-@media block at-rules are skipped cleanly
+	for _, css := range []string{
+		`@import url(x.css); .c{background:green}`,
+		`@charset "utf-8"; @namespace svg url(http://www.w3.org/2000/svg); .c{background:green}`,
+		`@font-face{font-family:Custom;src:url(x)} .c{background:green}`,
+		`@supports (display:grid){.a{background:red}} .c{background:green}`,
+		`@keyframes spin{0%{opacity:0}100%{opacity:1}} .c{background:green}`,
+	} {
+		r, err := Render(ctx, strings.NewReader(`<style>`+css+`</style>`+blocks), Options{Width: 800})
+		if err != nil {
+			t.Fatalf("%s: %v", css, err)
+		}
+		if gotA, gotC := r.Image.RGBAAt(20, 20), r.Image.RGBAAt(20, 100); gotA != white || gotC != green {
+			t.Fatalf("%s: got A=%v C=%v, want white, green", css, gotA, gotC)
+		}
+	}
+
+	// Nested @media ANDs; depth 8 works, depth 9 is skipped without error
+	nestedOK := `@media (min-width: 600px) { @media (max-width: 750px) { .a { background: red } } }`
+	rNested700, err := Render(ctx, strings.NewReader(`<style>`+nestedOK+`</style>`+blocks), Options{Width: 700})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := rNested700.Image.RGBAAt(20, 20); got != red {
+		t.Fatalf("nested @media at 700: got %v, want red", got)
+	}
+	rNested800, err := Render(ctx, strings.NewReader(`<style>`+nestedOK+`</style>`+blocks), Options{Width: 800})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := rNested800.Image.RGBAAt(20, 20); got != white {
+		t.Fatalf("nested @media at 800: got %v, want white", got)
+	}
+
+	depth9 := strings.Repeat("@media screen {", 9) + ".a{background:red}" + strings.Repeat("}", 9) + ".c{background:green}"
+	rDepth9, err := Render(ctx, strings.NewReader(`<style>`+depth9+`</style>`+blocks), Options{Width: 800})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotA, gotC := rDepth9.Image.RGBAAt(20, 20), rDepth9.Image.RGBAAt(20, 100); gotA != white || gotC != green {
+		t.Fatalf("depth 9: got A=%v C=%v, want white, green", gotA, gotC)
+	}
+
+	// Media query syntax variants
+	for _, tc := range []struct {
+		query string
+		width int
+		match bool
+	}{
+		{`only screen and (min-width : 690px) and (max-width : 809px)`, 800, true},
+		{`only screen and (min-width : 690px) and (max-width : 809px)`, 810, false},
+		{`print`, 800, false},
+		{`not print`, 800, true},
+		{`screen, print`, 800, true},
+		{`(-webkit)`, 800, false},
+		{`(-webkit-min-device-pixel-ratio: 2)`, 800, false},
+		{``, 800, true},
+		{`(width: 50em)`, 800, true},
+	} {
+		r, err := Render(ctx, strings.NewReader(`<style>@media `+tc.query+`{.a{background:red}}</style>`+blocks), Options{Width: tc.width})
+		if err != nil {
+			t.Fatalf("%s @ %d: %v", tc.query, tc.width, err)
+		}
+		want := white
+		if tc.match {
+			want = red
+		}
+		if got := r.Image.RGBAAt(20, 20); got != want {
+			t.Fatalf("@media %s at %d: got %v, want %v", tc.query, tc.width, got, want)
+		}
+	}
+
+	// TTY mode evaluates media queries against columns * 10 px
+	ttyDoc, err := Parse(ctx, strings.NewReader(`<style>@media (max-width: 500px){.a{display:none}}</style><div class="a">NarrowHidden</div><div>Always</div>`), Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tty40, err := ttyDoc.TTY(ctx, 40) // 400 px
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(tty40, "NarrowHidden") {
+		t.Fatalf("expected NarrowHidden hidden at 40 cols (400px), got %q", tty40)
+	}
+	tty80, err := ttyDoc.TTY(ctx, 80) // 800 px
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(tty80, "NarrowHidden") {
+		t.Fatalf("expected NarrowHidden visible at 80 cols (800px), got %q", tty80)
+	}
+
+	// Rule budget: rules inside @media count toward Limits.Rules at Parse time
+	if _, err := Parse(ctx, strings.NewReader(`<style>@media print { .a{color:red} .b{color:blue} .c{color:green} }</style>`), Limits{Rules: 2}); !errors.Is(err, ErrLimit) {
+		t.Fatalf("expected ErrLimit when @media rules exceed Limits.Rules, got %v", err)
+	}
+}

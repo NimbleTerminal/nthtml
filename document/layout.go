@@ -181,6 +181,11 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	if o.Width < 32 || o.Width > 4096 {
 		return nil, limitError("width")
 	}
+	origDoc := d
+	d, err := d.forWidth(ctx, o.Width)
+	if err != nil {
+		return nil, err
+	}
 	lim := d.limits
 	if o.Limits != (Limits{}) {
 		ol, err := limits(o.Limits)
@@ -240,7 +245,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		return nil, limitError("pixels")
 	}
 	page := image.Rect(0, 0, o.Width, h)
-	result := &Result{Anchors: map[string]image.Point{}, Warnings: l.warnings, document: d, Boxes: make([]Box, 0, len(l.ops)), ops: l.ops, opts: o, limits: lim, bg: l.canvasBg, size: page.Max}
+	result := &Result{Anchors: map[string]image.Point{}, Warnings: l.warnings, document: origDoc, Boxes: make([]Box, 0, len(l.ops)), ops: l.ops, opts: o, limits: lim, bg: l.canvasBg, size: page.Max}
 	links, err := d.Links(ctx)
 	if err != nil {
 		return nil, err

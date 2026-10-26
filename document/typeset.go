@@ -156,6 +156,11 @@ func (d *Document) ExtractTypeset(ctx context.Context, o Options) (*TypesetDocum
 	if o.Width == 0 {
 		o.Width = 800
 	}
+	var err error
+	d, err = d.forWidth(ctx, o.Width)
+	if err != nil {
+		return nil, err
+	}
 	links, err := d.Links(ctx)
 	if err != nil {
 		return nil, err

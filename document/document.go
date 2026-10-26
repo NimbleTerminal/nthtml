@@ -110,6 +110,9 @@ type Document struct {
 	rules           []rule
 	limits          Limits
 	hasAuthorColors bool
+	hasMedia        bool
+	cascadedWidth   int
+	nodeSeq         int
 }
 
 func hasAuthorColorDecl(decl map[string]string) bool {
@@ -269,23 +272,44 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 	if err := visit(root); err != nil {
 		return nil, err
 	}
-	var linkSiblings func(*node)
-	linkSiblings = func(n *node) {
-		var prev *node
-		for _, c := range n.children {
-			if c.tag != "" && c.pseudo == "" {
-				c.prevSib = prev
-				if prev != nil {
-					prev.nextSib = c
-				}
-				prev = c
-			}
-			linkSiblings(c)
+	d.nodeSeq = count
+	for _, r := range d.rules {
+		if len(r.media) > 0 {
+			d.hasMedia = true
+			break
 		}
 	}
-	linkSiblings(root)
+	if err := d.applyCascade(ctx, 800, true); err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+func linkSiblings(n *node) {
+	var prev *node
+	for _, c := range n.children {
+		if c.tag != "" && c.pseudo == "" {
+			c.prevSib = prev
+			if prev != nil {
+				prev.nextSib = c
+			}
+			prev = c
+		}
+		linkSiblings(c)
+	}
+}
+
+func (d *Document) applyCascade(ctx context.Context, width int, checkWork bool) error {
+	l := d.limits
+	count := d.nodeSeq
+	d.cascadedWidth = width
+	d.hasAuthorColors = false
+	linkSiblings(d.root)
 	hasBefore, hasAfter, hasFirstLine := false, false, false
 	for _, r := range d.rules {
+		if !r.matchesMedia(width) {
+			continue
+		}
 		switch r.pseudo {
 		case "before":
 			hasBefore = true
@@ -295,9 +319,9 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			hasFirstLine = true
 		}
 	}
-	// Resolve author declarations once. Parent-dependent computed values still
-	// resolve during layout, but selector work cannot multiply during reflow
-	// or nested table measurement.
+	// Resolve author declarations once per target width. Parent-dependent
+	// computed values still resolve during layout, but selector work cannot
+	// multiply during reflow or nested table measurement.
 	work, entries := 0, 0
 	var cascade func(*node, int) error
 	cascade = func(n *node, depth int) error {
@@ -305,14 +329,16 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			return err
 		}
 		if n.tag != "" && n.pseudo == "" {
-			for _, r := range d.rules {
-				terms := 0
-				for _, part := range r.selector {
-					terms += part.termCount()
-				}
-				work += 1 + depth*terms + len(r.decl) + len(n.attrs["class"])/16
-				if work > max(8000000, l.Nodes*800) {
-					return limitError("CSS matching work")
+			if checkWork {
+				for _, r := range d.rules {
+					terms := 0
+					for _, part := range r.selector {
+						terms += part.termCount()
+					}
+					work += 1 + depth*terms + len(r.decl) + len(n.attrs["class"])/16
+					if work > max(8000000, l.Nodes*800) {
+						return limitError("CSS matching work")
+					}
 				}
 			}
 			n.decl = d.cascade(n)
@@ -379,10 +405,45 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 		}
 		return nil
 	}
-	if err := cascade(root, 0); err != nil {
+	return cascade(d.root, 0)
+}
+
+func (d *Document) forWidth(ctx context.Context, width int) (*Document, error) {
+	if d == nil || !d.hasMedia || d.cascadedWidth == width {
+		return d, nil
+	}
+	var clone func(*node, *node) *node
+	clone = func(n, parent *node) *node {
+		if n == nil {
+			return nil
+		}
+		c := &node{
+			parent: parent,
+			id:     n.id,
+			tag:    n.tag,
+			text:   n.text,
+			svg:    n.svg,
+			attrs:  n.attrs,
+		}
+		for _, ch := range n.children {
+			if ch.pseudo != "" {
+				continue
+			}
+			c.children = append(c.children, clone(ch, c))
+		}
+		return c
+	}
+	cp := &Document{
+		root:     clone(d.root, nil),
+		rules:    d.rules,
+		limits:   d.limits,
+		hasMedia: d.hasMedia,
+		nodeSeq:  d.nodeSeq,
+	}
+	if err := cp.applyCascade(ctx, width, false); err != nil {
 		return nil, err
 	}
-	return d, nil
+	return cp, nil
 }
 
 // Render is the convenience parse + layout + raster entry point.

@@ -2,14 +2,24 @@ package document
 
 import (
 	"image/color"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
 )
 
+const (
+	maxMediaDepth        = 8
+	maxMediaPreludeBytes = 1024
+	// TTYWidthPxPerColumn is the CSS pixel width assumed per terminal column when
+	// evaluating @media width queries in TTY and TTYLayout modes (80 cols = 800 px).
+	ttyWidthPxPerColumn = 10
+)
+
 type rule struct {
 	selector    selector
 	decl        map[string]string
+	media       []string
 	specificity int
 	pseudo      string
 }
@@ -578,6 +588,12 @@ func resolveContent(v string) (string, bool) {
 	return "", false
 }
 
+// parseCSS parses style rules and bounded @media blocks from s, counting all
+// parsed rules against budget. Statement at-rules (@import, @charset,
+// @namespace) are skipped up to ';'. Block at-rules other than @media
+// (@font-face, @keyframes, @supports, @layer, @page, and unknown block
+// at-rules) are skipped with brace matching; @supports bodies are skipped,
+// not evaluated.
 func parseCSS(s string, budget int) ([]rule, error) {
 	for {
 		a := strings.Index(s, "/*")
@@ -592,16 +608,58 @@ func parseCSS(s string, budget int) ([]rule, error) {
 		s = s[:a] + s[a+2+b+2:]
 	}
 	var out []rule
+	if err := parseCSSBlock(s, nil, 0, &out, budget); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func parseCSSBlock(s string, media []string, depth int, out *[]rule, budget int) error {
 	for {
-		sel, rest, ok := strings.Cut(s, "{")
-		if !ok {
+		s = strings.TrimLeftFunc(s, cssSpace)
+		if len(s) == 0 {
 			break
 		}
-		body, tail, ok := strings.Cut(rest, "}")
-		if !ok {
+		if s[0] == '@' {
+			idx := scanPreludeEnd(s)
+			if idx < 0 {
+				break
+			}
+			if s[idx] == ';' {
+				s = s[idx+1:]
+				continue
+			}
+			closeRel := findMatchingBrace(s[idx:])
+			if closeRel < 0 {
+				break
+			}
+			prelude := strings.TrimSpace(s[1:idx])
+			inner := s[idx+1 : idx+closeRel]
+			s = s[idx+closeRel+1:]
+			if isMediaAtRule(prelude) {
+				query := strings.TrimSpace(prelude[5:])
+				if depth < maxMediaDepth && len(prelude) <= maxMediaPreludeBytes {
+					nextMedia := make([]string, len(media)+1)
+					copy(nextMedia, media)
+					nextMedia[len(media)] = query
+					if err := parseCSSBlock(inner, nextMedia, depth+1, out, budget); err != nil {
+						return err
+					}
+				}
+			}
+			continue
+		}
+		openIdx := scanRuleOpenBrace(s)
+		if openIdx < 0 {
 			break
 		}
-		s = tail
+		closeRel := findMatchingBrace(s[openIdx:])
+		if closeRel < 0 {
+			break
+		}
+		sel := s[:openIdx]
+		body := s[openIdx+1 : openIdx+closeRel]
+		s = s[openIdx+closeRel+1:]
 		var group []rule
 		valid := true
 		for _, v := range strings.Split(sel, ",") {
@@ -610,23 +668,310 @@ func parseCSS(s string, budget int) ([]rule, error) {
 				valid = false
 				break
 			}
-			group = append(group, rule{compiled, nil, sp, pe})
-			if len(group) > budget {
-				return nil, limitError("more CSS rules than the budget")
+			group = append(group, rule{selector: compiled, media: media, specificity: sp, pseudo: pe})
+			if len(*out)+len(group) > budget {
+				return limitError("more CSS rules than the budget")
 			}
 		}
 		if valid {
 			decl := declarations(body)
 			for _, r := range group {
 				r.decl = decl
-				out = append(out, r)
+				*out = append(*out, r)
 			}
-			if len(out) > budget {
-				return nil, limitError("more CSS rules than the budget")
+			if len(*out) > budget {
+				return limitError("more CSS rules than the budget")
 			}
 		}
 	}
-	return out, nil
+	return nil
+}
+
+func isMediaAtRule(prelude string) bool {
+	if len(prelude) < 5 || !strings.EqualFold(prelude[:5], "media") {
+		return false
+	}
+	if len(prelude) == 5 {
+		return true
+	}
+	c := prelude[5]
+	return cssSpace(rune(c)) || c == '('
+}
+
+func scanPreludeEnd(s string) int {
+	parenDepth := 0
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == '\\' && i+1 < len(s) {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '(':
+			parenDepth++
+		case ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+		case ';', '{':
+			if parenDepth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func scanRuleOpenBrace(s string) int {
+	parenDepth, bracketDepth := 0, 0
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == '\\' && i+1 < len(s) {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '(':
+			parenDepth++
+		case ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+		case '[':
+			bracketDepth++
+		case ']':
+			if bracketDepth > 0 {
+				bracketDepth--
+			}
+		case '{':
+			if parenDepth == 0 && bracketDepth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func findMatchingBrace(s string) int {
+	depth := 0
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == '\\' && i+1 < len(s) {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func (r rule) matchesMedia(width int) bool {
+	for _, m := range r.media {
+		if !evalMediaQueryList(m, width) {
+			return false
+		}
+	}
+	return true
+}
+
+func evalMediaQueryList(prelude string, width int) bool {
+	prelude = strings.TrimSpace(prelude)
+	if prelude == "" {
+		return true
+	}
+	parts, ok := splitMediaQueries(prelude)
+	if !ok || len(parts) == 0 {
+		return false
+	}
+	for _, part := range parts {
+		if evalSingleMediaQuery(part, width) {
+			return true
+		}
+	}
+	return false
+}
+
+func splitMediaQueries(s string) ([]string, bool) {
+	var out []string
+	parenDepth := 0
+	start := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '(':
+			parenDepth++
+		case ')':
+			if parenDepth == 0 {
+				return nil, false
+			}
+			parenDepth--
+		case ',':
+			if parenDepth == 0 {
+				out = append(out, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	if parenDepth != 0 {
+		return nil, false
+	}
+	out = append(out, s[start:])
+	return out, true
+}
+
+func evalSingleMediaQuery(q string, width int) bool {
+	tokens, ok := tokenizeMediaQuery(q)
+	if !ok || len(tokens) == 0 {
+		return false
+	}
+	negate := false
+	if strings.EqualFold(tokens[0], "not") {
+		negate = true
+		tokens = tokens[1:]
+	} else if strings.EqualFold(tokens[0], "only") {
+		tokens = tokens[1:]
+	}
+	if len(tokens) == 0 {
+		return false
+	}
+	var result bool
+	if strings.HasPrefix(tokens[0], "(") {
+		val, valid := evalMediaFeature(tokens[0], width)
+		if !valid {
+			return false
+		}
+		result = val
+	} else {
+		switch strings.ToLower(tokens[0]) {
+		case "and", "not", "only", "or":
+			return false
+		case "screen", "all":
+			result = true
+		default:
+			result = false
+		}
+	}
+	tokens = tokens[1:]
+	for len(tokens) > 0 {
+		if len(tokens) < 2 || !strings.EqualFold(tokens[0], "and") || !strings.HasPrefix(tokens[1], "(") {
+			return false
+		}
+		val, valid := evalMediaFeature(tokens[1], width)
+		if !valid {
+			return false
+		}
+		result = result && val
+		tokens = tokens[2:]
+	}
+	if negate {
+		return !result
+	}
+	return result
+}
+
+func tokenizeMediaQuery(q string) ([]string, bool) {
+	var tokens []string
+	for i := 0; i < len(q); {
+		if cssSpace(rune(q[i])) {
+			i++
+			continue
+		}
+		if q[i] == '(' {
+			j := i + 1
+			for j < len(q) && q[j] != ')' {
+				if q[j] == '(' {
+					return nil, false
+				}
+				j++
+			}
+			if j >= len(q) {
+				return nil, false
+			}
+			tokens = append(tokens, q[i:j+1])
+			i = j + 1
+			continue
+		}
+		if isMediaIdentChar(q[i]) {
+			j := i + 1
+			for j < len(q) && isMediaIdentChar(q[j]) {
+				j++
+			}
+			tokens = append(tokens, q[i:j])
+			i = j
+			continue
+		}
+		return nil, false
+	}
+	return tokens, true
+}
+
+func isMediaIdentChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_'
+}
+
+func evalMediaFeature(expr string, width int) (bool, bool) {
+	if len(expr) < 2 || expr[0] != '(' || expr[len(expr)-1] != ')' {
+		return false, false
+	}
+	inner := strings.TrimSpace(expr[1 : len(expr)-1])
+	name, valStr, ok := strings.Cut(inner, ":")
+	if !ok {
+		return false, false
+	}
+	name = strings.ToLower(strings.TrimSpace(name))
+	valStr = strings.TrimSpace(valStr)
+	if name != "width" && name != "min-width" && name != "max-width" {
+		return false, false
+	}
+	l, ok := parseLength(valStr, false, false)
+	if !ok || !l.absolute() {
+		return false, false
+	}
+	pxVal := l.computed(16, 16).value
+	switch name {
+	case "width":
+		return math.Abs(float64(width)-pxVal) < 1e-6, true
+	case "min-width":
+		return float64(width)+1e-9 >= pxVal, true
+	case "max-width":
+		return float64(width)-1e-9 <= pxVal, true
+	default:
+		return false, false
+	}
 }
 func (d *Document) styled(n *node, parent style) style {
 	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
@@ -1367,8 +1712,12 @@ func (d *Document) cascade(n *node) map[string]string {
 func (d *Document) cascadePseudo(n *node, pseudo string) map[string]string {
 	values := map[string]string{}
 	scores := map[string]int{}
+	w := d.cascadedWidth
+	if w <= 0 {
+		w = 800
+	}
 	for _, r := range d.rules {
-		if r.pseudo == pseudo && r.selector.matches(n) {
+		if r.pseudo == pseudo && r.matchesMedia(w) && r.selector.matches(n) {
 			for k, v := range r.decl {
 				v, important := importance(v)
 				score := r.specificity
