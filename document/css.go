@@ -43,6 +43,9 @@ type style struct {
 	flexGrow, flexShrink                       float64
 	flexBasis, rowGap, colGap                  cssLength
 	spacing                                    [2]int
+	cellPadding                                int
+	hasCellPadding, tableCellBorder            bool
+	centerBlock                                bool
 	collapse                                   bool
 	size, line                                 int
 	fg, bg                                     color.RGBA
@@ -973,21 +976,33 @@ func evalMediaFeature(expr string, width int) (bool, bool) {
 		return false, false
 	}
 }
+func htmlFontSize(s string) (int, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, false
+	}
+	relative := strings.HasPrefix(s, "+") || strings.HasPrefix(s, "-")
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, false
+	}
+	if relative {
+		n = 3 + n
+	}
+	n = max(1, min(7, n))
+	sizes := [8]int{0, 10, 13, 16, 18, 24, 32, 48}
+	return sizes[n], true
+}
+
 func (d *Document) styled(n *node, parent style) style {
-	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, cellPadding: parent.cellPadding, hasCellPadding: parent.hasCellPadding, tableCellBorder: parent.tableCellBorder, centerBlock: parent.centerBlock, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
+	rawBW := [4]int{3, 3, 3, 3}
 	if n.tag == "svg" {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
 		s.height, _ = parseLength(n.attrs["height"], true, false)
 	}
-	if n.tag == "table" {
-		if cs := strings.TrimSpace(n.attrs["cellspacing"]); cs != "" {
-			if v, err := strconv.Atoi(strings.TrimSuffix(cs, "px")); err == nil && v >= 0 && v <= 256 {
-				s.spacing = [2]int{v, v}
-			}
-		}
-	}
 	switch n.tag {
-	case "span", "a", "em", "strong", "b", "i", "code", "small", "sub", "sup", "mark", "u", "s", "del", "img":
+	case "span", "a", "em", "strong", "b", "i", "code", "small", "sub", "sup", "mark", "u", "s", "del", "img", "font":
 		s.display = "inline"
 	case "script", "style", "head", "meta", "link", "title", "template", "colgroup", "col":
 		s.display = "none"
@@ -1049,8 +1064,126 @@ func (d *Document) styled(n *node, parent style) style {
 		s.bg = color.RGBA{180, 188, 200, 255}
 	case "ul", "ol":
 		s.margin = [4]cssLength{px(8), {}, px(8), {}}
+	case "center":
+		s.align = "center"
+		s.centerBlock = true
+	case "table":
+		s.align = ""
+		s.centerBlock = false
+		s.vertical = "middle"
+		s.hasCellPadding = false
+		s.cellPadding = 0
+		s.tableCellBorder = false
+		if cs := strings.TrimSpace(n.attrs["cellspacing"]); cs != "" {
+			if v, err := strconv.Atoi(strings.TrimSuffix(strings.ToLower(cs), "px")); err == nil && v >= 0 && v <= 256 {
+				s.spacing = [2]int{v, v}
+			}
+		}
+		if cp := strings.TrimSpace(n.attrs["cellpadding"]); cp != "" {
+			if v, err := strconv.Atoi(strings.TrimSuffix(strings.ToLower(cp), "px")); err == nil && v >= 0 && v <= 256 {
+				s.hasCellPadding = true
+				s.cellPadding = v
+			}
+		}
+		if bAttr, hasB := n.attrs["border"]; hasB {
+			bTrim := strings.TrimSpace(strings.TrimSuffix(strings.ToLower(strings.TrimSpace(bAttr)), "px"))
+			v, err := strconv.Atoi(bTrim)
+			if bTrim == "" || (err == nil && v > 0) {
+				s.tableCellBorder = true
+				rawBW = [4]int{1, 1, 1, 1}
+				s.borderStyle = [4]string{"solid", "solid", "solid", "solid"}
+			}
+		}
+	case "thead", "tbody", "tfoot", "tr":
+		s.vertical = parent.vertical
 	case "td", "th":
-		s.padding = [4]cssLength{{}, px(4), {}, px(4)}
+		s.vertical = parent.vertical
+		if parent.hasCellPadding {
+			s.padding = uniform(parent.cellPadding)
+		} else {
+			s.padding = [4]cssLength{{}, px(4), {}, px(4)}
+		}
+		if parent.tableCellBorder {
+			rawBW = [4]int{1, 1, 1, 1}
+			s.borderStyle = [4]string{"solid", "solid", "solid", "solid"}
+		}
+	}
+	if parent.centerBlock && s.display == "block" {
+		s.margin[1] = cssLength{unit: lengthAuto}
+		s.margin[3] = cssLength{unit: lengthAuto}
+	}
+	// Presentational HTML attributes (§15.3) apply below any author CSS rule.
+	switch n.tag {
+	case "body", "table", "thead", "tbody", "tfoot", "tr", "td", "th":
+		if c, ok := htmlColor(n.attrs["bgcolor"]); ok {
+			s.bg = c
+		}
+	}
+	if n.tag == "body" {
+		if c, ok := htmlColor(n.attrs["text"]); ok {
+			s.fg = c
+			s.defaultFg = c
+			s.explicitFg = true
+		}
+		if c, ok := htmlColor(n.attrs["link"]); ok {
+			s.defaultLink = c
+		}
+	}
+	switch n.tag {
+	case "div", "p", "h1", "h2", "h3", "h4", "h5", "h6", "td", "th", "tr", "thead", "tbody", "tfoot", "caption":
+		switch al := strings.ToLower(strings.TrimSpace(n.attrs["align"])); al {
+		case "left", "right", "justify":
+			s.align = al
+			s.centerBlock = false
+		case "center":
+			s.align = "center"
+			s.centerBlock = true
+		}
+	case "table":
+		switch strings.ToLower(strings.TrimSpace(n.attrs["align"])) {
+		case "center":
+			s.margin[1] = cssLength{unit: lengthAuto}
+			s.margin[3] = cssLength{unit: lengthAuto}
+		case "left":
+			s.margin[1] = cssLength{unit: lengthAuto}
+			s.margin[3] = cssLength{}
+		case "right":
+			s.margin[1] = cssLength{}
+			s.margin[3] = cssLength{unit: lengthAuto}
+		}
+	}
+	switch n.tag {
+	case "td", "th", "tr", "thead", "tbody", "tfoot":
+		switch val := strings.ToLower(strings.TrimSpace(n.attrs["valign"])); val {
+		case "top", "middle", "bottom", "baseline":
+			s.vertical = val
+		}
+	}
+	switch n.tag {
+	case "table", "td", "th":
+		if w, ok := htmlLength(n.attrs["width"]); ok {
+			s.width = w
+		}
+		if h, ok := htmlLength(n.attrs["height"]); ok {
+			s.height = h
+		}
+	case "tr":
+		if h, ok := htmlLength(n.attrs["height"]); ok {
+			s.height = h
+		}
+	}
+	if n.tag == "font" {
+		if c, ok := htmlColor(n.attrs["color"]); ok {
+			s.fg = c
+			s.explicitFg = true
+		}
+		if face := strings.TrimSpace(n.attrs["face"]); face != "" {
+			s.family = face
+			s.mono = strings.EqualFold(face, "monospace") || strings.EqualFold(face, "Go Mono") || strings.EqualFold(face, "IBM Plex Mono")
+		}
+		if sz, ok := htmlFontSize(n.attrs["size"]); ok {
+			s.size = sz
+		}
 	}
 	if n.tag == "small" && parent.size > 0 {
 		s.size = max(1, (parent.size*85+50)/100)
@@ -1132,7 +1265,6 @@ func (d *Document) styled(n *node, parent style) style {
 	if n.tag == "html" {
 		s.rootSize = s.size
 	}
-	rawBW := [4]int{3, 3, 3, 3}
 	keys := make([]string, 0, len(values))
 	for k := range values {
 		keys = append(keys, k)
@@ -1585,8 +1717,10 @@ func (d *Document) styled(n *node, parent style) style {
 		case "text-align":
 			if kw == "inherit" {
 				s.align = parent.align
+				s.centerBlock = parent.centerBlock
 			} else if kw == "initial" {
 				s.align = ""
+				s.centerBlock = false
 			} else {
 				switch strings.ToLower(v) {
 				case "left", "right", "center", "justify":
@@ -1595,6 +1729,9 @@ func (d *Document) styled(n *node, parent style) style {
 					s.align = "left"
 				case "end":
 					s.align = "right"
+				}
+				if s.align != "center" {
+					s.centerBlock = false
 				}
 			}
 		case "visibility":

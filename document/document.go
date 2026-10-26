@@ -131,6 +131,29 @@ func hasAuthorColorDecl(decl map[string]string) bool {
 	return false
 }
 
+func hasPresentationalColorAttr(n *node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.tag {
+	case "body":
+		for _, attr := range []string{"bgcolor", "text", "link"} {
+			if _, ok := htmlColor(n.attrs[attr]); ok {
+				return true
+			}
+		}
+	case "table", "thead", "tbody", "tfoot", "tr", "td", "th":
+		if _, ok := htmlColor(n.attrs["bgcolor"]); ok {
+			return true
+		}
+	case "font":
+		if _, ok := htmlColor(n.attrs["color"]); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func limits(l Limits) (Limits, error) {
 	d := DefaultLimits
 	m := MaxLimits
@@ -343,7 +366,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, checkWork bool) 
 			}
 			n.decl = d.cascade(n)
 			entries += len(n.decl)
-			if !strings.Contains(" document script style head meta link title template ", " "+n.tag+" ") && hasAuthorColorDecl(n.decl) {
+			if !strings.Contains(" document script style head meta link title template ", " "+n.tag+" ") && (hasAuthorColorDecl(n.decl) || hasPresentationalColorAttr(n)) {
 				d.hasAuthorColors = true
 			}
 			if hasFirstLine && n.tag != "document" {

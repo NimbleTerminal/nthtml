@@ -535,3 +535,123 @@ func TestAtRulesAndMediaQueries(t *testing.T) {
 		t.Fatalf("expected ErrLimit when @media rules exceed Limits.Rules, got %v", err)
 	}
 }
+
+func TestPresentationalAttributes(t *testing.T) {
+	ctx := context.Background()
+	orange := color.RGBA{0xff, 0x66, 0x00, 0xff}
+	white := color.RGBA{0xff, 0xff, 0xff, 0xff}
+
+	// 1. <center><table width="85%" cellpadding="0"><tr><td bgcolor="#ff6600">hdr</td></tr></table></center>
+	rCenter, err := Render(ctx, strings.NewReader(`<center><table width="85%" cellpadding="0"><tr><td bgcolor="#ff6600">hdr</td></tr></table></center>`), Options{Width: 800})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hdrBox Box
+	for _, b := range rCenter.Boxes {
+		if b.Text == "hdr" {
+			hdrBox = b
+			break
+		}
+	}
+	if hdrBox.Text == "" {
+		t.Fatal("missing hdr text box")
+	}
+	if hdrBox.Bounds.Min.X < 55 || hdrBox.Bounds.Min.X > 75 {
+		t.Fatalf("expected hdr starting near x=60, got x=%d (bounds=%v)", hdrBox.Bounds.Min.X, hdrBox.Bounds)
+	}
+	if got := rCenter.Image.RGBAAt(400, hdrBox.Bounds.Min.Y+2); got != orange {
+		t.Fatalf("expected orange band across centered cell at (400,%d), got %v", hdrBox.Bounds.Min.Y+2, got)
+	}
+
+	// 2. <td align="right"> and <td valign="top"> in a 60px row
+	rAlign, err := Render(ctx, strings.NewReader(`<table width="400"><tr><td align="right" valign="top" style="height:60px">rightaligned</td><td>second</td><td valign="bottom">bottomaligned</td></tr></table>`), Options{Width: 800})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rightBox, secondBox, bottomBox Box
+	for _, b := range rAlign.Boxes {
+		switch b.Text {
+		case "rightaligned":
+			rightBox = b
+		case "second":
+			secondBox = b
+		case "bottomaligned":
+			bottomBox = b
+		}
+	}
+	var firstCell Box
+	for _, b := range rAlign.Boxes {
+		if b.Tag == "td" {
+			firstCell = b
+			break
+		}
+	}
+	if rightBox.Bounds.Max.X < firstCell.Bounds.Max.X-10 {
+		t.Fatalf("expected <td align=right> text near right edge of cell (%v), got %v", firstCell.Bounds, rightBox.Bounds)
+	}
+	if !(rightBox.Bounds.Min.Y < secondBox.Bounds.Min.Y && secondBox.Bounds.Min.Y < bottomBox.Bounds.Min.Y) {
+		t.Fatalf("expected valign top < default(middle) < bottom, got top=%v middle=%v bottom=%v", rightBox.Bounds, secondBox.Bounds, bottomBox.Bounds)
+	}
+
+	// 3. cellpadding="10" offsets cell text by 10 px
+	rPad0, err := Render(ctx, strings.NewReader(`<body style="margin:0"><table cellpadding="0" cellspacing="0"><tr><td>txt</td></tr></table></body>`), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rPad10, err := Render(ctx, strings.NewReader(`<body style="margin:0"><table cellpadding="10" cellspacing="0"><tr><td>txt</td></tr></table></body>`), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var box0, box10 Box
+	for _, b := range rPad0.Boxes {
+		if b.Text == "txt" {
+			box0 = b
+		}
+	}
+	for _, b := range rPad10.Boxes {
+		if b.Text == "txt" {
+			box10 = b
+		}
+	}
+	if dx, dy := box10.Bounds.Min.X-box0.Bounds.Min.X, box10.Bounds.Min.Y-box0.Bounds.Min.Y; dx != 10 || dy != 10 {
+		t.Fatalf("expected cellpadding=10 to offset cell text by (10,10), got (%d,%d) (pad0=%v pad10=%v)", dx, dy, box0.Bounds, box10.Bounds)
+	}
+
+	// 4. Author rule (including specificity 0,0,0) beats bgcolor
+	for _, css := range []string{`td { background-color: white }`, `* { background-color: white }`} {
+		rBeat, err := Render(ctx, strings.NewReader(`<style>`+css+`</style><body style="margin:0"><table cellpadding="0" cellspacing="0"><tr><td bgcolor="#ff6600" width="40" height="40">x</td></tr></table></body>`), Options{Width: 200})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := rBeat.Image.RGBAAt(30, 20); got != white {
+			t.Fatalf("%s: expected white to beat bgcolor, got %v", css, got)
+		}
+	}
+
+	// 5. Legacy 6-hex bgcolor without '#', table border="1", <font>, and <body bgcolor/text/link>
+	rLegacy, err := Render(ctx, strings.NewReader(`<body bgcolor="f6f6ef" text="#222222" link="#ff6600"><table border="1" width="200" height="40"><tr><td bgcolor="ff6600"><font color="#008000" size="5" face="monospace">fonttxt</font><a href="https://example.com">lnk</a></td></tr></table></body>`), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := rLegacy.Background(); got != (color.RGBA{0xf6, 0xf6, 0xef, 0xff}) {
+		t.Fatalf("expected body bgcolor #f6f6ef as canvas background, got %v", got)
+	}
+	if len(boxesWithTag(rLegacy, "border")) < 8 {
+		t.Fatalf("expected border=1 on table to paint table and cell borders, got %d border boxes", len(boxesWithTag(rLegacy, "border")))
+	}
+	var fontBox, linkBox Box
+	for _, b := range rLegacy.Boxes {
+		if b.Text == "fonttxt" {
+			fontBox = b
+		}
+		if b.Text == "lnk" {
+			linkBox = b
+		}
+	}
+	if fontBox.Color != (color.RGBA{0, 128, 0, 255}) || fontBox.FontSize != 24 || !fontBox.Monospace {
+		t.Fatalf("unexpected <font> styling: %+v", fontBox)
+	}
+	if linkBox.Color != orange {
+		t.Fatalf("expected <body link=#ff6600> to color link orange, got %v", linkBox.Color)
+	}
+}

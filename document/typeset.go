@@ -614,6 +614,9 @@ func hasExplicitBoxDecl(n *node) (hasMarginTop, hasMarginBottom, hasPadding, has
 		}
 	}
 	_, hasBg = n.decl["background-color"]
+	if !hasBg && n.tag != "mark" && n.tag != "hr" {
+		_, hasBg = htmlColor(n.attrs["bgcolor"])
+	}
 	return
 }
 
@@ -1014,7 +1017,7 @@ func hasBlockChildren(n *node, d *Document, parent style) bool {
 			return true
 		}
 		switch c.tag {
-		case "p", "div", "section", "article", "main", "header", "footer", "nav", "aside", "blockquote", "ul", "ol", "li", "dl", "dt", "dd", "pre", "table", "hr", "h1", "h2", "h3", "h4", "h5", "h6":
+		case "p", "div", "center", "section", "article", "main", "header", "footer", "nav", "aside", "blockquote", "ul", "ol", "li", "dl", "dt", "dd", "pre", "table", "hr", "h1", "h2", "h3", "h4", "h5", "h6":
 			return true
 		}
 		cs := d.styled(c, parent)
@@ -1067,7 +1070,7 @@ func (w *blockExtractor) walkChildren(n *node, s style, indent, availW int) erro
 		isBlock := isDiag != "" || headingLevel(c.tag) > 0
 		if !isBlock {
 			switch c.tag {
-			case "p", "div", "section", "article", "main", "header", "footer", "nav", "aside", "blockquote", "ul", "ol", "li", "dl", "dt", "dd", "pre", "table", "hr":
+			case "p", "div", "center", "section", "article", "main", "header", "footer", "nav", "aside", "blockquote", "ul", "ol", "li", "dl", "dt", "dd", "pre", "table", "hr":
 				isBlock = true
 			default:
 				if cs.display == "block" || cs.display == "flex" || cs.display == "table" || cs.display == "list-item" {

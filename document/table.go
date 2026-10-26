@@ -54,6 +54,10 @@ func apportion(weights []int, total int) []int {
 	return out
 }
 func tableWidths(minimum, preferred []int, width int) []int {
+	return tableWidthsFixed(minimum, preferred, nil, width)
+}
+
+func tableWidthsFixed(minimum, preferred []int, fixed []bool, width int) []int {
 	n := len(preferred)
 	if n == 0 {
 		return nil
@@ -88,7 +92,24 @@ func tableWidths(minimum, preferred []int, width int) []int {
 	}
 	extra := apportion(growth, min(room, demand))
 	if room > demand {
-		surplus := apportion(preferred, room-demand)
+		weights := preferred
+		if len(fixed) == n {
+			flexSum := 0
+			for i, p := range preferred {
+				if !fixed[i] {
+					flexSum += p
+				}
+			}
+			if flexSum > 0 {
+				weights = make([]int, n)
+				for i, p := range preferred {
+					if !fixed[i] {
+						weights[i] = p
+					}
+				}
+			}
+		}
+		surplus := apportion(weights, room-demand)
 		for i := range extra {
 			extra[i] += surplus[i]
 		}
@@ -125,6 +146,7 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 		}
 	}
 	minimum, preferred := make([]int, columns), make([]int, columns)
+	fixed := make([]bool, columns)
 	sx, sy := s.spacing[0], s.spacing[1]
 	if s.collapse {
 		sx, sy = 0, 0
@@ -135,6 +157,9 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 		for i, cell := range row.cells {
 			cs := row.styles[i]
 			sp := row.spans[i]
+			if sp.cols == 1 && cs.width.definite(w) {
+				fixed[sp.col] = true
+			}
 			if grid != nil {
 				cs.bw = grid.spanInsets(ri, sp)
 			}
@@ -146,6 +171,7 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 	if colSpecs := l.d.collectColSpecs(n, s); len(colSpecs) > 0 {
 		for c := 0; c < columns && c < len(colSpecs); c++ {
 			if colSpecs[c].width.definite(w) {
+				fixed[c] = true
 				cw := max(1, colSpecs[c].width.resolve(w, w))
 				preferred[c] = max(preferred[c], cw)
 				minimum[c] = max(minimum[c], min(cw, preferred[c]))
@@ -180,7 +206,7 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 			y = l.block(child, x, y, w, parentHeight, s)
 		}
 	}
-	widths := tableWidths(minimum, preferred, w-sx*(columns+1))
+	widths := tableWidthsFixed(minimum, preferred, fixed, w-sx*(columns+1))
 	xs := []int{x + sx}
 	for _, width := range widths {
 		xs = append(xs, xs[len(xs)-1]+width+sx)
@@ -247,6 +273,14 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 			for j := range padding {
 				cs.padding[j] = px(padding[j])
 			}
+			cellMinH := 0
+			if cs.height.definite(parentHeight) {
+				cellMinH = cs.height.resolve(parentHeight, l.d.limits.Height)
+				if !cs.borderBox {
+					cellMinH += padding[0] + padding[2]
+				}
+			}
+			cs.height = cssLength{}
 			first := len(l.ops)
 			prevSource := l.activeSource
 			if len(row.anchors) > 0 {
@@ -255,13 +289,18 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 			h := l.blockStyled(cell, xs[sp.col], 0, width, parentHeight, cs)
 			l.activeSource = prevSource
 			cells = append(cells, laidCell{first, len(l.ops), h, ri, sp, cellBorder})
+			reqH := max(h, cellMinH)
 			if sp.rows == 1 {
-				heights[ri] = max(heights[ri], h)
+				heights[ri] = max(heights[ri], reqH)
+			} else {
+				spreadRequirement(heights, ri, sp.rows, max(0, reqH-sy*(sp.rows-1)))
 			}
 		}
 	}
 	for _, cell := range cells {
-		spreadRequirement(heights, cell.row, cell.span.rows, max(0, cell.height-sy*(cell.span.rows-1)))
+		if cell.span.rows > 1 {
+			spreadRequirement(heights, cell.row, cell.span.rows, max(0, cell.height-sy*(cell.span.rows-1)))
+		}
 	}
 	rowY := []int{y + sy}
 	for _, h := range heights {

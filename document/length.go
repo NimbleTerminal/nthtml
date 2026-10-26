@@ -26,6 +26,15 @@ type cssLength struct {
 
 func px(n int) cssLength         { return cssLength{float64(n), lengthPX} }
 func uniform(n int) [4]cssLength { return [4]cssLength{px(n), px(n), px(n), px(n)} }
+
+func htmlLength(s string) (cssLength, bool) {
+	l, ok := parseLength(s, false, false)
+	if !ok || (l.unit != lengthPX && l.unit != lengthPercent) {
+		return cssLength{}, false
+	}
+	return l, true
+}
+
 func parseLength(s string, auto, none bool) (cssLength, bool) {
 	s = strings.ToLower(strings.TrimSpace(s))
 	if auto && s == "auto" {

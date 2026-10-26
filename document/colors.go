@@ -9,6 +9,20 @@ import (
 	"golang.org/x/image/colornames"
 )
 
+func htmlColor(s string) (color.RGBA, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return color.RGBA{}, false
+	}
+	if c, ok := cssColor(s, color.RGBA{}); ok {
+		return c, true
+	}
+	if len(s) == 6 || len(s) == 3 {
+		return cssColor("#"+s, color.RGBA{})
+	}
+	return color.RGBA{}, false
+}
+
 func cssColor(s string, current color.RGBA) (color.RGBA, bool) {
 	if len(s) > 1024 {
 		return color.RGBA{}, false
