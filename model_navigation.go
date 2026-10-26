@@ -199,10 +199,20 @@ func (m *Model) refreshHighlights() tea.Cmd {
 	return m.showLinkFocus()
 }
 func (m *Model) resetTextLayout() {
+	prevMatch := m.match
 	m.index = nil
 	m.clearSelection()
+	if m.query == "" {
+		m.matches = nil
+		m.match = -1
+		return
+	}
 	m.matches = m.textIndex().Search(m.query)
-	m.match = -1
+	if prevMatch >= 0 && len(m.matches) > 0 {
+		m.match = min(prevMatch, len(m.matches)-1)
+	} else {
+		m.match = -1
+	}
 }
 func (m *Model) cellArea(p image.Point) image.Rectangle {
 	p = p.Sub(m.origin)

@@ -139,13 +139,33 @@ func (m *Model) Result() *document.Result { return m.result }
 
 // SetResult replaces the displayed document Result and resets scroll/selection state.
 func (m *Model) SetResult(result *document.Result) tea.Cmd {
+	return m.setResult(result, false)
+}
+
+// SetResultKeepView replaces the displayed document Result while preserving
+// scroll offset, zoom, search state, and the focused link (by Link.ID) when
+// present in the new Result.
+func (m *Model) SetResultKeepView(result *document.Result) tea.Cmd {
+	return m.setResult(result, true)
+}
+
+func (m *Model) setResult(result *document.Result, keepView bool) tea.Cmd {
 	m.result = result
 	m.index = nil
-	m.focusID = 0
 	m.pressedLink = 0
 	m.clearSelection()
-	m.zoom, m.x, m.y, m.ttyTop = 0, 0, 0, 0
+	if !keepView {
+		m.focusID = 0
+		m.zoom, m.x, m.y, m.ttyTop = 0, 0, 0, 0
+		m.query, m.searchInput = "", ""
+		m.searching = false
+		m.matches = nil
+		m.match = -1
+	}
 	if result == nil {
+		m.focusID = 0
+		m.matches = nil
+		m.match = -1
 		m.source = nil
 		return nil
 	}
@@ -158,10 +178,16 @@ func (m *Model) SetResult(result *document.Result) tea.Cmd {
 			m.source = img
 		}
 	}
-	m.resetTextLayout()
 	if m.mode == LayoutTTY {
 		m.reflowTTY()
+		if _, ok := m.FocusedLink(); !ok {
+			m.focusID = 0
+		}
 		return m.refreshHighlights()
+	}
+	m.resetTextLayout()
+	if _, ok := m.FocusedLink(); !ok {
+		m.focusID = 0
 	}
 	return tea.Batch(m.pic.SetImage(m.source), m.refreshHighlights(), m.viewport())
 }

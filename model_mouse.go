@@ -15,27 +15,26 @@ func (m *Model) SetBounds(x, y, cols, rows int) tea.Cmd {
 	return m.SetSize(cols, rows)
 }
 
+// CellToDocument maps a terminal screen cell to the document-pixel rectangle it
+// displays in LayoutTypeset mode, accounting for widget origin, scroll/crop,
+// zoom, scaling, and letterboxing. It returns false in LayoutTTY mode, outside
+// the widget or letterbox bounds, or when no raster image is loaded.
+func (m *Model) CellToDocument(p image.Point) (image.Rectangle, bool) {
+	if m == nil || m.mode != LayoutTypeset {
+		return image.Rectangle{}, false
+	}
+	area := m.cellArea(p)
+	return area, !area.Empty()
+}
+
 // LinkAtCell hit-tests a terminal cell using the current layout, scroll/crop,
 // scaling, and letterboxing. Unlike Result.LinkAt, p is in terminal screen cells.
 // A coarse raster cell can cover several pixels; the greatest visible link
 // overlap wins. Callers should not activate links while a new raster is pending.
 func (m *Model) LinkAtCell(p image.Point) (document.Link, bool) {
-	p = p.Sub(m.origin)
-	if p.X < 0 || p.Y < 0 || p.X >= m.cols || p.Y >= m.rows {
+	area := m.cellArea(p)
+	if area.Empty() {
 		return document.Link{}, false
-	}
-	var area image.Rectangle
-	if m.mode == LayoutTTY {
-		area = image.Rect(p.X, p.Y+m.ttyTop, p.X+1, p.Y+m.ttyTop+1)
-	} else {
-		if m.source == nil {
-			return document.Link{}, false
-		}
-		g := m.pic.RasterGeometry()
-		area = rasterCellSource(p, image.Pt(m.cols, m.rows), g.Pixels, m.cropRect())
-		if area.Empty() {
-			return document.Link{}, false
-		}
 	}
 	var best document.Link
 	bestArea := 0

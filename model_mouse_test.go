@@ -142,3 +142,69 @@ func TestMouseRasterLetterboxAndKittyGeometry(t *testing.T) {
 		t.Fatal("Kitty fitted position missed")
 	}
 }
+
+func TestCellToDocumentAgreesWithLinkAtCell(t *testing.T) {
+	const page = `<!doctype html><html><body style="font-size:16px">
+<p><a id="first" href="/one">first link on the first line</a></p>
+<p style="text-align:right"><a id="second" href="/two">right-aligned</a></p>
+<div style="height:600px"></div>
+<p><a id="third" href="/three">a link far below the fold</a> plain text after it</p>
+<div style="height:600px"></div>
+</body></html>`
+	res, err := document.Render(context.Background(), strings.NewReader(page), document.Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(res)
+	defer func() { _ = m.Close() }()
+	_ = m.Init()
+	_ = m.SetBounds(3, 2, 80, 24)
+
+	overlaps := func(area image.Rectangle, l document.Link) bool {
+		for _, r := range l.Regions {
+			if !r.Intersect(area).Empty() {
+				return true
+			}
+		}
+		return false
+	}
+	check := func(label string) (hits int) {
+		for y := 0; y < 30; y++ {
+			for x := 0; x < 90; x++ {
+				p := image.Pt(x, y)
+				link, hasLink := m.LinkAtCell(p)
+				area, ok := m.CellToDocument(p)
+				if hasLink {
+					hits++
+					if !ok || !overlaps(area, link) {
+						t.Fatalf("%s: cell %v: LinkAtCell sees %q, CellToDocument %v (ok=%v) misses it", label, p, link.Href, area, ok)
+					}
+					continue
+				}
+				if !ok {
+					continue
+				}
+				for _, l := range res.Links {
+					if overlaps(area, l) {
+						t.Fatalf("%s: cell %v: CellToDocument %v overlaps %q but LinkAtCell sees no link", label, p, area, l.Href)
+					}
+				}
+			}
+		}
+		return hits
+	}
+	if n := check("top"); n == 0 {
+		t.Fatal("no link cells at top of page")
+	}
+	_ = m.Pan(0, 700)
+	if n := check("scrolled"); n == 0 {
+		t.Fatal("no link cells after scrolling")
+	}
+	if _, ok := m.CellToDocument(image.Pt(0, 0)); ok {
+		t.Fatal("cell outside widget origin mapped to document area")
+	}
+	m.SetLayoutMode(LayoutTTY)
+	if _, ok := m.CellToDocument(image.Pt(5, 5)); ok {
+		t.Fatal("CellToDocument should return false in LayoutTTY mode")
+	}
+}

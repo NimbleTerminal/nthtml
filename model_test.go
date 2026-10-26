@@ -158,3 +158,75 @@ func TestResponsiveTypesetReflowAndMultiWidgetOptions(t *testing.T) {
 		t.Fatal("expected m1 to be hidden after SetVisible(false)")
 	}
 }
+
+func TestSetResultKeepViewAndSetResultReset(t *testing.T) {
+	ctx := context.Background()
+	renderPage := func(body string) *document.Result {
+		r, err := document.Render(ctx, strings.NewReader(`<!doctype html><html><body>`+body+`<div style="height:2400px"></div></body></html>`), document.Options{Width: 400})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+
+	first := renderPage(`<p>needle one</p><p><a id="l1" href="https://example.com/1">First</a></p><p>needle two</p>`)
+	m := New(first)
+	defer func() { _ = m.Close() }()
+	m.SetSize(80, 24)
+	m.Search("needle")
+	m.NextMatch(false) // second match (index 1, current=2)
+	m.NextLink(false)
+	m.Zoom(1)
+	m.Pan(40, 600)
+	wantX, wantY := m.x, m.y
+
+	focusedBefore, ok := m.FocusedLink()
+	if !ok || focusedBefore.Anchor != "l1" {
+		t.Fatalf("expected focused link l1, got %+v (ok=%v)", focusedBefore, ok)
+	}
+	q, cur, tot := m.SearchStatus()
+	if q != "needle" || cur != 2 || tot != 2 {
+		t.Fatalf("unexpected search status before reflow: q=%q cur=%d tot=%d", q, cur, tot)
+	}
+
+	// Reflow with same structure keeps zoom, scroll offset, search query/match, and focused link.
+	second := renderPage(`<p>needle one</p><p><a id="l1" href="https://example.com/1-updated">First updated</a></p><p>needle two</p>`)
+	m.SetResultKeepView(second)
+	if m.zoom != 1 || m.x != wantX || m.y != wantY {
+		t.Fatalf("SetResultKeepView lost viewport: zoom=%d x=%d y=%d (want x=%d y=%d)", m.zoom, m.x, m.y, wantX, wantY)
+	}
+	if crop := m.Picture().Crop(); crop.Min.X != wantX || crop.Min.Y != wantY {
+		t.Fatalf("SetResultKeepView did not apply crop: %v (want min=(%d,%d))", crop, wantX, wantY)
+	}
+	q, cur, tot = m.SearchStatus()
+	if q != "needle" || cur != 2 || tot != 2 {
+		t.Fatalf("SetResultKeepView lost search state: q=%q cur=%d tot=%d", q, cur, tot)
+	}
+	focusedAfter, ok := m.FocusedLink()
+	if !ok || focusedAfter.ID != focusedBefore.ID || focusedAfter.Href != "https://example.com/1-updated" {
+		t.Fatalf("SetResultKeepView lost focused link: %+v (ok=%v)", focusedAfter, ok)
+	}
+
+	// If a reflow removes the focused link, focus clears cleanly while keeping scroll/zoom.
+	noLinks := renderPage(`<p>needle only once</p>`)
+	m.SetResultKeepView(noLinks)
+	if _, ok := m.FocusedLink(); ok {
+		t.Fatal("expected focus to clear when focused link ID is absent in new Result")
+	}
+	q, cur, tot = m.SearchStatus()
+	if q != "needle" || cur != 1 || tot != 1 {
+		t.Fatalf("expected search match to clamp to remaining match, got q=%q cur=%d tot=%d", q, cur, tot)
+	}
+
+	// SetResult (new page) resets scroll, zoom, search, and focus.
+	m.SetResult(first)
+	if m.zoom != 0 || m.x != 0 || m.y != 0 {
+		t.Fatalf("SetResult did not reset viewport: zoom=%d x=%d y=%d", m.zoom, m.x, m.y)
+	}
+	if q, cur, tot := m.SearchStatus(); q != "" || cur != 0 || tot != 0 {
+		t.Fatalf("SetResult did not reset search: q=%q cur=%d tot=%d", q, cur, tot)
+	}
+	if _, ok := m.FocusedLink(); ok {
+		t.Fatal("SetResult did not reset link focus")
+	}
+}

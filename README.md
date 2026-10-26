@@ -169,7 +169,8 @@ not exposed by this first wrapper.
 ## Links, lists, and code
 
 Use `<a href="https://example.com">label</a>` for hyperlinks. Typeset links are
-colored and underlined. `Result.Links` exposes safe destinations, stable IDs, and
+colored and underlined. `Result.Links` exposes safe destinations, stable IDs,
+element anchor names (`Link.Anchor`, from `id` or `name`), and
 pixel rectangles; `Result.LinkAt(image.Point)` performs hit testing. Wrapped links
 can have several rectangles. `Document.Links(ctx)` returns visible link metadata
 without rasterizing.
@@ -181,7 +182,8 @@ URLs itself. Handle that message in the parent to choose an opener or custom
 navigation. The terminal demo opens absolute HTTP(S)/mailto destinations using
 `open` on macOS or `xdg-open` on Linux; other targets report the URL. Mouse hit testing accounts for the widget origin, TTY scroll offset, raster
 zoom/pan, and Kitty/glyph letterboxing. Use `Model.LinkAtCell(image.Point)` for
-screen-cell hit testing. A press/release must stay on the same link and cell;
+screen-cell link hit testing and `Model.CellToDocument(image.Point)` for mapping
+a screen cell to its document-pixel rectangle in Typeset mode. A press/release must stay on the same link and cell;
 dragging cancels activation. Clicks are ignored while a replacement raster is
 pending so they cannot activate a target from an undisplayed layout.
 
@@ -561,8 +563,11 @@ Lower-level consumers can use `Result.Anchors`, `Result.AnchorBounds`,
 coordinates and source-element identity. `TextIndex()` exposes layout-specific
 UTF-8 text offsets and rectangles, with `Search`, `Regions`, `Hit`, `SourceAt`,
 `HitSource`, and `Selected` helpers. Offsets must not be reused after reflow.
-Widget hosts can call `NavigateFragment`, `NavigateSource`, `ActiveSourceID`,
-`SelectedSourceID`, `SourceAtCell`, `Search`, `NextMatch`, `SearchStatus`,
+Widget hosts can call `SetResult` (resets scroll, zoom, search, and focus for a
+new page), `SetResultKeepView` (replaces the `Result` while preserving scroll
+offset, zoom, search state, and the focused link by `Link.ID`),
+`NavigateFragment`, `NavigateSource`, `ActiveSourceID`,
+`SelectedSourceID`, `SourceAtCell`, `CellToDocument`, `Search`, `NextMatch`, `SearchStatus`,
 `SelectRange`, `SelectedText`, and `CopySelection`. Hosts that reserve quit keys
 must let the widget consume keys while `SearchInputActive()` is true.
 
