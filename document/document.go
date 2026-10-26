@@ -76,6 +76,9 @@ type Options struct {
 	// Colors overrides the default canvas background, text, and link colors
 	// where the page sets none.
 	Colors Colors
+	// ColorScheme selects "light" or "dark" for @media (prefers-color-scheme)
+	// queries. Empty defaults to "light".
+	ColorScheme string
 	// Diagrams defaults to the pure-Go SVG/Mermaid renderer.
 	Diagrams DiagramRenderer
 	// DisableDiagrams keeps labels/source text without invoking a renderer.
@@ -112,7 +115,15 @@ type Document struct {
 	hasAuthorColors bool
 	hasMedia        bool
 	cascadedWidth   int
+	cascadedScheme  string
 	nodeSeq         int
+}
+
+func normalizeColorScheme(s string) string {
+	if strings.EqualFold(strings.TrimSpace(s), "dark") {
+		return "dark"
+	}
+	return "light"
 }
 
 func hasAuthorColorDecl(decl map[string]string) bool {
@@ -121,7 +132,7 @@ func hasAuthorColorDecl(decl map[string]string) bool {
 		if !ok || v == "" {
 			continue
 		}
-		if isCSSKeyword(v) {
+		if isCSSKeyword(v) || strings.HasPrefix(v, "\x00") || containsVar(v) {
 			return true
 		}
 		if _, ok := cssColor(v, color.RGBA{0, 0, 0, 255}); ok {
@@ -302,7 +313,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			break
 		}
 	}
-	if err := d.applyCascade(ctx, 800, true); err != nil {
+	if err := d.applyCascade(ctx, 800, "light", true); err != nil {
 		return nil, err
 	}
 	return d, nil
@@ -322,15 +333,17 @@ func linkSiblings(n *node) {
 	}
 }
 
-func (d *Document) applyCascade(ctx context.Context, width int, checkWork bool) error {
+func (d *Document) applyCascade(ctx context.Context, width int, scheme string, checkWork bool) error {
 	l := d.limits
 	count := d.nodeSeq
+	scheme = normalizeColorScheme(scheme)
 	d.cascadedWidth = width
+	d.cascadedScheme = scheme
 	d.hasAuthorColors = false
 	linkSiblings(d.root)
 	hasBefore, hasAfter, hasFirstLine := false, false, false
 	for _, r := range d.rules {
-		if !r.matchesMedia(width) {
+		if !r.matchesMedia(width, scheme) {
 			continue
 		}
 		switch r.pseudo {
@@ -346,11 +359,12 @@ func (d *Document) applyCascade(ctx context.Context, width int, checkWork bool) 
 	// computed values still resolve during layout, but selector work cannot
 	// multiply during reflow or nested table measurement.
 	work, entries := 0, 0
-	var cascade func(*node, int) error
-	cascade = func(n *node, depth int) error {
+	var cascade func(*node, int, map[string]string) error
+	cascade = func(n *node, depth int, parentVars map[string]string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		vars := parentVars
 		if n.tag != "" && n.pseudo == "" {
 			if checkWork {
 				for _, r := range d.rules {
@@ -364,13 +378,17 @@ func (d *Document) applyCascade(ctx context.Context, width int, checkWork bool) 
 					}
 				}
 			}
-			n.decl = d.cascade(n)
-			entries += len(n.decl)
+			rawDecl := d.cascade(n)
+			vars = resolveElementVars(rawDecl, parentVars)
+			n.decl = resolveDeclaredValues(rawDecl, vars)
+			entries += len(n.decl) + len(vars)
 			if !strings.Contains(" document script style head meta link title template ", " "+n.tag+" ") && (hasAuthorColorDecl(n.decl) || hasPresentationalColorAttr(n)) {
 				d.hasAuthorColors = true
 			}
 			if hasFirstLine && n.tag != "document" {
 				if fl := d.cascadePseudo(n, "first-line"); len(fl) > 0 {
+					flVars := resolveElementVars(fl, vars)
+					fl = resolveDeclaredValues(fl, flVars)
 					n.firstLineDecl = fl
 					entries += len(fl)
 					if hasAuthorColorDecl(fl) {
@@ -384,13 +402,15 @@ func (d *Document) applyCascade(ctx context.Context, width int, checkWork bool) 
 		}
 		origChildren := n.children
 		for _, child := range origChildren {
-			if err := cascade(child, depth+1); err != nil {
+			if err := cascade(child, depth+1, vars); err != nil {
 				return err
 			}
 		}
 		if n.tag != "" && n.tag != "document" && n.pseudo == "" {
 			if hasBefore {
 				if bDecl := d.cascadePseudo(n, "before"); len(bDecl) > 0 {
+					bVars := resolveElementVars(bDecl, vars)
+					bDecl = resolveDeclaredValues(bDecl, bVars)
 					if text, ok := resolveContent(bDecl["content"]); ok {
 						count++
 						if count > l.Nodes {
@@ -409,6 +429,8 @@ func (d *Document) applyCascade(ctx context.Context, width int, checkWork bool) 
 			}
 			if hasAfter {
 				if aDecl := d.cascadePseudo(n, "after"); len(aDecl) > 0 {
+					aVars := resolveElementVars(aDecl, vars)
+					aDecl = resolveDeclaredValues(aDecl, aVars)
 					if text, ok := resolveContent(aDecl["content"]); ok {
 						count++
 						if count > l.Nodes {
@@ -428,11 +450,30 @@ func (d *Document) applyCascade(ctx context.Context, width int, checkWork bool) 
 		}
 		return nil
 	}
-	return cascade(d.root, 0)
+	hasHTML := false
+	for _, c := range d.root.children {
+		if c.tag == "html" {
+			hasHTML = true
+			break
+		}
+	}
+	var rootVars map[string]string
+	if !hasHTML {
+		rootVars = resolveElementVars(d.cascade(&node{tag: "html", parent: d.root}), nil)
+	}
+	return cascade(d.root, 0, rootVars)
 }
 
 func (d *Document) forWidth(ctx context.Context, width int) (*Document, error) {
-	if d == nil || !d.hasMedia || d.cascadedWidth == width {
+	if d == nil {
+		return nil, nil
+	}
+	return d.forMedia(ctx, width, d.cascadedScheme)
+}
+
+func (d *Document) forMedia(ctx context.Context, width int, scheme string) (*Document, error) {
+	scheme = normalizeColorScheme(scheme)
+	if d == nil || !d.hasMedia || (d.cascadedWidth == width && normalizeColorScheme(d.cascadedScheme) == scheme) {
 		return d, nil
 	}
 	var clone func(*node, *node) *node
@@ -463,7 +504,7 @@ func (d *Document) forWidth(ctx context.Context, width int) (*Document, error) {
 		hasMedia: d.hasMedia,
 		nodeSeq:  d.nodeSeq,
 	}
-	if err := cp.applyCascade(ctx, width, false); err != nil {
+	if err := cp.applyCascade(ctx, width, scheme, false); err != nil {
 		return nil, err
 	}
 	return cp, nil

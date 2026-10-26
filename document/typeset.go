@@ -157,7 +157,7 @@ func (d *Document) ExtractTypeset(ctx context.Context, o Options) (*TypesetDocum
 		o.Width = 800
 	}
 	var err error
-	d, err = d.forWidth(ctx, o.Width)
+	d, err = d.forMedia(ctx, o.Width, o.ColorScheme)
 	if err != nil {
 		return nil, err
 	}

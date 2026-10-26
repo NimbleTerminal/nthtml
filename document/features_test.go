@@ -778,3 +778,94 @@ func TestLinkAnchorAndEmptyImageLink(t *testing.T) {
 		t.Fatalf("unexpected TTYResult.Links: %+v", ttyRes.Links)
 	}
 }
+
+func TestCSSCustomPropertiesAndPrefersColorScheme(t *testing.T) {
+	ctx := context.Background()
+	red := color.RGBA{255, 0, 0, 255}
+	blue := color.RGBA{0, 0, 255, 255}
+	green := color.RGBA{0, 128, 0, 255}
+	darkBg := color.RGBA{0x11, 0x22, 0x33, 0xff}
+
+	// 1. Exact 5a repro: :root{--c:red}.a{background:var(--c)}
+	rRepro, err := Render(ctx, strings.NewReader(`<style>:root{--c:red}.a{background:var(--c)}</style><body style="margin:0"><div class=a style="height:40px">A</div></body>`), Options{Width: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := rRepro.Image.RGBAAt(20, 20); got != red {
+		t.Fatalf("5a repro: expected red at (20,20), got %v", got)
+	}
+
+	// 2. Inheritance, nested var(), fallback with commas, shorthand + longhand cascade, and unresolved var() invalidating only the declaration (not the rule)
+	src := `<style>
+:root {
+	--base: 10px;
+	--derived: var(--base);
+	--cycle-a: var(--cycle-b);
+	--cycle-b: var(--cycle-a);
+}
+.card {
+	padding: var(--derived);
+	padding-left: 30px;
+	color: var(--missing, rgb(0, 128, 0));
+	background: blue;
+}
+.card-bad {
+	color: blue;
+	background: var(--missing);
+	font-size: var(--cycle-a, 24px);
+}
+</style>
+<body style="margin:0">
+<div class="card"><span id="txt1">One</span></div>
+<div class="card-bad" style="height:40px"><span id="txt2">Two</span></div>
+</body>`
+	rVar, err := Render(ctx, strings.NewReader(src), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var txt1, txt2 Box
+	for _, b := range rVar.Boxes {
+		if b.Text == "One" {
+			txt1 = b
+		}
+		if b.Text == "Two" {
+			txt2 = b
+		}
+	}
+	if txt1.Bounds.Min.X != 30 || txt1.Bounds.Min.Y != 10 {
+		t.Fatalf("expected padding-left 30px and padding-top 10px on .card, got %v", txt1.Bounds)
+	}
+	if txt1.Color != green {
+		t.Fatalf("expected fallback rgb(0,128,0) on .card text, got %v", txt1.Color)
+	}
+	if txt2.Color != blue || txt2.FontSize != 24 {
+		t.Fatalf("expected unresolved background var(--missing) not to invalidate sibling declarations in rule: color=%v size=%d", txt2.Color, txt2.FontSize)
+	}
+
+	// 3. prefers-color-scheme light (default) vs dark, combined with custom properties
+	schemeHTML := `<style>
+:root { --bg: #ffffff; --fg: #0000ff; }
+@media (prefers-color-scheme: dark) {
+	:root { --bg: #112233; --fg: #ff0000; }
+}
+body { margin: 0; background-color: var(--bg); color: var(--fg); }
+</style><body><p>ThemeText</p></body>`
+	doc, err := Parse(ctx, strings.NewReader(schemeHTML), Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rLight, err := doc.Render(ctx, Options{Width: 300})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rLight.Background() != (color.RGBA{255, 255, 255, 255}) || tagged(rLight, "text").Color != blue {
+		t.Fatalf("light theme: bg=%v fg=%v", rLight.Background(), tagged(rLight, "text").Color)
+	}
+	rDark, err := doc.Render(ctx, Options{Width: 300, ColorScheme: "dark"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rDark.Background() != darkBg || tagged(rDark, "text").Color != red {
+		t.Fatalf("dark theme: bg=%v fg=%v, want %v / %v", rDark.Background(), tagged(rDark, "text").Color, darkBg, red)
+	}
+}

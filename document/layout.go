@@ -182,7 +182,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		return nil, limitError("width")
 	}
 	origDoc := d
-	d, err := d.forWidth(ctx, o.Width)
+	d, err := d.forMedia(ctx, o.Width, o.ColorScheme)
 	if err != nil {
 		return nil, err
 	}

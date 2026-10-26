@@ -14,6 +14,9 @@ const (
 	// TTYWidthPxPerColumn is the CSS pixel width assumed per terminal column when
 	// evaluating @media width queries in TTY and TTYLayout modes (80 cols = 800 px).
 	ttyWidthPxPerColumn = 10
+	maxCustomProps      = 256
+	maxVarSubstDepth    = 16
+	maxVarValueBytes    = 1024
 )
 
 type rule struct {
@@ -104,6 +107,398 @@ func resolveCSSKeyword(k, v string) string {
 	return kw
 }
 
+func splitDeclarations(s string) []string {
+	var out []string
+	parenDepth := 0
+	var quote byte
+	start := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == '\\' && i+1 < len(s) {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '(':
+			parenDepth++
+		case ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+		case ';':
+			if parenDepth == 0 {
+				out = append(out, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	if start < len(s) {
+		out = append(out, s[start:])
+	}
+	return out
+}
+
+func isCustomPropertyName(s string) bool {
+	if len(s) < 3 || !strings.HasPrefix(s, "--") || len(s) > 128 {
+		return false
+	}
+	for i := 2; i < len(s); i++ {
+		c := s[i]
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+func containsVar(s string) bool {
+	lower := strings.ToLower(s)
+	idx := 0
+	for {
+		i := strings.Index(lower[idx:], "var(")
+		if i < 0 {
+			return false
+		}
+		pos := idx + i
+		if pos == 0 || !isMediaIdentChar(lower[pos-1]) {
+			return true
+		}
+		idx = pos + 4
+	}
+}
+
+func expandVarDeclaration(k, v string, put func(string, string)) {
+	marker := "\x00" + k + ":" + v
+	switch k {
+	case "font":
+		for _, sub := range []string{"font-family", "font-size", "font-style", "font-variant", "font-weight", "line-height"} {
+			put(sub, marker)
+		}
+	case "list-style":
+		put("list-style-type", marker)
+	case "gap", "grid-gap":
+		put("row-gap", "\x00gap:"+v)
+		put("column-gap", "\x00gap:"+v)
+	case "grid-row-gap":
+		put("row-gap", "\x00row-gap:"+v)
+	case "grid-column-gap":
+		put("column-gap", "\x00column-gap:"+v)
+	case "flex":
+		put("flex-grow", marker)
+		put("flex-shrink", marker)
+		put("flex-basis", marker)
+	case "margin", "padding":
+		for _, side := range borderSides {
+			put(k+"-"+side, marker)
+		}
+	case "inset":
+		for _, side := range borderSides {
+			put(side, marker)
+		}
+	case "margin-block", "padding-block":
+		base := strings.TrimSuffix(k, "-block")
+		put(base+"-top", marker)
+		put(base+"-bottom", marker)
+	case "margin-inline", "padding-inline":
+		base := strings.TrimSuffix(k, "-inline")
+		put(base+"-left", marker)
+		put(base+"-right", marker)
+	case "margin-block-start", "padding-block-start":
+		target := strings.TrimSuffix(k, "-block-start") + "-top"
+		put(target, "\x00"+target+":"+v)
+	case "margin-block-end", "padding-block-end":
+		target := strings.TrimSuffix(k, "-block-end") + "-bottom"
+		put(target, "\x00"+target+":"+v)
+	case "margin-inline-start", "padding-inline-start":
+		target := strings.TrimSuffix(k, "-inline-start") + "-left"
+		put(target, "\x00"+target+":"+v)
+	case "margin-inline-end", "padding-inline-end":
+		target := strings.TrimSuffix(k, "-inline-end") + "-right"
+		put(target, "\x00"+target+":"+v)
+	case "border":
+		for _, side := range borderSides {
+			for _, sub := range []string{"width", "style", "color"} {
+				put("border-"+side+"-"+sub, marker)
+			}
+		}
+	case "border-top", "border-right", "border-bottom", "border-left":
+		for _, sub := range []string{"width", "style", "color"} {
+			put(k+"-"+sub, marker)
+		}
+	case "border-width", "border-style", "border-color":
+		sub := strings.TrimPrefix(k, "border-")
+		for _, side := range borderSides {
+			put("border-"+side+"-"+sub, marker)
+		}
+	case "word-wrap":
+		put("overflow-wrap", "\x00overflow-wrap:"+v)
+	case "background":
+		put("background-color", marker)
+	case "text-decoration":
+		put("text-decoration-line", "\x00text-decoration-line:"+v)
+	default:
+		put(k, marker)
+	}
+}
+
+func resolveElementVars(decl map[string]string, parentVars map[string]string) map[string]string {
+	var customKeys []string
+	for k := range decl {
+		if strings.HasPrefix(k, "--") {
+			customKeys = append(customKeys, k)
+		}
+	}
+	if len(customKeys) == 0 {
+		return parentVars
+	}
+	sort.Strings(customKeys)
+	vars := make(map[string]string, min(maxCustomProps, len(parentVars)+len(customKeys)))
+	for k, v := range parentVars {
+		if len(vars) >= maxCustomProps {
+			break
+		}
+		vars[k] = v
+	}
+	for _, k := range customKeys {
+		v := decl[k]
+		if isCSSKeyword(v) {
+			kw := strings.ToLower(strings.TrimSpace(v))
+			if kw == "initial" {
+				delete(vars, k)
+			} else if pv, ok := parentVars[k]; ok {
+				if _, exists := vars[k]; exists || len(vars) < maxCustomProps {
+					vars[k] = pv
+				}
+			} else {
+				delete(vars, k)
+			}
+			continue
+		}
+		if _, exists := vars[k]; exists || len(vars) < maxCustomProps {
+			vars[k] = v
+		}
+	}
+	var resolved map[string]string
+	for _, k := range customKeys {
+		v, ok := vars[k]
+		if !ok || !containsVar(v) {
+			continue
+		}
+		if resolved == nil {
+			resolved = make(map[string]string, len(customKeys))
+		}
+		sub, valid := substituteVars(v, vars, 0)
+		if valid && !containsVar(sub) {
+			resolved[k] = sub
+		} else {
+			resolved[k] = "\x00invalid"
+		}
+	}
+	for k, v := range resolved {
+		if v == "\x00invalid" {
+			delete(vars, k)
+		} else {
+			vars[k] = v
+		}
+	}
+	return vars
+}
+
+func resolveDeclaredValues(decl map[string]string, vars map[string]string) map[string]string {
+	needsResolve := false
+	for k, v := range decl {
+		if strings.HasPrefix(k, "--") || strings.HasPrefix(v, "\x00") || containsVar(v) {
+			needsResolve = true
+			break
+		}
+	}
+	if !needsResolve {
+		return decl
+	}
+	out := make(map[string]string, len(decl))
+	keys := make([]string, 0, len(decl))
+	for k := range decl {
+		if !strings.HasPrefix(k, "--") {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := decl[k]
+		if strings.HasPrefix(v, "\x00") {
+			origProp, rawVal, ok := strings.Cut(v[1:], ":")
+			if !ok {
+				continue
+			}
+			resolved, ok := substituteVars(rawVal, vars, 0)
+			if !ok || containsVar(resolved) {
+				continue
+			}
+			parsed := declarations(origProp + ":" + resolved)
+			if pv, ok := parsed[k]; ok && !strings.HasPrefix(pv, "\x00") {
+				out[k] = pv
+			}
+			continue
+		}
+		if containsVar(v) {
+			resolved, ok := substituteVars(v, vars, 0)
+			if !ok || containsVar(resolved) {
+				continue
+			}
+			parsed := declarations(k + ":" + resolved)
+			if pv, ok := parsed[k]; ok && !strings.HasPrefix(pv, "\x00") {
+				out[k] = pv
+			}
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func substituteVars(s string, vars map[string]string, depth int) (string, bool) {
+	if depth > maxVarSubstDepth {
+		return "", false
+	}
+	var out strings.Builder
+	for len(s) > 0 {
+		lower := strings.ToLower(s)
+		pos := -1
+		idx := 0
+		for {
+			i := strings.Index(lower[idx:], "var(")
+			if i < 0 {
+				break
+			}
+			cand := idx + i
+			if cand == 0 || !isMediaIdentChar(lower[cand-1]) {
+				pos = cand
+				break
+			}
+			idx = cand + 4
+		}
+		if pos < 0 {
+			out.WriteString(s)
+			if out.Len() > maxVarValueBytes {
+				return "", false
+			}
+			return out.String(), true
+		}
+		out.WriteString(s[:pos])
+		closeRel := findMatchingParen(s[pos+3:])
+		if closeRel < 0 {
+			return "", false
+		}
+		inner := s[pos+4 : pos+3+closeRel]
+		s = s[pos+3+closeRel+1:]
+		name, fallback, hasFallback := splitVarArgs(inner)
+		name = strings.TrimSpace(name)
+		if !isCustomPropertyName(name) {
+			return "", false
+		}
+		val, exists := vars[name]
+		if exists && containsVar(val) {
+			resolvedVal, ok := substituteVars(val, vars, depth+1)
+			if !ok {
+				exists = false
+			} else {
+				val = resolvedVal
+			}
+		}
+		if !exists {
+			if !hasFallback {
+				return "", false
+			}
+			fallback = strings.TrimSpace(fallback)
+			if containsVar(fallback) {
+				resolvedFallback, ok := substituteVars(fallback, vars, depth+1)
+				if !ok {
+					return "", false
+				}
+				val = resolvedFallback
+			} else {
+				val = fallback
+			}
+		}
+		out.WriteString(val)
+		if out.Len() > maxVarValueBytes {
+			return "", false
+		}
+	}
+	return out.String(), true
+}
+
+func findMatchingParen(s string) int {
+	depth := 0
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == '\\' && i+1 < len(s) {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func splitVarArgs(s string) (string, string, bool) {
+	parenDepth := 0
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == '\\' && i+1 < len(s) {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '(':
+			parenDepth++
+		case ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+		case ',':
+			if parenDepth == 0 {
+				return s[:i], s[i+1:], true
+			}
+		}
+	}
+	return s, "", false
+}
+
 func declarations(s string) map[string]string {
 	m := map[string]string{}
 	important := false
@@ -117,16 +512,29 @@ func declarations(s string) map[string]string {
 		}
 		m[k] = v
 	}
-	for i, p := range strings.Split(s, ";") {
+	for i, p := range splitDeclarations(s) {
 		if i >= 128 {
 			break
 		}
-		k, v, ok := strings.Cut(p, ":")
+		rawKey, v, ok := strings.Cut(p, ":")
 		if !ok {
 			continue
 		}
-		k = strings.ToLower(strings.TrimSpace(k))
+		rawKey = strings.TrimSpace(rawKey)
 		v, important = importance(strings.TrimSpace(v))
+		if isCustomPropertyName(rawKey) {
+			if len(v) <= maxVarValueBytes {
+				put(rawKey, v)
+			}
+			continue
+		}
+		k := strings.ToLower(rawKey)
+		if containsVar(v) {
+			if len(v) <= maxVarValueBytes {
+				expandVarDeclaration(k, v, put)
+			}
+			continue
+		}
 		if isCSSKeyword(v) {
 			kw := strings.ToLower(v)
 			switch k {
@@ -803,16 +1211,16 @@ func findMatchingBrace(s string) int {
 	return -1
 }
 
-func (r rule) matchesMedia(width int) bool {
+func (r rule) matchesMedia(width int, scheme string) bool {
 	for _, m := range r.media {
-		if !evalMediaQueryList(m, width) {
+		if !evalMediaQueryList(m, width, scheme) {
 			return false
 		}
 	}
 	return true
 }
 
-func evalMediaQueryList(prelude string, width int) bool {
+func evalMediaQueryList(prelude string, width int, scheme string) bool {
 	prelude = strings.TrimSpace(prelude)
 	if prelude == "" {
 		return true
@@ -822,7 +1230,7 @@ func evalMediaQueryList(prelude string, width int) bool {
 		return false
 	}
 	for _, part := range parts {
-		if evalSingleMediaQuery(part, width) {
+		if evalSingleMediaQuery(part, width, scheme) {
 			return true
 		}
 	}
@@ -856,7 +1264,7 @@ func splitMediaQueries(s string) ([]string, bool) {
 	return out, true
 }
 
-func evalSingleMediaQuery(q string, width int) bool {
+func evalSingleMediaQuery(q string, width int, scheme string) bool {
 	tokens, ok := tokenizeMediaQuery(q)
 	if !ok || len(tokens) == 0 {
 		return false
@@ -873,7 +1281,7 @@ func evalSingleMediaQuery(q string, width int) bool {
 	}
 	var result bool
 	if strings.HasPrefix(tokens[0], "(") {
-		val, valid := evalMediaFeature(tokens[0], width)
+		val, valid := evalMediaFeature(tokens[0], width, scheme)
 		if !valid {
 			return false
 		}
@@ -893,7 +1301,7 @@ func evalSingleMediaQuery(q string, width int) bool {
 		if len(tokens) < 2 || !strings.EqualFold(tokens[0], "and") || !strings.HasPrefix(tokens[1], "(") {
 			return false
 		}
-		val, valid := evalMediaFeature(tokens[1], width)
+		val, valid := evalMediaFeature(tokens[1], width, scheme)
 		if !valid {
 			return false
 		}
@@ -946,7 +1354,7 @@ func isMediaIdentChar(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_'
 }
 
-func evalMediaFeature(expr string, width int) (bool, bool) {
+func evalMediaFeature(expr string, width int, scheme string) (bool, bool) {
 	if len(expr) < 2 || expr[0] != '(' || expr[len(expr)-1] != ')' {
 		return false, false
 	}
@@ -957,6 +1365,13 @@ func evalMediaFeature(expr string, width int) (bool, bool) {
 	}
 	name = strings.ToLower(strings.TrimSpace(name))
 	valStr = strings.TrimSpace(valStr)
+	if name == "prefers-color-scheme" {
+		v := strings.ToLower(valStr)
+		if v != "light" && v != "dark" {
+			return false, false
+		}
+		return v == normalizeColorScheme(scheme), true
+	}
 	if name != "width" && name != "min-width" && name != "max-width" {
 		return false, false
 	}
@@ -1853,8 +2268,9 @@ func (d *Document) cascadePseudo(n *node, pseudo string) map[string]string {
 	if w <= 0 {
 		w = 800
 	}
+	scheme := normalizeColorScheme(d.cascadedScheme)
 	for _, r := range d.rules {
-		if r.pseudo == pseudo && r.matchesMedia(w) && r.selector.matches(n) {
+		if r.pseudo == pseudo && r.matchesMedia(w, scheme) && r.selector.matches(n) {
 			for k, v := range r.decl {
 				v, important := importance(v)
 				score := r.specificity
