@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## Unreleased
+
+ * **CSS at-rules & `@media` queries**:
+   * Skip statement at-rules (`@import`, `@charset`, `@namespace`) up to `;` and non-`@media` block at-rules (`@font-face`, `@keyframes`, `@supports`, `@layer`, `@page`) with brace matching (`@supports` bodies are skipped, not evaluated).
+   * Parse nested `@media` blocks (up to depth 8, 1,024-byte prelude) and evaluate media query lists (`screen`, `all`, `not`, `only`, `and`, `,`, and `width`/`min-width`/`max-width` in supported CSS length units) at render and TTY layout time (`columns * 10` px in TTY mode) while counting all parsed rules against `Limits.Rules`.
+ * **Dynamic pseudo-classes in selector lists**:
+   * Accept `:visited`, `:hover`, `:active`, and `:focus` (without arguments) in selector parsing so they never match without dropping the rest of a comma-separated selector list.
+ * **HTML presentational attributes**:
+   * Map HTML Standard (§15.3) presentational hints below author CSS rules (including specificity `0,0,0`): `bgcolor` (including legacy hex without `#`), `align`, `valign`, `cellpadding`, `width`/`height` on `table`/`td`/`th`/`tr`, `border="N"` on `table`, `<center>`, `<font color/size/face>`, and `<body text/link>`.
+ * **Images with empty or missing `alt`**:
+   * Omit `[image: ]` fallback text across native, TTY, and `typeset` routes when `alt` is empty or absent; reserve an empty `width`×`height` box when both dimension attributes are present so spacer images work in layout.
+ * **Inline whitespace, kerning, & link regions**:
+   * Measure whole words with OpenType kerning, collapse whitespace across inline element boundaries without extending link/underline styles into trailing spaces, and merge contiguous link hit regions on a line.
+ * **Canvas background & `nttypeset` bridge**:
+   * Expose `Result.Background()`, `Document.ExtractTypeset`, and `typeset.BuildWithSources` for nested section decorations and source-anchor mapping.
+
 ## v0.1.0 (2026-10-25)
 
  * Initial release of `nimbleterminal.dev/nthtml`: a bounded, pure-Go (`CGO_ENABLED=0`) HTML + CSS document renderer and Bubble Tea v2 viewer for native terminals and WebAssembly (`js/wasm`).
