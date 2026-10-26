@@ -12,7 +12,7 @@ require (
 	nimbleterminal.dev/ntfonts v0.1.0
 	nimbleterminal.dev/ntpicture v0.1.1
 	nimbleterminal.dev/ntsvg v0.5.2
-	nimbleterminal.dev/nttypeset v0.1.3
+	nimbleterminal.dev/nttypeset v0.1.4-0.20261026125759-dc9276f387f9
 )
 
 require (

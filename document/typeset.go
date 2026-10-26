@@ -15,6 +15,23 @@ func (r *Result) Document() *Document {
 	return r.document
 }
 
+// WithDocument associates d and o with a host-constructed Result so TTY reflow
+// and Result.Document() remain available.
+func (r *Result) WithDocument(d *Document, o Options) *Result {
+	if r == nil {
+		return nil
+	}
+	r.document = d
+	r.opts = o
+	if d != nil {
+		r.limits = d.limits
+	}
+	if r.Image != nil {
+		r.size = r.Image.Bounds().Max
+	}
+	return r
+}
+
 // Options returns a copy of the render Options used to produce r.
 func (r *Result) Options() Options {
 	if r == nil {
@@ -43,11 +60,41 @@ const (
 	BlockTable
 )
 
+// Insets are nonnegative layout pixels on each edge (top, right, bottom, left).
+type Insets struct {
+	Top, Right, Bottom, Left int
+}
+
+// SectionBorder describes one solid rectangular border edge.
+type SectionBorder struct {
+	Width int
+	Color color.RGBA
+}
+
+// BlockFormat supplies resolved block spacing, padding, and background in layout pixels.
+type BlockFormat struct {
+	LineHeight, SpaceBefore, SpaceAfter int
+	Padding                             Insets
+	Background                          color.RGBA
+}
+
+// Section decorates a nonempty half-open range of StyledBlocks [Start, End)
+// and carries its HTML element ID (if any) and enclosing parent section ID.
+type Section struct {
+	Start, End               int
+	SpaceBefore, SpaceAfter  int
+	SourceID, ParentID       string
+	Padding                  Insets
+	Background               color.RGBA
+	Top, Right, Bottom, Left SectionBorder
+}
+
 // Span is a styled inline text run extracted from the document tree.
 type Span struct {
 	Text                                       string
+	Size                                       int
 	Bold, Italic, Monospace, Strike, Underline bool
-	SmallCaps, Accent                          bool
+	SmallCaps, Accent, ExplicitColor           bool
 	Color                                      color.RGBA
 	Href                                       string
 }
@@ -61,6 +108,8 @@ type QuoteBar struct {
 // StyledBlock is a structured block in reading order, suitable for conversion
 // to nttypeset.Block or other host layout engines.
 type StyledBlock struct {
+	SourceID, SectionID     string
+	Format                  *BlockFormat
 	Kind                    BlockKind
 	Level, Size, Indent     int
 	Language, Code          string
@@ -73,12 +122,31 @@ type StyledBlock struct {
 	Href                    string
 }
 
+// TypesetDocument holds reading-order StyledBlocks, nested container Sections,
+// and resolved canvas/text colors extracted from a Document.
+type TypesetDocument struct {
+	Blocks     []StyledBlock
+	Sections   []Section
+	Background color.RGBA
+	Foreground color.RGBA
+}
+
 const maxStyledBlocks = 32768
 
 // Blocks extracts styled reading-order blocks from d using the CSS cascade,
 // pseudo-elements, list markers, table structure, and optional image/diagram
 // resources in o.
 func (d *Document) Blocks(ctx context.Context, o Options) ([]StyledBlock, error) {
+	td, err := d.ExtractTypeset(ctx, o)
+	if err != nil {
+		return nil, err
+	}
+	return td.Blocks, nil
+}
+
+// ExtractTypeset extracts styled reading-order blocks, nested container
+// sections, source anchors, and resolved canvas colors from d.
+func (d *Document) ExtractTypeset(ctx context.Context, o Options) (*TypesetDocument, error) {
 	if d == nil || d.root == nil {
 		return nil, limitError("nil document")
 	}
@@ -96,17 +164,85 @@ func (d *Document) Blocks(ctx context.Context, o Options) ([]StyledBlock, error)
 	for _, l := range links {
 		hrefs[l.ID] = l.Href
 	}
-	w := &blockExtractor{
-		ctx:   ctx,
-		d:     d,
-		opts:  o,
-		hrefs: hrefs,
+	fg := color.RGBA{0, 0, 0, 255}
+	var linkColor color.RGBA
+	explicitFg := false
+	if !d.hasAuthorColors {
+		if o.Colors.Text.A > 0 {
+			fg = o.Colors.Text
+			explicitFg = true
+		}
+		linkColor = o.Colors.Link
 	}
-	base := style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: color.RGBA{0, 0, 0, 255}}
-	if err := w.walk(d.root, base, 0); err != nil {
+	base := style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor, explicitFg: explicitFg}
+	probe := &layout{ctx: ctx, d: d, opts: o, lim: d.limits}
+	canvasBg, _ := probe.resolveCanvasBackground(base)
+	bodyFg := resolveDocumentForeground(d, base)
+
+	w := &blockExtractor{
+		ctx:     ctx,
+		d:       d,
+		opts:    o,
+		hrefs:   hrefs,
+		seenIDs: map[string]bool{},
+	}
+	if err := w.walk(d.root, base, 0, max(64, o.Width)); err != nil {
 		return nil, err
 	}
-	return w.blocks, nil
+	if len(w.pendingIDs) > 0 {
+		if len(w.blocks) == 0 {
+			if err := w.addBlock(StyledBlock{Kind: BlockParagraph, Size: 16, Format: &BlockFormat{LineHeight: 1}}); err != nil {
+				return nil, err
+			}
+		} else {
+			w.attachPendingIDs(len(w.blocks) - 1)
+		}
+	}
+	sections := make([]Section, 0, len(w.sections))
+	for _, sec := range w.sections {
+		if sec.Start >= 0 && sec.End > sec.Start && sec.End <= len(w.blocks) {
+			sections = append(sections, sec)
+		}
+	}
+	return &TypesetDocument{
+		Blocks:     w.blocks,
+		Sections:   sections,
+		Background: canvasBg,
+		Foreground: bodyFg,
+	}, nil
+}
+
+func resolveDocumentForeground(d *Document, base style) color.RGBA {
+	var find func(*node, style) (color.RGBA, bool)
+	find = func(n *node, p style) (color.RGBA, bool) {
+		if n == nil || n.tag == "" {
+			return color.RGBA{}, false
+		}
+		s := d.styled(n, p)
+		if s.display == "none" {
+			return color.RGBA{}, false
+		}
+		if n.tag == "body" && s.explicitFg {
+			return s.fg, true
+		}
+		for _, c := range n.children {
+			if fg, ok := find(c, s); ok {
+				return fg, true
+			}
+		}
+		if n.tag == "html" && s.explicitFg {
+			return s.fg, true
+		}
+		return color.RGBA{}, false
+	}
+	if fg, ok := find(d.root, base); ok {
+		return fg
+	}
+	return base.fg
+}
+
+type pendingID struct {
+	id, parentID string
 }
 
 type blockExtractor struct {
@@ -114,9 +250,40 @@ type blockExtractor struct {
 	d            *Document
 	opts         Options
 	hrefs        map[int]string
+	seenIDs      map[string]bool
+	parentID     string
+	sectionDepth int
+	pendingIDs   []pendingID
 	blocks       []StyledBlock
+	sections     []Section
 	diagramCount int
 	diagramPx    int
+}
+
+func (w *blockExtractor) claimID(id string) string {
+	if id == "" || w.seenIDs[id] {
+		return ""
+	}
+	w.seenIDs[id] = true
+	return id
+}
+
+func (w *blockExtractor) attachPendingIDs(blockIdx int) {
+	if len(w.pendingIDs) == 0 {
+		return
+	}
+	pending := w.pendingIDs
+	w.pendingIDs = nil
+	for _, p := range pending {
+		if len(w.sections) < maxStyledBlocks {
+			w.sections = append(w.sections, Section{
+				Start:    blockIdx,
+				End:      blockIdx + 1,
+				SourceID: p.id,
+				ParentID: p.parentID,
+			})
+		}
+	}
 }
 
 func (w *blockExtractor) addBlock(b StyledBlock) error {
@@ -126,8 +293,70 @@ func (w *blockExtractor) addBlock(b StyledBlock) error {
 	if len(w.blocks) >= maxStyledBlocks {
 		return limitError("typeset blocks")
 	}
+	if b.SectionID == "" {
+		b.SectionID = w.parentID
+	}
 	w.blocks = append(w.blocks, b)
+	w.attachPendingIDs(len(w.blocks) - 1)
 	return nil
+}
+
+func sectionBorders(s style) (SectionBorder, SectionBorder, SectionBorder, SectionBorder) {
+	b := func(side int) SectionBorder {
+		if s.bw[side] <= 0 {
+			return SectionBorder{}
+		}
+		return SectionBorder{Width: s.bw[side], Color: s.borderColor(side)}
+	}
+	return b(0), b(1), b(2), b(3)
+}
+
+func (w *blockExtractor) wrapLeaf(idx int, id, parentID string, s style, margin [4]int, pad Insets, inlineIDs []string) {
+	if s.hasBorder() && len(w.sections) < maxStyledBlocks {
+		top, right, bottom, left := sectionBorders(s)
+		w.sections = append(w.sections, Section{
+			Start:       idx,
+			End:         idx + 1,
+			SpaceBefore: max(0, margin[0]),
+			SpaceAfter:  max(0, margin[2]),
+			SourceID:    id,
+			ParentID:    parentID,
+			Padding:     pad,
+			Background:  s.bg,
+			Top:         top,
+			Right:       right,
+			Bottom:      bottom,
+			Left:        left,
+		})
+		if w.blocks[idx].Format != nil {
+			w.blocks[idx].Format = &BlockFormat{LineHeight: w.blocks[idx].Format.LineHeight}
+		}
+		if id != "" {
+			w.blocks[idx].SectionID = id
+		}
+	} else if id != "" {
+		w.blocks[idx].SourceID = id
+	}
+	innerParent := parentID
+	if id != "" {
+		innerParent = id
+	}
+	for _, inl := range inlineIDs {
+		uid := w.claimID(inl)
+		if uid == "" {
+			continue
+		}
+		if w.blocks[idx].SourceID == "" && !s.hasBorder() {
+			w.blocks[idx].SourceID = uid
+		} else if len(w.sections) < maxStyledBlocks {
+			w.sections = append(w.sections, Section{
+				Start:    idx,
+				End:      idx + 1,
+				SourceID: uid,
+				ParentID: innerParent,
+			})
+		}
+	}
 }
 
 func headingLevel(tag string) int {
@@ -186,8 +415,24 @@ func collectRawText(n *node) string {
 	return b.String()
 }
 
-func (w *blockExtractor) inlineSpans(n *node, parent style) []Span {
+func uniformSpanSize(spans []Span) int {
+	sz := 0
+	for _, sp := range spans {
+		if sp.Size <= 0 {
+			continue
+		}
+		if sz == 0 {
+			sz = sp.Size
+		} else if sz != sp.Size {
+			return 0
+		}
+	}
+	return sz
+}
+
+func (w *blockExtractor) inlineSpansWithIDs(n *node, parent style) ([]Span, []string) {
 	var out []Span
+	var ids []string
 	var visit func(*node, style)
 	visit = func(cur *node, p style) {
 		if cur.tag == "" {
@@ -202,26 +447,31 @@ func (w *blockExtractor) inlineSpans(n *node, parent style) []Span {
 				txt = strings.ToUpper(txt)
 			}
 			out = append(out, Span{
-				Text:      txt,
-				Bold:      p.bold,
-				Italic:    p.italic,
-				Monospace: p.mono,
-				Strike:    p.strike,
-				Underline: p.underline,
-				SmallCaps: p.smallCaps,
-				Accent:    p.linkID != 0,
-				Color:     p.fg,
-				Href:      w.hrefs[p.linkID],
+				Text:          txt,
+				Size:          max(1, p.size),
+				Bold:          p.bold,
+				Italic:        p.italic,
+				Monospace:     p.mono,
+				Strike:        p.strike,
+				Underline:     p.underline,
+				SmallCaps:     p.smallCaps,
+				Accent:        p.linkID != 0 && !p.explicitFg,
+				ExplicitColor: p.explicitFg,
+				Color:         p.fg,
+				Href:          w.hrefs[p.linkID],
 			})
 			return
 		}
 		if cur.tag == "br" {
-			out = append(out, Span{Text: "\n", Bold: p.bold, Italic: p.italic, Monospace: p.mono})
+			out = append(out, Span{Text: "\n", Size: max(1, p.size), Bold: p.bold, Italic: p.italic, Monospace: p.mono, Color: p.fg, ExplicitColor: p.explicitFg})
 			return
 		}
 		s := w.d.styled(cur, p)
 		if s.display == "none" {
 			return
+		}
+		if id := anchorName(cur); id != "" {
+			ids = append(ids, id)
 		}
 		if cur.tag == "img" {
 			alt := cleanText(cur.attrs["alt"])
@@ -229,11 +479,13 @@ func (w *blockExtractor) inlineSpans(n *node, parent style) []Span {
 				alt = cleanText(cur.attrs["src"])
 			}
 			out = append(out, Span{
-				Text:   "[image: " + alt + "]",
-				Italic: true,
-				Color:  s.fg,
-				Href:   w.hrefs[s.linkID],
-				Accent: s.linkID != 0,
+				Text:          "[image: " + alt + "]",
+				Size:          max(1, s.size),
+				Italic:        true,
+				Color:         s.fg,
+				ExplicitColor: s.explicitFg,
+				Href:          w.hrefs[s.linkID],
+				Accent:        s.linkID != 0 && !s.explicitFg,
 			})
 			return
 		}
@@ -244,7 +496,7 @@ func (w *blockExtractor) inlineSpans(n *node, parent style) []Span {
 	for _, ch := range n.children {
 		visit(ch, parent)
 	}
-	return mergeSpans(out)
+	return mergeSpans(out), ids
 }
 
 func mergeSpans(spans []Span) []Span {
@@ -258,10 +510,10 @@ func mergeSpans(spans []Span) []Span {
 		}
 		if len(out) > 0 {
 			last := &out[len(out)-1]
-			if !strings.HasSuffix(last.Text, " ") && !strings.HasSuffix(last.Text, "\n") && !strings.HasPrefix(sp.Text, " ") && !strings.HasPrefix(sp.Text, "\n") && !strings.HasPrefix(sp.Text, ".") && !strings.HasPrefix(sp.Text, ",") && !strings.HasPrefix(sp.Text, ":") && !strings.HasPrefix(sp.Text, ";") {
+			if !strings.HasSuffix(last.Text, " ") && !strings.HasSuffix(last.Text, "\n") && !strings.HasPrefix(sp.Text, " ") && !strings.HasPrefix(sp.Text, "\n") && !strings.HasPrefix(sp.Text, ".") && !strings.HasPrefix(sp.Text, ",") && !strings.HasPrefix(sp.Text, ":") && !strings.HasPrefix(sp.Text, ";") && !strings.HasPrefix(sp.Text, ")") && !strings.HasPrefix(sp.Text, "]") && !strings.HasPrefix(sp.Text, "!") && !strings.HasPrefix(sp.Text, "?") {
 				last.Text += " "
 			}
-			if last.Bold == sp.Bold && last.Italic == sp.Italic && last.Monospace == sp.Monospace && last.Strike == sp.Strike && last.Underline == sp.Underline && last.SmallCaps == sp.SmallCaps && last.Accent == sp.Accent && last.Color == sp.Color && last.Href == sp.Href {
+			if last.Size == sp.Size && last.Bold == sp.Bold && last.Italic == sp.Italic && last.Monospace == sp.Monospace && last.Strike == sp.Strike && last.Underline == sp.Underline && last.SmallCaps == sp.SmallCaps && last.Accent == sp.Accent && last.ExplicitColor == sp.ExplicitColor && last.Color == sp.Color && last.Href == sp.Href {
 				last.Text += sp.Text
 				continue
 			}
@@ -271,7 +523,23 @@ func mergeSpans(spans []Span) []Span {
 	return out
 }
 
-func (w *blockExtractor) walk(n *node, parent style, indent int) error {
+func hasExplicitBoxDecl(n *node) (hasMarginTop, hasMarginBottom, hasPadding, hasBg bool) {
+	if n == nil || len(n.decl) == 0 {
+		return false, false, false, false
+	}
+	_, hasMarginTop = n.decl["margin-top"]
+	_, hasMarginBottom = n.decl["margin-bottom"]
+	for _, side := range borderSides {
+		if _, ok := n.decl["padding-"+side]; ok {
+			hasPadding = true
+			break
+		}
+	}
+	_, hasBg = n.decl["background-color"]
+	return
+}
+
+func (w *blockExtractor) walk(n *node, parent style, indent, availW int) error {
 	if err := w.ctx.Err(); err != nil {
 		return err
 	}
@@ -280,8 +548,9 @@ func (w *blockExtractor) walk(n *node, parent style, indent int) error {
 		if txt != "" {
 			return w.addBlock(StyledBlock{
 				Kind:   BlockParagraph,
+				Size:   max(1, parent.size),
 				Indent: indent,
-				Spans:  []Span{{Text: txt, Bold: parent.bold, Italic: parent.italic, Monospace: parent.mono, Strike: parent.strike, Underline: parent.underline, Color: parent.fg, Href: w.hrefs[parent.linkID], Accent: parent.linkID != 0}},
+				Spans:  []Span{{Text: txt, Size: max(1, parent.size), Bold: parent.bold, Italic: parent.italic, Monospace: parent.mono, Strike: parent.strike, Underline: parent.underline, Color: parent.fg, ExplicitColor: parent.explicitFg, Href: w.hrefs[parent.linkID], Accent: parent.linkID != 0 && !parent.explicitFg}},
 			})
 		}
 		return nil
@@ -290,43 +559,111 @@ func (w *blockExtractor) walk(n *node, parent style, indent int) error {
 	if s.display == "none" {
 		return nil
 	}
+	id := w.claimID(anchorName(n))
+	prevParentID := w.parentID
+	if id != "" {
+		w.parentID = id
+		defer func() { w.parentID = prevParentID }()
+	}
+
+	margin, padding := resolveEdges(s.margin, availW), resolveEdges(s.padding, availW)
+	padInsets := Insets{Top: padding[0], Right: padding[1], Bottom: padding[2], Left: padding[3]}
+	hasMarginTop, hasMarginBottom, hasPadding, hasBg := hasExplicitBoxDecl(n)
+
 	if kind, source := diagramSource(n); kind != "" {
-		return w.extractDiagram(n, kind, source, s, indent)
+		return w.extractDiagram(n, kind, source, s, indent, id, prevParentID, margin, padInsets)
 	}
 	if lvl := headingLevel(n.tag); lvl > 0 {
-		spans := w.inlineSpans(n, s)
+		spans, inlineIDs := w.inlineSpansWithIDs(n, s)
 		for i := range spans {
 			spans[i].Bold = true
-			spans[i].Accent = true
+			if !spans[i].ExplicitColor {
+				spans[i].Accent = true
+			}
 		}
-		sizes := []int{50, 46, 42, 38, 33, 29}
-		return w.addBlock(StyledBlock{
+		sz := max(1, s.size)
+		if singleSz := uniformSpanSize(spans); singleSz > 0 && n.decl["font-size"] == "" {
+			sz = singleSz
+		}
+		var fmt *BlockFormat
+		if hasMarginTop || hasMarginBottom || hasPadding || hasBg || s.lineMode != 0 {
+			fmt = &BlockFormat{
+				LineHeight:  s.line,
+				SpaceBefore: max(0, margin[0]),
+				SpaceAfter:  max(0, margin[2]),
+				Padding:     padInsets,
+				Background:  s.bg,
+			}
+		}
+		if err := w.addBlock(StyledBlock{
 			Kind:   BlockHeading,
 			Level:  lvl,
-			Size:   sizes[lvl-1],
+			Size:   sz,
 			Indent: indent,
 			Spans:  spans,
-		})
+			Format: fmt,
+		}); err != nil {
+			return err
+		}
+		w.wrapLeaf(len(w.blocks)-1, id, prevParentID, s, margin, padInsets, inlineIDs)
+		return nil
 	}
 	switch n.tag {
 	case "hr":
-		return w.addBlock(StyledBlock{Kind: BlockRule, Indent: indent})
+		if err := w.addBlock(StyledBlock{Kind: BlockRule, Indent: indent}); err != nil {
+			return err
+		}
+		w.wrapLeaf(len(w.blocks)-1, id, prevParentID, s, margin, padInsets, nil)
+		return nil
 	case "img":
-		return w.extractImage(n, s, indent)
+		return w.extractImage(n, s, indent, id, prevParentID, margin, padInsets)
 	case "pre":
 		code := strings.TrimSuffix(strings.TrimPrefix(collectRawText(n), "\n"), "\n")
 		lang := codeLanguage(n)
-		return w.addBlock(StyledBlock{
+		var fmt *BlockFormat
+		if hasPadding || hasBg || s.hasBorder() {
+			fmt = &BlockFormat{
+				LineHeight:  s.line,
+				SpaceBefore: max(0, margin[0]),
+				SpaceAfter:  max(0, margin[2]),
+				Padding:     padInsets,
+				Background:  s.bg,
+			}
+		}
+		var inlineIDs []string
+		var collectIDs func(*node)
+		collectIDs = func(cur *node) {
+			for _, c := range cur.children {
+				if c.tag != "" {
+					if cs := w.d.styled(c, s); cs.display != "none" {
+						if cid := anchorName(c); cid != "" {
+							inlineIDs = append(inlineIDs, cid)
+						}
+						collectIDs(c)
+					}
+				}
+			}
+		}
+		collectIDs(n)
+		if err := w.addBlock(StyledBlock{
 			Kind:     BlockCode,
-			Size:     25,
+			Size:     max(1, s.size),
 			Indent:   indent,
 			Language: lang,
 			Code:     code,
-			Spans:    []Span{{Text: code, Monospace: true, Color: s.fg}},
-		})
+			Spans:    []Span{{Text: code, Size: max(1, s.size), Monospace: true, Color: s.fg, ExplicitColor: s.explicitFg}},
+			Format:   fmt,
+		}); err != nil {
+			return err
+		}
+		w.wrapLeaf(len(w.blocks)-1, id, prevParentID, s, margin, padInsets, inlineIDs)
+		return nil
 	case "blockquote":
+		if s.hasBorder() || hasPadding || hasBg {
+			return w.walkContainer(n, s, indent, availW, id, prevParentID, margin, padInsets, true)
+		}
 		start := len(w.blocks)
-		if err := w.walkChildren(n, s, indent+24); err != nil {
+		if err := w.walkChildren(n, s, indent+24, max(32, availW-24)); err != nil {
 			return err
 		}
 		for i := start; i < len(w.blocks); i++ {
@@ -335,62 +672,238 @@ func (w *blockExtractor) walk(n *node, parent style, indent int) error {
 				w.blocks[i].Kind = BlockQuote
 			}
 		}
-		return nil
-	case "ul", "ol":
-		idx := listStart(n)
-		step := listStep(n)
-		for _, c := range n.children {
-			if c.tag != "li" {
-				continue
-			}
-			cs := w.d.styled(c, s)
-			if cs.display == "none" {
-				continue
-			}
-			if n.tag == "ol" {
-				idx = listNumber(c.attrs["value"], idx)
-			}
-			marker := formatListMarker(resolveListStyleType(n, c, cs), idx)
-			idx += step
-			start := len(w.blocks)
-			if hasBlockChildren(c, w.d, cs) {
-				if err := w.walkChildren(c, cs, indent+24); err != nil {
-					return err
-				}
-			} else {
-				spans := w.inlineSpans(c, cs)
-				if len(spans) > 0 {
-					if err := w.addBlock(StyledBlock{Kind: BlockParagraph, Indent: indent + 24, Spans: spans}); err != nil {
-						return err
-					}
-				}
-			}
-			if start < len(w.blocks) && marker != "" {
-				w.blocks[start].Spans = append([]Span{{Text: marker + " ", Bold: cs.bold, Color: cs.fg}}, w.blocks[start].Spans...)
+		if id != "" {
+			if len(w.blocks) == start {
+				w.pendingIDs = append(w.pendingIDs, pendingID{id: id, parentID: prevParentID})
+			} else if len(w.sections) < maxStyledBlocks {
+				w.sections = append(w.sections, Section{Start: start, End: len(w.blocks), SourceID: id, ParentID: prevParentID})
 			}
 		}
 		return nil
+	case "ul", "ol":
+		return w.extractList(n, s, indent, availW, id, prevParentID, margin, padInsets)
 	case "table":
-		return w.extractTable(n, s, indent)
+		return w.extractTable(n, s, indent, availW, id, prevParentID, margin, padInsets)
 	case "dd":
 		indent += 24
+		availW = max(32, availW-24)
 	}
 	if !hasBlockChildren(n, w.d, s) {
 		if single := standaloneImgChild(n); single != nil {
 			is := w.d.styled(single, s)
-			return w.extractImage(single, is, indent)
+			imgID := id
+			if imgID == "" {
+				imgID = w.claimID(anchorName(single))
+			}
+			return w.extractImage(single, is, indent, imgID, prevParentID, margin, padInsets)
 		}
-		spans := w.inlineSpans(n, s)
+		spans, inlineIDs := w.inlineSpansWithIDs(n, s)
 		if len(spans) > 0 {
-			return w.addBlock(StyledBlock{
+			sz := max(1, s.size)
+			if singleSz := uniformSpanSize(spans); singleSz > 0 && n.decl["font-size"] == "" {
+				sz = singleSz
+			}
+			var fmt *BlockFormat
+			if hasMarginTop || hasMarginBottom || hasPadding || hasBg || s.lineMode != 0 {
+				fmt = &BlockFormat{
+					LineHeight:  s.line,
+					SpaceBefore: max(0, margin[0]),
+					SpaceAfter:  max(0, margin[2]),
+					Padding:     padInsets,
+					Background:  s.bg,
+				}
+			}
+			if err := w.addBlock(StyledBlock{
 				Kind:   BlockParagraph,
+				Size:   sz,
 				Indent: indent,
 				Spans:  spans,
-			})
+				Format: fmt,
+			}); err != nil {
+				return err
+			}
+			w.wrapLeaf(len(w.blocks)-1, id, prevParentID, s, margin, padInsets, inlineIDs)
+			return nil
+		}
+		if id != "" {
+			if s.hasBorder() || hasPadding || hasBg {
+				if err := w.addBlock(StyledBlock{Kind: BlockParagraph, Size: max(1, s.size), Indent: indent, Format: &BlockFormat{LineHeight: 1}}); err != nil {
+					return err
+				}
+				w.wrapLeaf(len(w.blocks)-1, id, prevParentID, s, margin, padInsets, inlineIDs)
+			} else {
+				w.pendingIDs = append(w.pendingIDs, pendingID{id: id, parentID: prevParentID})
+			}
+		}
+		for _, inl := range inlineIDs {
+			if uid := w.claimID(inl); uid != "" {
+				w.pendingIDs = append(w.pendingIDs, pendingID{id: uid, parentID: w.parentID})
+			}
 		}
 		return nil
 	}
-	return w.walkChildren(n, s, indent)
+	wantSection := false
+	if n != w.d.root && n.tag != "html" && w.sectionDepth < 64 && len(w.sections) < maxStyledBlocks {
+		if n.tag == "body" {
+			wantSection = id != "" || s.hasBorder() || hasPadding || hasBg
+			if !hasMarginTop {
+				margin[0] = 0
+			}
+			if !hasMarginBottom {
+				margin[2] = 0
+			}
+		} else {
+			wantSection = id != "" || s.hasBorder() || padInsets != (Insets{}) || s.bg.A != 0 || margin[0] > 0 || margin[2] > 0
+		}
+	}
+	return w.walkContainer(n, s, indent, availW, id, prevParentID, margin, padInsets, wantSection)
+}
+
+func (w *blockExtractor) walkContainer(n *node, s style, indent, availW int, id, parentID string, margin [4]int, pad Insets, wantSection bool) error {
+	start := len(w.blocks)
+	pendingStart := len(w.pendingIDs)
+	secIdx := -1
+	if wantSection && w.sectionDepth < 64 && len(w.sections) < maxStyledBlocks {
+		top, right, bottom, left := sectionBorders(s)
+		secIdx = len(w.sections)
+		w.sections = append(w.sections, Section{
+			Start:       start,
+			SpaceBefore: max(0, margin[0]),
+			SpaceAfter:  max(0, margin[2]),
+			SourceID:    id,
+			ParentID:    parentID,
+			Padding:     pad,
+			Background:  s.bg,
+			Top:         top,
+			Right:       right,
+			Bottom:      bottom,
+			Left:        left,
+		})
+		w.sectionDepth++
+	}
+	childAvailW := max(32, availW-pad.Left-pad.Right-s.borderH())
+	err := w.walkChildren(n, s, indent, childAvailW)
+	if secIdx >= 0 {
+		w.sectionDepth--
+	}
+	if err != nil {
+		return err
+	}
+	if len(w.blocks) == start && (id != "" || len(w.pendingIDs) > pendingStart) {
+		if err := w.addBlock(StyledBlock{
+			Kind:   BlockParagraph,
+			Size:   max(1, s.size),
+			Indent: indent,
+			Format: &BlockFormat{LineHeight: 1},
+		}); err != nil {
+			return err
+		}
+	} else if len(w.blocks) > start && len(w.pendingIDs) > 0 {
+		w.attachPendingIDs(len(w.blocks) - 1)
+	}
+	if secIdx >= 0 {
+		w.sections[secIdx].End = len(w.blocks)
+	}
+	return nil
+}
+
+func (w *blockExtractor) extractList(n *node, s style, indent, availW int, id, parentID string, margin [4]int, pad Insets) error {
+	hasMarginTop, hasMarginBottom, hasPadding, hasBg := hasExplicitBoxDecl(n)
+	wantSection := id != "" || s.hasBorder() || hasPadding || hasBg
+	startList := len(w.blocks)
+	secIdx := -1
+	if wantSection && w.sectionDepth < 64 && len(w.sections) < maxStyledBlocks {
+		top, right, bottom, left := sectionBorders(s)
+		spaceBefore, spaceAfter := 0, 0
+		if hasMarginTop {
+			spaceBefore = max(0, margin[0])
+		}
+		if hasMarginBottom {
+			spaceAfter = max(0, margin[2])
+		}
+		secIdx = len(w.sections)
+		w.sections = append(w.sections, Section{
+			Start:       startList,
+			SpaceBefore: spaceBefore,
+			SpaceAfter:  spaceAfter,
+			SourceID:    id,
+			ParentID:    parentID,
+			Padding:     pad,
+			Background:  s.bg,
+			Top:         top,
+			Right:       right,
+			Bottom:      bottom,
+			Left:        left,
+		})
+		w.sectionDepth++
+	}
+	idx := listStart(n)
+	step := listStep(n)
+	for _, c := range n.children {
+		if c.tag != "li" {
+			continue
+		}
+		cs := w.d.styled(c, s)
+		if cs.display == "none" {
+			continue
+		}
+		liID := w.claimID(anchorName(c))
+		prevLiParent := w.parentID
+		if liID != "" {
+			w.parentID = liID
+		}
+		if n.tag == "ol" {
+			idx = listNumber(c.attrs["value"], idx)
+		}
+		marker := formatListMarker(resolveListStyleType(n, c, cs), idx)
+		idx += step
+		start := len(w.blocks)
+		if hasBlockChildren(c, w.d, cs) {
+			if err := w.walkChildren(c, cs, indent+24, max(32, availW-24)); err != nil {
+				w.parentID = prevLiParent
+				if secIdx >= 0 {
+					w.sectionDepth--
+				}
+				return err
+			}
+			if liID != "" && len(w.blocks) > start && len(w.sections) < maxStyledBlocks {
+				w.sections = append(w.sections, Section{Start: start, End: len(w.blocks), SourceID: liID, ParentID: prevLiParent})
+			}
+		} else {
+			spans, inlineIDs := w.inlineSpansWithIDs(c, cs)
+			if len(spans) > 0 {
+				liMargin, liPad := resolveEdges(cs.margin, availW), resolveEdges(cs.padding, availW)
+				liPadInsets := Insets{Top: liPad[0], Right: liPad[1], Bottom: liPad[2], Left: liPad[3]}
+				var liFmt *BlockFormat
+				if cs.lineMode != 0 || liPadInsets != (Insets{}) || cs.bg.A != 0 {
+					liFmt = &BlockFormat{
+						LineHeight:  cs.line,
+						SpaceBefore: max(0, liMargin[0]),
+						SpaceAfter:  max(4, liMargin[2]),
+						Padding:     liPadInsets,
+						Background:  cs.bg,
+					}
+				}
+				if err := w.addBlock(StyledBlock{Kind: BlockParagraph, Size: max(1, cs.size), Indent: indent + 24, Spans: spans, Format: liFmt}); err != nil {
+					w.parentID = prevLiParent
+					if secIdx >= 0 {
+						w.sectionDepth--
+					}
+					return err
+				}
+				w.wrapLeaf(len(w.blocks)-1, liID, prevLiParent, cs, liMargin, liPadInsets, inlineIDs)
+			}
+		}
+		if start < len(w.blocks) && marker != "" {
+			w.blocks[start].Spans = append([]Span{{Text: marker + " ", Size: max(1, cs.size), Bold: cs.bold, Color: cs.fg, ExplicitColor: cs.explicitFg}}, w.blocks[start].Spans...)
+		}
+		w.parentID = prevLiParent
+	}
+	if secIdx >= 0 {
+		w.sectionDepth--
+		w.sections[secIdx].End = len(w.blocks)
+	}
+	return nil
 }
 
 func standaloneImgChild(n *node) *node {
@@ -434,7 +947,7 @@ func hasBlockChildren(n *node, d *Document, parent style) bool {
 	return false
 }
 
-func (w *blockExtractor) walkChildren(n *node, s style, indent int) error {
+func (w *blockExtractor) walkChildren(n *node, s style, indent, availW int) error {
 	var inlineBuf []*node
 	flushInline := func() error {
 		if len(inlineBuf) == 0 {
@@ -442,11 +955,24 @@ func (w *blockExtractor) walkChildren(n *node, s style, indent int) error {
 		}
 		tmp := &node{tag: "div", children: inlineBuf}
 		inlineBuf = nil
-		spans := w.inlineSpans(tmp, s)
+		spans, inlineIDs := w.inlineSpansWithIDs(tmp, s)
 		if len(spans) == 0 {
+			for _, inl := range inlineIDs {
+				if uid := w.claimID(inl); uid != "" {
+					w.pendingIDs = append(w.pendingIDs, pendingID{id: uid, parentID: w.parentID})
+				}
+			}
 			return nil
 		}
-		return w.addBlock(StyledBlock{Kind: BlockParagraph, Indent: indent, Spans: spans})
+		sz := max(1, s.size)
+		if singleSz := uniformSpanSize(spans); singleSz > 0 {
+			sz = singleSz
+		}
+		if err := w.addBlock(StyledBlock{Kind: BlockParagraph, Size: sz, Indent: indent, Spans: spans}); err != nil {
+			return err
+		}
+		w.wrapLeaf(len(w.blocks)-1, "", w.parentID, style{}, [4]int{}, Insets{}, inlineIDs)
+		return nil
 	}
 	for _, c := range n.children {
 		if c.tag == "" {
@@ -475,7 +1001,7 @@ func (w *blockExtractor) walkChildren(n *node, s style, indent int) error {
 			if err := flushInline(); err != nil {
 				return err
 			}
-			if err := w.walk(c, s, indent); err != nil {
+			if err := w.walk(c, s, indent, availW); err != nil {
 				return err
 			}
 		} else {
@@ -485,7 +1011,7 @@ func (w *blockExtractor) walkChildren(n *node, s style, indent int) error {
 	return flushInline()
 }
 
-func (w *blockExtractor) extractImage(n *node, s style, indent int) error {
+func (w *blockExtractor) extractImage(n *node, s style, indent int, id, parentID string, margin [4]int, pad Insets) error {
 	src := n.attrs["src"]
 	alt := cleanText(n.attrs["alt"])
 	if alt == "" {
@@ -498,8 +1024,9 @@ func (w *blockExtractor) extractImage(n *node, s style, indent int) error {
 	if s.align == "center" || s.align == "right" {
 		align = s.align
 	}
-	return w.addBlock(StyledBlock{
+	if err := w.addBlock(StyledBlock{
 		Kind:        BlockImage,
+		Size:        max(1, s.size),
 		Indent:      indent,
 		ImageKey:    src,
 		Image:       img,
@@ -507,18 +1034,27 @@ func (w *blockExtractor) extractImage(n *node, s style, indent int) error {
 		ImageHeight: ih,
 		ImageAlign:  align,
 		Href:        w.hrefs[s.linkID],
-		Spans:       []Span{{Text: "[image unavailable: " + alt + "]", Italic: true, Color: s.fg}},
-	})
+		Spans:       []Span{{Text: "[image unavailable: " + alt + "]", Size: max(1, s.size), Italic: true, Color: s.fg, ExplicitColor: s.explicitFg}},
+	}); err != nil {
+		return err
+	}
+	w.wrapLeaf(len(w.blocks)-1, id, parentID, s, margin, pad, nil)
+	return nil
 }
 
-func (w *blockExtractor) extractDiagram(n *node, kind, source string, s style, indent int) error {
+func (w *blockExtractor) extractDiagram(n *node, kind, source string, s style, indent int, id, parentID string, margin [4]int, pad Insets) error {
 	label := diagramLabel(n)
 	if w.opts.DisableDiagrams {
-		return w.addBlock(StyledBlock{
+		if err := w.addBlock(StyledBlock{
 			Kind:   BlockImage,
+			Size:   max(1, s.size),
 			Indent: indent,
-			Spans:  []Span{{Text: "[" + strings.ToUpper(kind) + ": " + label + "]", Italic: true, Color: s.fg}},
-		})
+			Spans:  []Span{{Text: "[" + strings.ToUpper(kind) + ": " + label + "]", Size: max(1, s.size), Italic: true, Color: s.fg, ExplicitColor: s.explicitFg}},
+		}); err != nil {
+			return err
+		}
+		w.wrapLeaf(len(w.blocks)-1, id, parentID, s, margin, pad, nil)
+		return nil
 	}
 	w.diagramCount++
 	if w.diagramCount > 32 {
@@ -544,19 +1080,28 @@ func (w *blockExtractor) extractDiagram(n *node, kind, source string, s style, i
 	if img != nil && !img.Bounds().Empty() {
 		w.diagramPx += img.Bounds().Dx() * img.Bounds().Dy()
 	}
-	return w.addBlock(StyledBlock{
+	if err := w.addBlock(StyledBlock{
 		Kind:     BlockImage,
+		Size:     max(1, s.size),
 		Indent:   indent,
 		ImageKey: kind + ":" + label,
 		Image:    img,
 		Href:     w.hrefs[s.linkID],
-		Spans:    []Span{{Text: "[" + strings.ToUpper(kind) + ": " + label + "]", Italic: true, Color: s.fg}},
-	})
+		Spans:    []Span{{Text: "[" + strings.ToUpper(kind) + ": " + label + "]", Size: max(1, s.size), Italic: true, Color: s.fg, ExplicitColor: s.explicitFg}},
+	}); err != nil {
+		return err
+	}
+	w.wrapLeaf(len(w.blocks)-1, id, parentID, s, margin, pad, nil)
+	return nil
 }
 
-func (w *blockExtractor) extractTable(n *node, s style, indent int) error {
+func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, parentID string, margin [4]int, pad Insets) error {
 	var rows [][][]Span
+	var innerIDs []string
 	collectRow := func(tr *node, rowStyle style, forceBold bool) {
+		if rid := anchorName(tr); rid != "" {
+			innerIDs = append(innerIDs, rid)
+		}
 		var cells [][]Span
 		for _, cell := range tr.children {
 			if cell.tag != "td" && cell.tag != "th" {
@@ -566,10 +1111,15 @@ func (w *blockExtractor) extractTable(n *node, s style, indent int) error {
 			if cs.display == "none" {
 				continue
 			}
+			if cid := anchorName(cell); cid != "" {
+				innerIDs = append(innerIDs, cid)
+			}
 			if cell.tag == "th" || forceBold {
 				cs.bold = true
 			}
-			cells = append(cells, w.inlineSpans(cell, cs))
+			spans, inlIDs := w.inlineSpansWithIDs(cell, cs)
+			innerIDs = append(innerIDs, inlIDs...)
+			cells = append(cells, spans)
 		}
 		if len(cells) > 0 {
 			rows = append(rows, cells)
@@ -581,6 +1131,9 @@ func (w *blockExtractor) extractTable(n *node, s style, indent int) error {
 			gs := w.d.styled(child, s)
 			if gs.display == "none" {
 				continue
+			}
+			if gid := anchorName(child); gid != "" {
+				innerIDs = append(innerIDs, gid)
 			}
 			for _, tr := range child.children {
 				if tr.tag == "tr" {
@@ -600,9 +1153,36 @@ func (w *blockExtractor) extractTable(n *node, s style, indent int) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	return w.addBlock(StyledBlock{
+	hasMarginTop, hasMarginBottom, hasPadding, hasBg := hasExplicitBoxDecl(n)
+	var fmt *BlockFormat
+	if hasMarginTop || hasMarginBottom || hasPadding || hasBg || s.lineMode != 0 {
+		spaceBefore, spaceAfter := 8, 8
+		if hasMarginTop {
+			spaceBefore = max(0, margin[0])
+		}
+		if hasMarginBottom {
+			spaceAfter = max(0, margin[2])
+		}
+		fmt = &BlockFormat{
+			LineHeight:  s.line,
+			SpaceBefore: spaceBefore,
+			SpaceAfter:  spaceAfter,
+			Padding:     pad,
+			Background:  s.bg,
+		}
+	}
+	// Table CSS borders apply to the table grid; don't wrap the whole table in a Section border.
+	tableStyle := s
+	tableStyle.bw = [4]int{}
+	if err := w.addBlock(StyledBlock{
 		Kind:   BlockTable,
+		Size:   max(1, s.size),
 		Indent: indent,
 		Rows:   rows,
-	})
+		Format: fmt,
+	}); err != nil {
+		return err
+	}
+	w.wrapLeaf(len(w.blocks)-1, id, parentID, tableStyle, margin, pad, innerIDs)
+	return nil
 }

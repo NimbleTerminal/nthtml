@@ -248,7 +248,12 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 				cs.padding[j] = px(padding[j])
 			}
 			first := len(l.ops)
+			prevSource := l.activeSource
+			if len(row.anchors) > 0 {
+				l.activeSource = row.anchors[len(row.anchors)-1]
+			}
 			h := l.blockStyled(cell, xs[sp.col], 0, width, parentHeight, cs)
+			l.activeSource = prevSource
 			cells = append(cells, laidCell{first, len(l.ops), h, ri, sp, cellBorder})
 			if sp.rows == 1 {
 				heights[ri] = max(heights[ri], h)
@@ -275,15 +280,19 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 		if row.style.hidden {
 			rowBg = color.RGBA{}
 		}
-		l.ops[rowOps[ri]].box = Box{Tag: "tr", Bounds: image.Rect(x+sx, top, x+w-sx, bottom), Color: rowBg}
+		rowSource := l.activeSource
+		if len(row.anchors) > 0 {
+			rowSource = row.anchors[len(row.anchors)-1]
+		}
+		l.ops[rowOps[ri]].box = Box{Tag: "tr", Bounds: image.Rect(x+sx, top, x+w-sx, bottom), Color: rowBg, SourceID: rowSource}
 		if len(rowPieces[ri]) > 0 {
 			l.ops[rowOps[ri]].box.Color.A = 0
 			for col, op := range rowPieces[ri] {
-				l.ops[op].box = Box{Tag: "row-background", Bounds: image.Rect(xs[col], top, xs[col]+widths[col], bottom), Color: rowBg}
+				l.ops[op].box = Box{Tag: "row-background", Bounds: image.Rect(xs[col], top, xs[col]+widths[col], bottom), Color: rowBg, SourceID: rowSource}
 			}
 		}
 		for _, name := range row.anchors {
-			l.add(Box{Tag: "anchor", Anchor: name, Bounds: image.Rect(x, top, x+1, top+1)}, nil)
+			l.add(Box{Tag: "anchor", Anchor: name, SourceID: name, Bounds: image.Rect(x, top, x+1, top+1)}, nil)
 		}
 	}
 	for _, cell := range cells {

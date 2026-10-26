@@ -11,17 +11,34 @@ import (
 const maxTTYBytes = 4 << 20
 
 type ttyFlow struct {
-	policy    style
-	pending   ttyBuilder
-	parts     []string
-	bytes     int
-	width     int
-	preColumn int
+	policy       style
+	pending      ttyBuilder
+	parts        []string
+	anchorPrefix string
+	bytes        int
+	width        int
+	preColumn    int
 }
 
 func (f *ttyFlow) append(s string) error {
 	if s == "" {
 		return nil
+	}
+	if ansi.StringWidth(s) == 0 && !strings.Contains(s, "\n") {
+		if f.bytes+len(s) > maxTTYBytes {
+			return limitError("TTY output")
+		}
+		if len(f.parts) > 0 && !strings.Contains(s, "nthtml-anchor=") {
+			f.parts[len(f.parts)-1] += s
+		} else {
+			f.anchorPrefix += s
+		}
+		f.bytes += len(s)
+		return nil
+	}
+	if f.anchorPrefix != "" {
+		s = f.anchorPrefix + s
+		f.anchorPrefix = ""
 	}
 	overhead := 0
 	if len(f.parts) > 0 {
@@ -33,6 +50,17 @@ func (f *ttyFlow) append(s string) error {
 	f.parts = append(f.parts, s)
 	f.bytes += len(s) + overhead
 	return nil
+}
+
+func (f *ttyFlow) joined() string {
+	if len(f.parts) == 0 {
+		return f.anchorPrefix
+	}
+	out := strings.Join(f.parts, "\n\n")
+	if f.anchorPrefix != "" {
+		out += f.anchorPrefix
+	}
+	return out
 }
 func (f *ttyFlow) flush() error {
 	if f.pending.special {
@@ -102,19 +130,20 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 		if s.display == "none" {
 			return nil
 		}
-		marker := ""
+		marker, endMarker := "", ""
 		if anchorName(n) != "" {
 			marker = anchorMarker(n.id)
+			endMarker = anchorEndMarker(n.id)
 		}
 		if kind, source := diagramSource(n); kind != "" {
 			if kind == "svg" {
-				b.WriteString(marker + "[SVG: " + diagramLabel(n) + "]")
+				b.WriteString(marker + "[SVG: " + diagramLabel(n) + "]" + endMarker)
 				return nil
 			}
 			if err := f.flush(); err != nil {
 				return err
 			}
-			return f.append(marker + ansi.Hardwrap(cleanText(source), f.width, true))
+			return f.append(marker + ansi.Hardwrap(cleanText(source), f.width, true) + endMarker)
 		}
 		if n.tag == "a" && s.linkID != 0 {
 			b.WriteString(marker)
@@ -125,6 +154,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				}
 			}
 			b.WriteString(linkEnd)
+			b.WriteString(endMarker)
 			if parent.linkID != 0 {
 				b.WriteString(linkStart(parent.linkID))
 			}
@@ -153,10 +183,11 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 					}
 				}
 			}
+			code.pending.WriteString(endMarker)
 			if err := code.flush(); err != nil {
 				return err
 			}
-			return f.append(strings.Join(code.parts, "\n\n"))
+			return f.append(code.joined())
 		}
 		if n.tag == "ul" || n.tag == "ol" {
 			if err := f.flush(); err != nil {
@@ -178,12 +209,12 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 					index = listNumber(child.attrs["value"], index)
 				}
 				mStr := formatListMarker(resolveListStyleType(n, child, cs), index)
-				marker := ""
+				liMarker := ""
 				if mStr != "" {
-					marker = mStr + " "
+					liMarker = mStr + " "
 				}
 				index += step
-				indent := ansi.StringWidth(marker)
+				indent := ansi.StringWidth(liMarker)
 				innerWidth := max(2, f.width-indent)
 				item := &ttyFlow{width: innerWidth}
 				if err := walk(child, s, item, inCell); err != nil {
@@ -192,17 +223,17 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				if err := item.flush(); err != nil {
 					return err
 				}
-				lines := linkedLines(strings.Join(item.parts, "\n\n"))
+				lines := linkedLines(item.joined())
 				var formatted []string
 				if f.width-indent < 2 {
-					formatted = append(formatted, ansi.Hardwrap(strings.TrimSpace(marker), f.width, true))
-					marker = ""
+					formatted = append(formatted, ansi.Hardwrap(strings.TrimSpace(liMarker), f.width, true))
+					liMarker = ""
 					indent = 0
 				}
 				for i, line := range lines {
 					prefix := strings.Repeat(" ", indent)
 					if i == 0 {
-						prefix = marker
+						prefix = liMarker
 					}
 					formatted = append(formatted, prefix+line)
 				}
@@ -213,21 +244,21 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				}
 				items = append(items, itemText)
 			}
-			return f.append(marker + strings.Join(items, "\n"))
+			return f.append(marker + strings.Join(items, "\n") + endMarker)
 		}
 		if n.tag == "hr" {
 			if err := f.flush(); err != nil {
 				return err
 			}
-			return f.append(marker + strings.Repeat("─", f.width))
+			return f.append(marker + strings.Repeat("─", f.width) + endMarker)
 		}
 		if n.tag == "br" {
-			b.WriteString(marker)
+			b.WriteString(marker + endMarker)
 			b.WriteByte('\n')
 			return nil
 		}
 		if n.tag == "img" {
-			b.WriteString(marker + "[image: " + cleanText(n.attrs["alt"]) + "]")
+			b.WriteString(marker + "[image: " + cleanText(n.attrs["alt"]) + "]" + endMarker)
 			return nil
 		}
 		if n.tag == "table" && !inCell {
@@ -242,13 +273,13 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				if err := cell.flush(); err != nil {
 					return "", err
 				}
-				return strings.Join(cell.parts, "\n\n"), nil
+				return cell.joined(), nil
 			}
 			text, err := d.ttyTable(ctx, n, s, f.width, cellText)
 			if err != nil {
 				return err
 			}
-			return f.append(marker + text)
+			return f.append(marker + text + endMarker)
 		}
 		if n.tag == "tr" {
 			b.WriteByte('\n')
@@ -274,6 +305,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				b.WriteString(strings.Join(strings.Fields(strings.Join(cell.parts, " ")), " "))
 				first = false
 			}
+			b.WriteString(endMarker)
 			b.WriteByte('\n')
 			return nil
 		}
@@ -287,6 +319,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				return err
 			}
 		}
+		b.WriteString(endMarker)
 		if block {
 			b.WriteByte('\n')
 		}
@@ -298,10 +331,12 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 	if err := f.flush(); err != nil {
 		return "", err
 	}
-	return strings.Join(linkedLines(strings.Join(f.parts, "\n\n")), "\n"), ctx.Err()
+	return strings.Join(linkedLines(f.joined()), "\n"), ctx.Err()
 }
 func normalizeTTY(text string) string {
 	var lines []string
+	var prefix string
+	lastVisible := -1
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.Join(strings.Fields(line), " ")
 		if line == "" {
@@ -310,7 +345,26 @@ func normalizeTTY(text string) string {
 			}
 			continue
 		}
+		if ansi.StringWidth(line) == 0 {
+			if lastVisible >= 0 {
+				lines[lastVisible] += line
+			} else {
+				prefix += line
+			}
+			continue
+		}
+		if prefix != "" {
+			line = prefix + line
+			prefix = ""
+		}
+		lastVisible = len(lines)
 		lines = append(lines, line)
+	}
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 0 {
+		return prefix
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
 }

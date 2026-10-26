@@ -19,6 +19,15 @@ type TextRun struct {
 	Start, End int
 	Bounds     image.Rectangle
 	CharX      []int
+	SourceID   string
+}
+
+// SourceScope describes a visible identified HTML element in document order,
+// its nearest enclosing identified ancestor (ParentID), and its tag name.
+type SourceScope struct {
+	ID       string
+	ParentID string
+	Tag      string
 }
 
 // TextIndex is a layout-specific text snapshot. Typeset runs are words or
@@ -48,6 +57,104 @@ func Fragment(href string) (string, bool) {
 	name, err := url.PathUnescape(href[1:])
 	return name, err == nil
 }
+func normalizeAnchorID(idOrHref string) (string, bool) {
+	if strings.HasPrefix(idOrHref, "#") {
+		return Fragment(idOrHref)
+	}
+	return idOrHref, idOrHref != ""
+}
+
+// Sources returns visible identified HTML elements (id or <a name>) in document
+// order with their enclosing identified ParentID, honoring display:none.
+func (d *Document) Sources(ctx context.Context) ([]SourceScope, error) {
+	if d == nil || d.root == nil {
+		return nil, nil
+	}
+	seen := map[string]bool{}
+	var out []SourceScope
+	var walk func(*node, style, string) error
+	walk = func(n *node, parent style, parentID string) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if n.tag == "" {
+			return nil
+		}
+		s := d.styled(n, parent)
+		if s.display == "none" {
+			return nil
+		}
+		curParent := parentID
+		if id := anchorName(n); id != "" && !seen[id] {
+			seen[id] = true
+			out = append(out, SourceScope{ID: id, ParentID: parentID, Tag: n.tag})
+			curParent = id
+		}
+		for _, c := range n.children {
+			if err := walk(c, s, curParent); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := walk(d.root, style{rootSize: 16, size: 16, line: 22}, ""); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ParentID returns the nearest visible enclosing identified ancestor's ID for
+// id (or #fragment), or "" if id is top-level, hidden, or absent.
+func (d *Document) ParentID(id string) string {
+	name, ok := normalizeAnchorID(id)
+	if !ok || name == "" {
+		return ""
+	}
+	scopes, err := d.Sources(context.Background())
+	if err != nil {
+		return ""
+	}
+	for _, sc := range scopes {
+		if sc.ID == name {
+			return sc.ParentID
+		}
+	}
+	return ""
+}
+
+// RootID returns the outermost visible enclosing identified ancestor's ID for
+// id (or id itself if top-level), or "" if id is hidden or absent.
+func (d *Document) RootID(id string) string {
+	name, ok := normalizeAnchorID(id)
+	if !ok || name == "" {
+		return ""
+	}
+	scopes, err := d.Sources(context.Background())
+	if err != nil {
+		return ""
+	}
+	parents := make(map[string]string, len(scopes))
+	exists := false
+	for _, sc := range scopes {
+		parents[sc.ID] = sc.ParentID
+		if sc.ID == name {
+			exists = true
+		}
+	}
+	if !exists {
+		return ""
+	}
+	cur := name
+	for range len(scopes) + 1 {
+		p := parents[cur]
+		if p == "" {
+			return cur
+		}
+		cur = p
+	}
+	return cur
+}
+
 func (r *Result) Fragment(href string) (image.Point, bool) {
 	if r == nil {
 		return image.Point{}, false
@@ -62,6 +169,54 @@ func (r *Result) Fragment(href string) (image.Point, bool) {
 	p, ok := r.Anchors[name]
 	return p, ok
 }
+
+// AnchorBounds returns the laid-out pixel bounding box for id (or #fragment).
+func (r *Result) AnchorBounds(idOrHref string) (image.Rectangle, bool) {
+	if r == nil {
+		return image.Rectangle{}, false
+	}
+	name, ok := normalizeAnchorID(idOrHref)
+	if !ok {
+		return image.Rectangle{}, false
+	}
+	if name == "" {
+		return r.Bounds(), true
+	}
+	var out image.Rectangle
+	for _, b := range r.Boxes {
+		if b.Anchor == name || b.SourceID == name {
+			rect := b.Bounds
+			if rect.Empty() {
+				rect = b.InkBounds
+			}
+			if !rect.Empty() {
+				out = out.Union(rect)
+			}
+		}
+	}
+	if !out.Empty() {
+		return out, true
+	}
+	if p, exists := r.Anchors[name]; exists {
+		return image.Rect(p.X, p.Y, p.X+1, p.Y+1), true
+	}
+	return image.Rectangle{}, false
+}
+
+// SourceAt returns the innermost HTML element ID at pixel point p.
+func (r *Result) SourceAt(p image.Point) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	for i := len(r.Boxes) - 1; i >= 0; i-- {
+		b := r.Boxes[i]
+		if b.SourceID != "" && p.In(b.Bounds) {
+			return b.SourceID, true
+		}
+	}
+	return r.TextIndex().HitSource(image.Rect(p.X, p.Y, p.X+1, p.Y+1))
+}
+
 func (r *TTYResult) Fragment(href string) (image.Point, bool) {
 	if r == nil {
 		return image.Point{}, false
@@ -75,6 +230,41 @@ func (r *TTYResult) Fragment(href string) (image.Point, bool) {
 	}
 	p, ok := r.Anchors[name]
 	return p, ok
+}
+
+// AnchorBounds returns the terminal-cell bounding box for id (or #fragment).
+func (r *TTYResult) AnchorBounds(idOrHref string) (image.Rectangle, bool) {
+	if r == nil {
+		return image.Rectangle{}, false
+	}
+	name, ok := normalizeAnchorID(idOrHref)
+	if !ok {
+		return image.Rectangle{}, false
+	}
+	if name == "" {
+		lines := strings.Count(r.Text, "\n") + 1
+		w := max(1, r.width)
+		return image.Rect(0, 0, w, lines), true
+	}
+	if rect, exists := r.AnchorRects[name]; exists && !rect.Empty() {
+		return rect, true
+	}
+	if p, exists := r.Anchors[name]; exists {
+		w := max(1, r.width)
+		return image.Rect(p.X, p.Y, w, p.Y+1), true
+	}
+	return image.Rectangle{}, false
+}
+
+// SourceAt returns the innermost HTML element ID at terminal cell p (col, line).
+func (r *TTYResult) SourceAt(p image.Point) (string, bool) {
+	if r == nil || p.Y < 0 {
+		return "", false
+	}
+	if p.Y < len(r.lineSources) && r.lineSources[p.Y] != "" {
+		return r.lineSources[p.Y], true
+	}
+	return r.TextIndex().HitSource(image.Rect(p.X, p.Y, p.X+1, p.Y+1))
 }
 func (r *Result) TextIndex() *TextIndex {
 	out := &TextIndex{}
@@ -118,10 +308,11 @@ func (r *Result) TextIndex() *TextIndex {
 			bounds = b.InkBounds
 		}
 		out.Runs = append(out.Runs, TextRun{
-			Start:  start,
-			End:    text.Len(),
-			Bounds: bounds,
-			CharX:  measureRunCharX(l, b, clean, bounds),
+			Start:    start,
+			End:      text.Len(),
+			Bounds:   bounds,
+			CharX:    measureRunCharX(l, b, clean, bounds),
+			SourceID: b.SourceID,
 		})
 	}
 	out.Text = text.String()
@@ -171,7 +362,16 @@ func (r *TTYResult) TextIndex() *TextIndex {
 	offset := 0
 	for y, line := range strings.Split(r.Text, "\n") {
 		if line != "" {
-			out.Runs = append(out.Runs, TextRun{Start: offset, End: offset + len(line), Bounds: image.Rect(0, y, ansi.StringWidth(line), y+1)})
+			srcID := ""
+			if y < len(r.lineSources) {
+				srcID = r.lineSources[y]
+			}
+			out.Runs = append(out.Runs, TextRun{
+				Start:    offset,
+				End:      offset + len(line),
+				Bounds:   image.Rect(0, y, ansi.StringWidth(line), y+1),
+				SourceID: srcID,
+			})
 		}
 		offset += len(line) + 1
 	}
@@ -342,4 +542,45 @@ func (t *TextIndex) Hit(area image.Rectangle) (Match, bool) {
 		i++
 	}
 	return Match{run.End, run.End}, true
+}
+
+// SourceAt returns the HTML element SourceID owning the text run at or nearest
+// UTF-8 byte offset.
+func (t *TextIndex) SourceAt(offset int) (string, bool) {
+	if t == nil || len(t.Runs) == 0 {
+		return "", false
+	}
+	for _, run := range t.Runs {
+		if offset >= run.Start && offset < run.End && run.SourceID != "" {
+			return run.SourceID, true
+		}
+	}
+	best := ""
+	bestDist := int(^uint(0) >> 1)
+	for _, run := range t.Runs {
+		if run.SourceID == "" {
+			continue
+		}
+		d := 0
+		if offset < run.Start {
+			d = run.Start - offset
+		} else if offset >= run.End {
+			d = offset - run.End + 1
+		}
+		if d < bestDist {
+			bestDist = d
+			best = run.SourceID
+		}
+	}
+	return best, best != ""
+}
+
+// HitSource returns the HTML element SourceID nearest area in either Typeset
+// or TTY coordinates.
+func (t *TextIndex) HitSource(area image.Rectangle) (string, bool) {
+	hit, ok := t.Hit(area)
+	if !ok {
+		return "", false
+	}
+	return t.SourceAt(hit.Start)
 }

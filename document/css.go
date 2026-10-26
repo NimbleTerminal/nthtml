@@ -45,7 +45,7 @@ type style struct {
 	vertical                                   string
 	display, align, family                     string
 	bold, italic, underline, strike, smallCaps bool
-	mono, pre, hidden                          bool
+	mono, pre, hidden, explicitFg              bool
 	linkID                                     int
 	lineMultiplier                             float64
 }
@@ -629,7 +629,7 @@ func parseCSS(s string, budget int) ([]rule, error) {
 	return out, nil
 }
 func (d *Document) styled(n *node, parent style) style {
-	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
 	if n.tag == "svg" {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
 		s.height, _ = parseLength(n.attrs["height"], true, false)
@@ -717,6 +717,7 @@ func (d *Document) styled(n *node, parent style) style {
 	if n.tag == "mark" {
 		s.bg = color.RGBA{255, 243, 163, 255}
 		s.fg = color.RGBA{0, 0, 0, 255}
+		s.explicitFg = true
 	}
 	if n.tag == "em" || n.tag == "i" {
 		s.italic = true
@@ -745,8 +746,10 @@ func (d *Document) styled(n *node, parent style) style {
 			s.underline = true
 			if s.defaultLink.A > 0 {
 				s.fg = s.defaultLink
+				s.explicitFg = true
 			} else {
 				s.fg = color.RGBA{40, 92, 186, 255}
+				s.explicitFg = false
 			}
 		}
 	}
@@ -757,13 +760,17 @@ func (d *Document) styled(n *node, parent style) style {
 	if cv := values["color"]; isCSSKeyword(cv) {
 		if resolveCSSKeyword("color", cv) == "inherit" {
 			s.fg = parent.fg
+			s.explicitFg = parent.explicitFg
 		} else if s.defaultFg.A > 0 {
 			s.fg = s.defaultFg
+			s.explicitFg = true
 		} else {
 			s.fg = color.RGBA{0, 0, 0, 255}
+			s.explicitFg = false
 		}
 	} else if c, ok := cssColor(cv, parent.fg); ok {
 		s.fg = c
+		s.explicitFg = true
 	}
 	if fsv := values["font-size"]; isCSSKeyword(fsv) {
 		if resolveCSSKeyword("font-size", fsv) == "inherit" {

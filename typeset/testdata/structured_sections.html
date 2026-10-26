@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Structured feed in terminal and web</title>
+<style>
+body.page-dark { margin: 0; padding: 24px; background: #10141c; color: #e3e8f0; font-family: sans-serif; font-size: 16px; line-height: 1.5; }
+.page-dark > h1 { font-size: 28px; margin: 0 0 20px; }
+.feed { color: #e3e8f0; font-family: sans-serif; font-size: 16px; line-height: 1.5; }
+.feed .card { margin: 0 0 20px; padding: 16px; background: #19212d; border: 1px solid #344155; }
+.feed .card-header { font-size: 20px; margin: 0 0 8px; color: #c6d2e1; }
+.feed .card-primary { border-left: 4px solid #90b4fa; }
+.feed .card-secondary { border-left: 4px solid #eda879; }
+.feed .card-service { border-left: 4px solid #70d6b4; }
+.feed .subcard { margin: 12px 0 0; }
+.feed h3 { font-size: 16px; margin: 0 0 8px; }
+.feed p { margin: 8px 0; }
+.feed .subcard-note { padding: 12px; background: #24283c; border-left: 3px solid #b6a5f5; }
+.feed .subcard-action, .feed .subcard-outcome { padding: 12px; background: #142c2b; border-left: 3px solid #70d6b4; }
+.feed .is-error { border-left: 3px solid #fa9494; }
+.feed .is-collapsed .subcard-body { display: none; }
+.feed pre { margin: 8px 0; padding: 12px; background: #101820; white-space: pre-wrap; overflow-wrap: anywhere; }
+.feed code { font-family: monospace; }
+.feed a { color: #9fc3ff; }
+.feed blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid #75879d; }
+.feed table { border-collapse: collapse; width: 100%; }
+.feed th, .feed td { border: 1px solid #52637a; padding: 6px; text-align: left; }
+.page-dark .meta, .feed .meta, .feed .related, .feed .media-placeholder { color: #aab9cc; font-size: 13px; }
+</style></head><body class="page-dark">
+<h1>Structured feed in terminal and web</h1>
+<article class="feed">
+<section class="card card-primary" id="entry-alpha" data-stream="demo" data-index="0">
+<h2 class="card-header">Author</h2>
+<p class="meta">2026-10-25T14:00:00Z · rev-1</p>
+<section class="subcard subcard-prose" id="entry-alpha-text">
+<div class="subcard-body">
+<p>Can you make the document viewer easier to read? Keep nested sections attached to their source anchors.</p>
+</div>
+</section>
+</section>
+<section class="card card-secondary" id="entry-beta" data-stream="demo" data-index="1">
+<h2 class="card-header">Reviewer</h2>
+<p class="meta">2026-10-25T14:00:01Z · rev-2 · verifier</p>
+<section class="subcard subcard-note" id="entry-beta-note">
+<h3>Reasoning</h3>
+<div class="subcard-body">
+<pre><code>The document already has nested structure. Preserving section boxes and source anchors lets one HTML tree drive native, TTY, and typeset views.</code></pre>
+</div>
+</section>
+<section class="subcard subcard-prose" id="entry-beta-prose">
+<div class="subcard-body">
+<h3>A shared document pipeline</h3>
+<p>We can keep <strong>content</strong>, <em>presentation</em>, and <code>layout</code> separate.</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source</td>
+<td>Structure and anchor identity</td>
+</tr>
+<tr>
+<td>CSS</td>
+<td>Section backgrounds, borders, and typography</td>
+</tr>
+<tr>
+<td>Renderer</td>
+<td>Reflow, hit testing, and viewport display</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-go">doc, err := document.Parse(ctx, r, document.Limits{})
+if err != nil {
+    return err
+}
+</code></pre>
+</div>
+</section>
+<section class="subcard subcard-action" id="entry-beta-action">
+<h3>Action: Inspect</h3>
+<div class="subcard-body">
+<pre><code>{
+  "target": "typeset/typeset.go"
+}</code></pre>
+<p class="related"><a href="#entry-gamma-error">Outcome details</a></p>
+</div>
+</section>
+</section>
+<section class="card card-service" id="entry-gamma" data-stream="demo" data-index="2">
+<h2 class="card-header">Service</h2>
+<p class="meta">2026-10-25T14:00:02Z · runner</p>
+<section class="subcard subcard-outcome is-error" id="entry-gamma-error">
+<h3>Action error</h3>
+<div class="subcard-body">
+<pre><code>Permission denied: the target resource could not be opened.
+The outcome remains anchored at its original section.</code></pre>
+<p class="related"><a href="#entry-beta-action">Originating action</a></p>
+</div>
+</section>
+</section>
+<section class="card card-secondary" id="entry-delta" data-stream="demo" data-index="3">
+<h2 class="card-header">Summary</h2>
+<p class="meta">2026-10-25T14:00:03Z · rev-3</p>
+<section class="subcard subcard-prose" id="entry-delta-summary">
+<div class="subcard-body">
+<blockquote>
+<p>The same semantic content should survive a change of rendering mode.</p>
+</blockquote>
+<ul>
+<li>Preserve section anchors.</li>
+<li>Preserve cross-section links.</li>
+<li>Reflow for the available width.</li>
+</ul>
+<p>See <a href="https://nimbleterminal.dev/nthtml">the renderer</a>.</p>
+<p><span class="media-placeholder">[Image: Architecture diagram]</span></p>
+</div>
+</section>
+<section class="subcard subcard-media" id="entry-delta-media">
+<h3>Attachment</h3>
+<div class="subcard-body">
+<p class="media-placeholder" data-asset-id="entry-delta-media">Image — image/png</p>
+</div>
+</section>
+<section class="subcard subcard-note is-collapsed" id="entry-delta-collapsed">
+<h3>Collapsed note (summary only)</h3>
+<div class="subcard-body" id="hidden-collapsed-body">
+<p>HIDDEN_COLLAPSED_PAYLOAD_SHOULD_NEVER_RENDER</p>
+<p><a href="#entry-alpha">Hidden link</a></p>
+</div>
+</section>
+</section>
+</article>
+<p class="meta">Exported fixture</p>
+</body></html>

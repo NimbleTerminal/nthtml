@@ -18,7 +18,7 @@ type Box struct {
 	Baseline, WordSpacing, LetterSpacing int
 	InkBounds                            image.Rectangle
 	Tag, Text                            string
-	Anchor, TextPrefix                   string
+	Anchor, SourceID, TextPrefix         string
 	FontSize                             int
 	Bold, SmallCaps                      bool
 	FontFamily                           string
@@ -53,6 +53,7 @@ type layout struct {
 	frame, rootFrame            *positionFrame
 	canvasNode                  *node
 	canvasBg                    color.RGBA
+	activeSource                string
 	absolute                    []absoluteBox
 	diagramCount, diagramPixels int
 	warnings                    []string
@@ -86,6 +87,13 @@ func (l *layout) add(b Box, src image.Image) {
 	if e := l.ctx.Err(); e != nil {
 		l.err = e
 		return
+	}
+	if b.SourceID == "" {
+		if b.Anchor != "" {
+			b.SourceID = b.Anchor
+		} else {
+			b.SourceID = l.activeSource
+		}
 	}
 	if b.Text != "" && b.FontSize > 0 {
 		f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
@@ -210,7 +218,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		}
 		linkColor = o.Colors.Link
 	}
-	rootStyle := style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor}
+	rootStyle := style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor, explicitFg: !d.hasAuthorColors && o.Colors.Text.A > 0}
 	l.canvasBg, l.canvasNode = l.resolveCanvasBackground(rootStyle)
 	h := l.block(d.root, 0, 0, o.Width, -1, rootStyle)
 	if l.err != nil {
@@ -294,6 +302,11 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	}
 	if s.display == "none" {
 		return y
+	}
+	if name := anchorName(n); name != "" {
+		prevSource := l.activeSource
+		l.activeSource = name
+		defer func() { l.activeSource = prevSource }()
 	}
 
 	previousFloats := l.floats
@@ -538,7 +551,12 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		if n == l.canvasNode || s.hidden {
 			bg = color.RGBA{}
 		}
-		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchorName(n), Color: bg}
+		anchor := anchorName(n)
+		srcID := anchor
+		if srcID == "" {
+			srcID = l.activeSource
+		}
+		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchor, SourceID: srcID, Color: bg}
 	}
 	if s.overflow == "hidden" || s.overflow == "clip" {
 		clip := image.Rect(x+s.bw[3], start+s.bw[0], x+w-s.bw[1], cy-s.bw[2])
@@ -1027,7 +1045,10 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 			margin, padding := resolveEdges(st.margin, baseW), resolveEdges(st.padding, baseW)
 			pendingLeft += margin[3] + st.bw[3] + padding[3]
 			if name := anchorName(n); name != "" {
-				l.add(Box{Tag: "anchor", Anchor: name, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
+				prevSource := l.activeSource
+				l.activeSource = name
+				defer func() { l.activeSource = prevSource }()
+				l.add(Box{Tag: "anchor", Anchor: name, SourceID: name, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
 			}
 			sp := &activeSpan{node: n, st: st, bg: inlineBg, margin: margin, padding: padding, startOp: len(l.ops)}
 			activeSpans = append(activeSpans, sp)

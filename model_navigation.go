@@ -46,6 +46,34 @@ func (m *Model) NavigateFragment(href string) (tea.Cmd, bool) {
 	}
 	return cmd, true
 }
+
+// NavigateSource scrolls to the HTML element with id (or #fragment) in the
+// active layout mode.
+func (m *Model) NavigateSource(id string) (tea.Cmd, bool) {
+	if id == "" {
+		return nil, false
+	}
+	if strings.HasPrefix(id, "#") {
+		return m.NavigateFragment(id)
+	}
+	var rect image.Rectangle
+	var ok bool
+	if m.mode == LayoutTTY && m.ttyResult != nil {
+		rect, ok = m.ttyResult.AnchorBounds(id)
+	} else if m.result != nil {
+		rect, ok = m.result.AnchorBounds(id)
+	}
+	if !ok {
+		return nil, false
+	}
+	m.focusID = 0
+	m.clearSelection()
+	cmd := m.scrollTo(rect.Min)
+	if m.mode == LayoutTTY {
+		cmd = m.refreshHighlights()
+	}
+	return cmd, true
+}
 func (m *Model) scrollTo(p image.Point) tea.Cmd {
 	if m.mode == LayoutTTY {
 		m.ttyTop = p.Y
@@ -100,6 +128,54 @@ func (m *Model) SelectRange(start, end int) tea.Cmd {
 	return m.refreshHighlights()
 }
 func (m *Model) SelectedText() string { return m.textIndex().Selected(m.selectStart, m.selectEnd) }
+
+// SelectedSourceID returns the HTML element SourceID owning the current
+// selection or active search match.
+func (m *Model) SelectedSourceID() (string, bool) {
+	if m.selectStart != m.selectEnd {
+		return m.textIndex().SourceAt(m.selectStart)
+	}
+	if m.match >= 0 && m.match < len(m.matches) {
+		return m.textIndex().SourceAt(m.matches[m.match].Start)
+	}
+	return "", false
+}
+
+// SourceAtCell resolves the innermost HTML element SourceID at terminal cell p.
+func (m *Model) SourceAtCell(p image.Point) (string, bool) {
+	area := m.cellArea(p)
+	if area.Empty() {
+		return "", false
+	}
+	if m.mode == LayoutTTY && m.ttyResult != nil {
+		return m.ttyResult.SourceAt(area.Min)
+	}
+	if m.result != nil {
+		return m.result.SourceAt(area.Min)
+	}
+	return m.textIndex().HitSource(area)
+}
+
+// ActiveSourceID returns the SourceID of the current selection/search match if
+// active, or the SourceID at the top of the current viewport.
+func (m *Model) ActiveSourceID() (string, bool) {
+	if id, ok := m.SelectedSourceID(); ok {
+		return id, true
+	}
+	if m.mode == LayoutTTY && m.ttyResult != nil {
+		return m.ttyResult.SourceAt(image.Pt(0, m.ttyTop))
+	}
+	if m.result != nil {
+		crop := m.cropRect()
+		if !crop.Empty() {
+			if id, ok := m.result.SourceAt(crop.Min); ok {
+				return id, true
+			}
+			return m.textIndex().HitSource(image.Rect(crop.Min.X, crop.Min.Y, crop.Max.X, crop.Min.Y+32))
+		}
+	}
+	return "", false
+}
 func (m *Model) CopySelection() tea.Cmd {
 	text := m.SelectedText()
 	if text == "" || len(text) > 1<<20 {

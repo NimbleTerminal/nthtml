@@ -25,6 +25,8 @@ implicit network/file access.
 go get nimbleterminal.dev/nthtml
 go run ./examples/demo
 go run ./cmd/nthtml -width 800 -o document.png examples/demo/sample.html
+go run ./cmd/nthtml -mode typeset -width 800 -o bridged.png typeset/testdata/structured_sections.html
+go run ./cmd/nthtml -mode view typeset/testdata/structured_sections.html
 ```
 
 ```go
@@ -40,12 +42,15 @@ viewer := nthtml.New(result)
 _ = viewer
 ```
 
-Import `nimbleterminal.dev/nthtml` and `nimbleterminal.dev/nthtml/document`.
-Use `document.Parse` followed by `Document.Render` to reuse parsed documents.
-The document package has no Bubble Tea dependency. Its image can be sent directly
-to `ntpicture.Picture.SetImage`, encoded as PNG, or composed with other images.
-Text boxes expose font size, weight, color, and bounds for host adapters such as
-nttypeset; there is no direct nttypeset adapter yet.
+Import `nimbleterminal.dev/nthtml`, `nimbleterminal.dev/nthtml/document`, and
+optionally `nimbleterminal.dev/nthtml/typeset`. Use `document.Parse` followed by
+`Document.Render`, `Document.TTYLayout`, or `typeset.BuildWithSources` to reuse a
+parsed document across native raster, terminal-cell TTY, and `nttypeset`-backed
+rendering. The `document` package has no Bubble Tea dependency. Its image can be
+sent directly to `ntpicture.Picture.SetImage`, encoded as PNG, or composed with
+other images, and `nimbleterminal.dev/nthtml/typeset` bridges parsed documents
+(or rendered boxes) directly into `nttypeset.Document` with nested section
+decorations and source anchor mappings.
 
 ## Task runner
 
@@ -277,9 +282,39 @@ bridges parsed documents and rendered boxes directly into `nttypeset.Document`.
 | PNG export | Supported by `cmd/nthtml`; other image consumers can use `Result.Image` or `Result.Paint` |
 | ntfonts integration | Embedded fonts by default; `document.MinimalFonts` or custom `document.Options.Fonts` sources supported |
 | ntsvg integration | Embedded SVG and Mermaid rasterization on native and WASM |
-| Direct nttypeset integration | Supported via `nimbleterminal.dev/nthtml/typeset` (`typeset.Build`, `typeset.FromResult`, `typeset.Raster`) and `Document.Blocks` |
+| Direct nttypeset integration | Supported via `nimbleterminal.dev/nthtml/typeset` (`typeset.Build`, `typeset.BuildWithSources`, `typeset.RenderResult`, `typeset.FromResult`, `typeset.Raster`, `typeset.PaletteFor`) and `Document.ExtractTypeset` / `Document.Blocks` |
 | Constrained / embedded budgets | `document.MinimalFonts`, `Options.NoImage` + `Result.Paint`, and configurable `document.Limits` |
 | Full browser rendering | Only the demo's optional reference iframe, rendered by the host browser; not an nthtml capability |
+
+### nttypeset bridge (`nimbleterminal.dev/nthtml/typeset`)
+
+`nimbleterminal.dev/nthtml/typeset` bridges a parsed `*document.Document` (via `Document.ExtractTypeset` -> `typeset.Build` / `typeset.BuildWithSources` / `typeset.Raster` / `typeset.RenderResult`) or rendered boxes (`typeset.FromResult`) into `nimbleterminal.dev/nttypeset` for UAX #14 line breaking, HarfBuzz shaping, per-glyph font fallback, incremental layout, and viewport-clipped rasterization.
+
+Use `cmd/nthtml` to inspect or compare any HTML file across native raster, bridged `nttypeset`, and TTY modes:
+
+```sh
+# Interactive Bubble Tea viewer (press t for TTY/styled, b for Native/nttypeset bridge)
+go run ./cmd/nthtml -mode view typeset/testdata/structured_sections.html
+go run ./cmd/nthtml -mode view -bridge typeset/testdata/structured_sections.html
+
+# Batch export via native raster, bridged nttypeset raster, or TTY text
+go run ./cmd/nthtml -mode png -width 800 -o native.png typeset/testdata/structured_sections.html
+go run ./cmd/nthtml -mode typeset -width 800 -o bridged.png typeset/testdata/structured_sections.html
+go run ./cmd/nthtml -mode tty -columns 80 typeset/testdata/structured_sections.html
+```
+
+**What the `typeset` bridge preserves:**
+- **Reading-order blocks & inline typography**: Headings (`h1`–`h6`), paragraphs, blockquotes, lists (`ul`/`ol` with `start`, `reversed`, and `list-style-type`), tables, horizontal rules (`hr`), `<pre><code>` blocks (with optional Chroma syntax highlighting via `typeset.Options.Syntax`), inline `bold`, `italic`, `monospace`, `strikethrough`, `small-caps`, `::before`/`::after` pseudo-elements, and `<br>` line breaks.
+- **Resolved CSS sizing & colors**: Explicit CSS `font-size` (`Block.Size`), `line-height` (`BlockFormat.LineHeight`), canvas/body colors (`typeset.PaletteFor` / `SourceMap.Palette`), and explicit author text and hyperlink colors (`Span.Ink` with `RoleText`, without replacing explicit CSS sizes with hardcoded heading sizes or overriding explicit CSS colors with `RoleAccent`). Unstyled documents continue to use `nttypeset` palette roles.
+- **Nested section hierarchy & box decoration**: Nested block containers (`section`, `article`, `div`, `blockquote`, list wrappers, and bordered leaf blocks) convert into outer-first `nttypeset.Section` ranges with resolved `Padding` (`Insets`), solid `Background`, per-side solid borders (`Top`, `Right`, `Bottom`, `Left` `Border{Width, Color}`), and vertical margins (`SpaceBefore`, `SpaceAfter`). Leaf blocks also carry `Block.Format` (`Padding`, `Background`, `LineHeight`, `SpaceBefore`, `SpaceAfter`).
+- **`display: none` & collapsed-section anchors**: Hidden subtrees are excluded from blocks, sections, links, and source maps in every route. If a visible container with an `id` has all of its inner children hidden by `display: none` (for example, a collapsed section), a minimal anchor placeholder is retained so hosts can rebuild collapsed documents without losing the section's anchor.
+- **Source identity & anchor mapping**: `typeset.BuildWithSources` returns a `*typeset.SourceMap` exposing `IDs()`, `ParentID(id)`, `RootID(id)`, `BlockRange(id)`, `AnchorBounds(ctx, layout, idOrHref, ensure)`, and `SourceAt(ctx, layout, place)`. These mirror `Document.Sources(ctx)`, `Document.ParentID(id)`, `Document.RootID(id)`, `Result.AnchorBounds(idOrHref)`, `Result.SourceAt(point)`, `TTYResult.AnchorBounds(idOrHref)`, and `TTYResult.SourceAt(cell)`.
+- **Explicit asset allowlists**: Images (`Options.Document.Images`) and diagrams (`Options.Document.Diagrams`) obey the same explicit allowlists and resource budgets as `Document.Render`, with no implicit filesystem or network I/O.
+
+**What remains native-only (`Document.Render`) and is not preserved by `nttypeset`:**
+- **2D and out-of-flow positioning**: `position: relative | absolute`, `top`/`right`/`bottom`/`left`/`inset`, `z-index`, `float: left | right`, `clear`, `display: flex | inline-flex`, and multi-column `display: inline-block` packing are flattened into vertical reading-order blocks in `nttypeset`.
+- **Advanced table styling & spans**: `nttypeset` tables render content-weighted columns with a header fill and horizontal row rules; `colspan`/`rowspan`, per-cell custom backgrounds/borders, `border-collapse` conflict resolution, and vertical cell alignment remain native-only.
+- **Margin collapsing & overflow clipping**: `nttypeset` `SpaceBefore` and `SpaceAfter` are nonnegative and additive (no CSS vertical margin collapsing or negative margins). CSS `overflow: hidden | clip` and `text-overflow: ellipsis` on arbitrary blocks, dashed/dotted border patterns (drawn as solid borders in `nttypeset.Section`), and mixed font sizes or inline background boxes within a single paragraph are rendered only by the native rasterizer.
 
 To allow an image, decode it with `document.DecodeImage(reader)` or
 `document.DecodeDataURL(src)` and insert it into `Options.Images[src]`. HTML never
@@ -516,13 +551,17 @@ terminal support and permission. A copy request is limited to 1 MiB. Browser
 copy uses the Clipboard API when available, with the browser's Copy command
 as fallback. No clipboard reads occur.
 
-Lower-level consumers can use `Result.Anchors`, `TTYResult.Anchors`, and
-`Fragment(href)` for target coordinates. `TextIndex()` exposes layout-specific
-UTF-8 text offsets and rectangles, with `Search`, `Regions`, `Hit`, and
-`Selected` helpers. Offsets must not be reused after reflow. Widget hosts can
-call `NavigateFragment`, `Search`, `NextMatch`, `SearchStatus`, `SelectRange`,
-`SelectedText`, and `CopySelection`. Hosts that reserve quit keys must let
-the widget consume keys while `SearchInputActive()` is true.
+Lower-level consumers can use `Result.Anchors`, `Result.AnchorBounds`,
+`Result.SourceAt`, `TTYResult.Anchors`, `TTYResult.AnchorRects`,
+`TTYResult.AnchorBounds`, `TTYResult.SourceAt`, `Document.Sources`,
+`Document.ParentID`, `Document.RootID`, and `Fragment(href)` for target
+coordinates and source-element identity. `TextIndex()` exposes layout-specific
+UTF-8 text offsets and rectangles, with `Search`, `Regions`, `Hit`, `SourceAt`,
+`HitSource`, and `Selected` helpers. Offsets must not be reused after reflow.
+Widget hosts can call `NavigateFragment`, `NavigateSource`, `ActiveSourceID`,
+`SelectedSourceID`, `SourceAtCell`, `Search`, `NextMatch`, `SearchStatus`,
+`SelectRange`, `SelectedText`, and `CopySelection`. Hosts that reserve quit keys
+must let the widget consume keys while `SearchInputActive()` is true.
 
 ### Conformance testing
 

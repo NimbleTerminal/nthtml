@@ -10,6 +10,9 @@ import (
 )
 
 func anchorMarker(id int) string { return "\x1b]1337;nthtml-anchor=" + strconv.Itoa(id) + "\x07" }
+func anchorEndMarker(id int) string {
+	return "\x1b]1337;nthtml-anchor-end=" + strconv.Itoa(id) + "\x07"
+}
 
 const linkEnd = "\x1b]8;;\x07"
 
@@ -21,15 +24,19 @@ type TextSpan struct {
 	Bounds             image.Rectangle
 }
 type TTYResult struct {
-	Anchors map[string]image.Point
-	Text    string
-	Links   []Link
-	Spans   []TextSpan
+	Anchors     map[string]image.Point
+	AnchorRects map[string]image.Rectangle
+	Text        string
+	Links       []Link
+	Spans       []TextSpan
+	lineSources []string
+	width       int
 }
 
 // TTYLayout returns plain text plus link spans, without terminal escape codes.
 func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error) {
-	raw, e := d.tty(ctx, width)
+	clampedW := max(2, min(1000, width))
+	raw, e := d.tty(ctx, clampedW)
 	if e != nil {
 		return nil, e
 	}
@@ -52,12 +59,45 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 		}
 	}
 	collect(d.root)
-	result := &TTYResult{Anchors: map[string]image.Point{}}
+	result := &TTYResult{
+		Anchors:     map[string]image.Point{},
+		AnchorRects: map[string]image.Rectangle{},
+		width:       clampedW,
+	}
 	var text strings.Builder
+	var active []string
+	startY := map[string]int{}
+	curLineSource := ""
 	x, y, current := 0, 0, 0
 	for len(raw) > 0 {
 		if e := ctx.Err(); e != nil {
 			return nil, e
+		}
+		if strings.HasPrefix(raw, "\x1b]1337;nthtml-anchor-end=") {
+			end := strings.IndexByte(raw, '\x07')
+			if end < 0 {
+				break
+			}
+			id, _ := strconv.Atoi(strings.TrimPrefix(raw[:end], "\x1b]1337;nthtml-anchor-end="))
+			if name := names[id]; name != "" {
+				for i := len(active) - 1; i >= 0; i-- {
+					if active[i] == name {
+						active = append(active[:i], active[i+1:]...)
+						break
+					}
+				}
+				if sy, ok := startY[name]; ok {
+					endLine := y + 1
+					if x == 0 && y > sy {
+						endLine = y
+					}
+					if _, exists := result.AnchorRects[name]; !exists {
+						result.AnchorRects[name] = image.Rect(0, sy, clampedW, max(sy+1, endLine))
+					}
+				}
+			}
+			raw = raw[end+1:]
+			continue
 		}
 		if strings.HasPrefix(raw, "\x1b]1337;nthtml-anchor=") {
 			end := strings.IndexByte(raw, '\x07')
@@ -68,7 +108,10 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 			if name := names[id]; name != "" {
 				if _, ok := result.Anchors[name]; !ok {
 					result.Anchors[name] = image.Pt(x, y)
+					startY[name] = y
 				}
+				active = append(active, name)
+				curLineSource = name
 			}
 			raw = raw[end+1:]
 			continue
@@ -87,6 +130,11 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 			continue
 		}
 		if raw[0] == '\n' {
+			result.lineSources = append(result.lineSources, curLineSource)
+			curLineSource = ""
+			if len(active) > 0 {
+				curLineSource = active[len(active)-1]
+			}
 			text.WriteByte('\n')
 			x = 0
 			y++
@@ -102,6 +150,9 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 			continue
 		}
 		chunk := raw[:end]
+		if curLineSource == "" && len(active) > 0 {
+			curLineSource = active[len(active)-1]
+		}
 		start := text.Len()
 		text.WriteString(chunk)
 		w := ansi.StringWidth(chunk)
@@ -115,6 +166,12 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 		}
 		x += w
 		raw = raw[end:]
+	}
+	result.lineSources = append(result.lineSources, curLineSource)
+	for name, sy := range startY {
+		if _, exists := result.AnchorRects[name]; !exists {
+			result.AnchorRects[name] = image.Rect(0, sy, clampedW, max(sy+1, y+1))
+		}
 	}
 	result.Text = text.String()
 	for _, link := range links {
@@ -190,7 +247,7 @@ func linkedLines(text string) []string {
 			text = text[end+1:]
 			continue
 		}
-		if strings.HasPrefix(text, "\x1b]1337;nthtml-anchor=") {
+		if strings.HasPrefix(text, "\x1b]1337;nthtml-anchor=") || strings.HasPrefix(text, "\x1b]1337;nthtml-anchor-end=") {
 			end := strings.IndexByte(text, '\x07')
 			if end < 0 {
 				break
