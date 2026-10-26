@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## v0.1.1 (2026-10-26)
 
  * **CSS at-rules & `@media` queries**:
    * Skip statement at-rules (`@import`, `@charset`, `@namespace`) up to `;` and non-`@media` block at-rules (`@font-face`, `@keyframes`, `@supports`, `@layer`, `@page`) with brace matching (`@supports` bodies are skipped, not evaluated).
@@ -8,13 +8,16 @@
  * **Dynamic pseudo-classes in selector lists**:
    * Accept `:visited`, `:hover`, `:active`, and `:focus` (without arguments) in selector parsing so they never match without dropping the rest of a comma-separated selector list.
  * **HTML presentational attributes**:
-   * Map HTML Standard (§15.3) presentational hints below author CSS rules (including specificity `0,0,0`): `bgcolor` (including legacy hex without `#`), `align`, `valign`, `cellpadding`, `width`/`height` on `table`/`td`/`th`/`tr`, `border="N"` on `table`, `<center>`, `<font color/size/face>`, and `<body text/link>`.
+   * Map HTML Standard (§15.3) presentational hints below author CSS rules (including specificity `0,0,0`): `bgcolor` (including legacy hex without `#`), `align`, `valign`, `cellpadding`, `cellspacing`, `width`/`height` on `table`/`td`/`th`/`tr`, `border="N"` on `table`, `<center>`, `<font color/size/face>`, and `<body text/link>`.
  * **Images with empty or missing `alt`**:
    * Omit `[image: ]` fallback text across native, TTY, and `typeset` routes when `alt` is empty or absent; reserve an empty `width`×`height` box when both dimension attributes are present so spacer images work in layout.
  * **Inline whitespace, kerning, & link regions**:
    * Measure whole words with OpenType kerning, collapse whitespace across inline element boundaries without extending link/underline styles into trailing spaces, and merge contiguous link hit regions on a line.
- * **Canvas background & `nttypeset` bridge**:
-   * Expose `Result.Background()`, `Document.ExtractTypeset`, and `typeset.BuildWithSources` for nested section decorations and source-anchor mapping.
+ * **CSS layout expansion & WPT conformance (`187 PASS · 0 FAIL`)**:
+   * Support `visibility: visible | hidden | collapse`, `border-style: hidden`, `line-height: normal` and `font` shorthand `/line-height`, CSS-wide keywords (`inherit`, `initial`, `unset`), and collapsed table border conflict resolution, advancing the pinned 200-test WPT baseline from 177 to **187 PASS · 0 FAIL**.
+ * **Canvas background, section styling, source anchors, & `nttypeset` bridge**:
+   * Propagate root/body backgrounds to the canvas (`Result.Background()`).
+   * Preserve nested container section backgrounds, padding, borders, and source-element anchor mappings (`Document.Sources`, `Document.ParentID`, `Document.RootID`, `Result.SourceAt`, `TTYResult.SourceAt`, `Model.NavigateSource`, `Model.ActiveSourceID`, `Document.ExtractTypeset`, `typeset.BuildWithSources`, `typeset.RenderResult`, and `cmd/nthtml -mode typeset`), including layout-table container decomposition and presentational attributes.
  * **Chromium differential conformance harness (`task differential`)**:
    * Add an optional offline headless-Chromium differential harness (`internal/conformance`, `cmd/nthtml-differential`) comparing `nthtml` `Result.Boxes` geometry, document dimensions, and `800×600` screenshots against Chromium `getBoundingClientRect()` across 20 representative WPT fixtures (`artifacts/differential/index.html` and `report.json`).
 
