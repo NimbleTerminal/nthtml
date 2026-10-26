@@ -258,7 +258,11 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			return nil
 		}
 		if n.tag == "img" {
-			b.WriteString(marker + "[image: " + cleanText(n.attrs["alt"]) + "]" + endMarker)
+			if alt := cleanText(n.attrs["alt"]); alt != "" {
+				b.WriteString(marker + "[image: " + alt + "]" + endMarker)
+			} else if marker != "" {
+				b.WriteString(marker + endMarker)
+			}
 			return nil
 		}
 		if n.tag == "table" && !inCell {

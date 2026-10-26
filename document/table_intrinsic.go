@@ -27,6 +27,9 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				return
 			}
 			if n.tag == "img" || st.display == "inline-block" || st.display == "inline-flex" {
+				if n.tag == "img" && !l.imgHasBox(n, st) {
+					return
+				}
 				if st.display != "inline" && st.display != "inline-block" && st.display != "inline-flex" {
 					flushLine()
 					a, b := l.preferredCell(n, st, basis)
@@ -104,8 +107,13 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 			iw, _ := imageSize(n, src.Bounds().Size(), s.width.definite(basis), max(1, basis), -1)
 			preferred = min(4096, iw)
 			minimum = preferred
+		} else if alt := cleanText(n.attrs["alt"]); alt != "" {
+			return l.preferredCell(&node{children: []*node{{text: "[image: " + alt + "]"}}}, s, basis)
+		} else if iw, _, ok := missingImageSpacer(n, s, max(1, basis), -1, l.d.limits.Height); ok {
+			preferred = min(4096, iw)
+			minimum = preferred
 		} else {
-			return l.preferredCell(&node{children: []*node{{text: "[image: " + n.attrs["alt"] + "]"}}}, s, basis)
+			return 0, 0
 		}
 	} else if n.tag == "table" {
 		rows, cols, err := l.d.collectTable(n, s, l.tableStep)

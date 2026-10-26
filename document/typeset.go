@@ -479,19 +479,17 @@ func (w *blockExtractor) inlineSpansWithIDs(n *node, parent style) ([]Span, []st
 			ids = append(ids, id)
 		}
 		if cur.tag == "img" {
-			alt := cleanText(cur.attrs["alt"])
-			if alt == "" {
-				alt = cleanText(cur.attrs["src"])
+			if alt := cleanText(cur.attrs["alt"]); alt != "" {
+				out = append(out, Span{
+					Text:          "[image: " + alt + "]",
+					Size:          max(1, s.size),
+					Italic:        true,
+					Color:         s.fg,
+					ExplicitColor: s.explicitFg,
+					Href:          w.hrefs[s.linkID],
+					Accent:        s.linkID != 0 && !s.explicitFg,
+				})
 			}
-			out = append(out, Span{
-				Text:          "[image: " + alt + "]",
-				Size:          max(1, s.size),
-				Italic:        true,
-				Color:         s.fg,
-				ExplicitColor: s.explicitFg,
-				Href:          w.hrefs[s.linkID],
-				Accent:        s.linkID != 0 && !s.explicitFg,
-			})
 			return
 		}
 		startLen := len(out)
@@ -1095,15 +1093,22 @@ func (w *blockExtractor) walkChildren(n *node, s style, indent, availW int) erro
 func (w *blockExtractor) extractImage(n *node, s style, indent int, id, parentID string, margin [4]int, pad Insets) error {
 	src := n.attrs["src"]
 	alt := cleanText(n.attrs["alt"])
-	if alt == "" {
-		alt = src
-	}
 	img := w.opts.Images[src]
+	if img == nil && alt == "" {
+		if id != "" {
+			w.pendingIDs = append(w.pendingIDs, pendingID{id: id, parentID: parentID})
+		}
+		return nil
+	}
 	iw := min(max(64, w.opts.Width-indent), pixelAttr(n.attrs["width"]))
 	ih := min(1024, pixelAttr(n.attrs["height"]))
 	align := ""
 	if s.align == "center" || s.align == "right" {
 		align = s.align
+	}
+	var spans []Span
+	if alt != "" {
+		spans = []Span{{Text: "[image: " + alt + "]", Size: max(1, s.size), Italic: true, Color: s.fg, ExplicitColor: s.explicitFg}}
 	}
 	if err := w.addBlock(StyledBlock{
 		Kind:        BlockImage,
@@ -1115,7 +1120,7 @@ func (w *blockExtractor) extractImage(n *node, s style, indent int, id, parentID
 		ImageHeight: ih,
 		ImageAlign:  align,
 		Href:        w.hrefs[s.linkID],
-		Spans:       []Span{{Text: "[image unavailable: " + alt + "]", Size: max(1, s.size), Italic: true, Color: s.fg, ExplicitColor: s.explicitFg}},
+		Spans:       spans,
 	}); err != nil {
 		return err
 	}

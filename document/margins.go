@@ -228,7 +228,13 @@ func (l *layout) inlineLine(nodes []*node, parent style) bool {
 		if s.display == "none" || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" {
 			continue
 		}
-		if n.tag == "br" || n.tag == "img" || s.display == "inline-block" || s.display == "inline-flex" {
+		if n.tag == "img" {
+			if l.imgHasBox(n, s) {
+				return true
+			}
+			continue
+		}
+		if n.tag == "br" || s.display == "inline-block" || s.display == "inline-flex" {
 			return true
 		}
 		if kind, _ := diagramSource(n); kind != "" {

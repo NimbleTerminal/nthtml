@@ -322,8 +322,11 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	}
 	basisWidth := w
 	tableStyle := s
-	if n.tag == "table" && s.collapse {
-		s.bw = [4]int{}
+	if n.tag == "table" {
+		s.minWidth = cssLength{}
+		if s.collapse {
+			s.bw = [4]int{}
+		}
 	}
 	profile := l.margins(n, s, w, parentHeight)
 	margin, padding, target := boxWidth(s, w)
@@ -448,8 +451,17 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			}
 			l.add(Box{Bounds: image.Rect(cx, cy, cx+iw, cy+h), Tag: "img", LinkID: s.linkID}, src)
 			cy += h
-		} else {
-			cy = l.flow([]*node{{text: "[image: " + n.attrs["alt"] + "]"}}, cx, cy, cw, s, s)
+			if !s.width.definite(basisWidth) {
+				w = min(w, iw+extra)
+			}
+		} else if alt := cleanText(n.attrs["alt"]); alt != "" {
+			cy = l.flow([]*node{{text: "[image: " + alt + "]"}}, cx, cy, cw, s, s)
+		} else if iw, ih, ok := missingImageSpacer(n, s, cw, height, l.d.limits.Height); ok {
+			l.add(Box{Bounds: image.Rect(cx, cy, cx+iw, cy+ih), Tag: "img", LinkID: s.linkID}, nil)
+			cy += ih
+			if !s.width.definite(basisWidth) {
+				w = min(w, iw+extra)
+			}
 		}
 	} else if n.tag == "tr" {
 		cells := []*node{}
@@ -903,14 +915,6 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 			}
 			if n.tag == "img" {
 				src := l.opts.Images[n.attrs["src"]]
-				if src == nil || src.Bounds().Empty() {
-					sp := &activeSpan{node: n, st: st, bg: inlineBg}
-					if st.bg.A > 0 {
-						sp.bg = st.bg
-					}
-					visit(&node{text: "[image: " + n.attrs["alt"] + "]"}, sp)
-					return
-				}
 				margin, padding := resolveEdges(st.margin, baseW), resolveEdges(st.padding, baseW)
 				imgH := -1
 				if st.height.definite(parentH) {
@@ -936,31 +940,52 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 					}
 				}
 				availW := max(1, baseW-margin[1]-margin[3]-padding[1]-padding[3]-st.borderH())
-				hasCSSW := st.width.definite(baseW)
-				targetW := availW
-				if hasCSSW {
-					targetW = st.width.resolve(baseW, 16384)
-					if st.borderBox {
-						targetW = max(0, targetW-padding[1]-padding[3]-st.borderH())
+				var iw, ih int
+				if src == nil || src.Bounds().Empty() {
+					if alt := cleanText(n.attrs["alt"]); alt != "" {
+						sp := &activeSpan{node: n, st: st, bg: inlineBg}
+						if st.bg.A > 0 {
+							sp.bg = st.bg
+						}
+						visit(&node{text: "[image: " + alt + "]"}, sp)
+						return
 					}
-				}
-				if st.maxWidth.definite(baseW) {
-					mw := st.maxWidth.resolve(baseW, 16384)
-					if st.borderBox {
-						mw = max(0, mw-padding[1]-padding[3]-st.borderH())
+					var ok bool
+					iw, ih, ok = missingImageSpacer(n, st, availW, parentH, l.d.limits.Height)
+					if !ok {
+						if name := anchorName(n); name != "" {
+							l.add(Box{Tag: "anchor", Anchor: name, SourceID: name, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
+						}
+						return
 					}
-					targetW = min(targetW, mw)
-				}
-				if st.minWidth.definite(baseW) {
-					mw := st.minWidth.resolve(baseW, 16384)
-					if st.borderBox {
-						mw = max(0, mw-padding[1]-padding[3]-st.borderH())
+					src = nil
+				} else {
+					hasCSSW := st.width.definite(baseW)
+					targetW := availW
+					if hasCSSW {
+						targetW = st.width.resolve(baseW, 16384)
+						if st.borderBox {
+							targetW = max(0, targetW-padding[1]-padding[3]-st.borderH())
+						}
 					}
-					targetW = max(targetW, mw)
+					if st.maxWidth.definite(baseW) {
+						mw := st.maxWidth.resolve(baseW, 16384)
+						if st.borderBox {
+							mw = max(0, mw-padding[1]-padding[3]-st.borderH())
+						}
+						targetW = min(targetW, mw)
+					}
+					if st.minWidth.definite(baseW) {
+						mw := st.minWidth.resolve(baseW, 16384)
+						if st.borderBox {
+							mw = max(0, mw-padding[1]-padding[3]-st.borderH())
+						}
+						targetW = max(targetW, mw)
+					}
+					targetW = max(1, min(availW, targetW))
+					iw, ih = imageSize(n, src.Bounds().Size(), hasCSSW || st.maxWidth.definite(baseW) || st.minWidth.definite(baseW), targetW, imgH)
+					ih = min(ih, l.d.limits.Height)
 				}
-				targetW = max(1, min(availW, targetW))
-				iw, ih := imageSize(n, src.Bounds().Size(), hasCSSW || st.maxWidth.definite(baseW) || st.minWidth.definite(baseW), targetW, imgH)
-				ih = min(ih, l.d.limits.Height)
 				outerW := iw + padding[1] + padding[3] + st.borderH() + margin[1] + margin[3]
 				outerH := ih + padding[0] + padding[2] + st.borderV() + margin[0] + margin[2]
 				prepareLine()
@@ -1090,6 +1115,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 			}
 			f = l.face(st)
 			baseOffset = l.baseline(st)
+			if st.lineMode == 0 && s.lineMode == 0 && s.size > st.size {
+				baseOffset = max(baseOffset, l.baseline(s))
+			}
 			if st.vertical == "sub" {
 				baseOffset += max(2, st.size/4)
 			} else if st.vertical == "sup" || st.vertical == "super" {

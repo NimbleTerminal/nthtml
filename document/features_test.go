@@ -655,3 +655,88 @@ func TestPresentationalAttributes(t *testing.T) {
 		t.Fatalf("expected <body link=#ff6600> to color link orange, got %v", linkBox.Color)
 	}
 }
+
+func TestImageEmptyAltAndSpacer(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. <p>before<img src="s.gif" alt="" width="40" height="1">after</p>
+	src := `<p>before<img src="s.gif" alt="" width="40" height="1">after</p>`
+	r, err := Render(ctx, strings.NewReader(src), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var beforeBox, afterBox Box
+	for _, b := range r.Boxes {
+		if strings.Contains(b.Text, "[image:") {
+			t.Fatalf("expected no [image: text box for empty alt, got %+v", b)
+		}
+		switch b.Text {
+		case "before":
+			beforeBox = b
+		case "after":
+			afterBox = b
+		}
+	}
+	if beforeBox.Text == "" || afterBox.Text == "" {
+		t.Fatalf("missing before/after boxes: before=%+v after=%+v", beforeBox, afterBox)
+	}
+	if gap := afterBox.Bounds.Min.X - beforeBox.Bounds.Max.X; gap != 40 {
+		t.Fatalf("expected after to start 40px right of before's end, got gap=%d (before=%v after=%v)", gap, beforeBox.Bounds, afterBox.Bounds)
+	}
+
+	// 2. Missing alt without width+height takes no space and renders no text
+	rNoDim, err := Render(ctx, strings.NewReader(`<p>before<img src="s.gif">after</p>`), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b0, a0 Box
+	for _, b := range rNoDim.Boxes {
+		if strings.Contains(b.Text, "[image:") {
+			t.Fatalf("expected no [image: text box for missing alt, got %+v", b)
+		}
+		switch b.Text {
+		case "before":
+			b0 = b
+		case "after":
+			a0 = b
+		}
+	}
+	if gap := a0.Bounds.Min.X - b0.Bounds.Max.X; gap != 0 {
+		t.Fatalf("expected missing alt without width+height to take 0px, got gap=%d", gap)
+	}
+
+	// 3. Non-empty alt still produces "[image: logo]" across Render, TTY, and ExtractTypeset
+	withAlt := `<p><img src="logo.png" alt="logo"></p><p><img src="s.gif" alt=""></p>`
+	doc, err := Parse(ctx, strings.NewReader(withAlt), Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rAlt, err := doc.Render(ctx, Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if txt := rAlt.TextIndex().Text; !strings.Contains(txt, "[image: logo]") || strings.Contains(txt, "[image: ]") {
+		t.Fatalf("unexpected Render text for alt: %q", txt)
+	}
+	ttyTxt, err := doc.TTY(ctx, 80)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(ttyTxt, "[image: logo]") || strings.Contains(ttyTxt, "[image: ]") {
+		t.Fatalf("unexpected TTY text for alt: %q", ttyTxt)
+	}
+	td, err := doc.ExtractTypeset(ctx, Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var typesetTexts []string
+	for _, blk := range td.Blocks {
+		for _, sp := range blk.Spans {
+			typesetTexts = append(typesetTexts, sp.Text)
+		}
+	}
+	joinedTypeset := strings.Join(typesetTexts, " ")
+	if !strings.Contains(joinedTypeset, "logo") || strings.Contains(joinedTypeset, "s.gif") || strings.Contains(joinedTypeset, "[image: ]") {
+		t.Fatalf("unexpected ExtractTypeset spans for alt: %q", joinedTypeset)
+	}
+}

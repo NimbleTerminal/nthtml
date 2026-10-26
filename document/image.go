@@ -107,3 +107,43 @@ func pixelAttr(v string) int {
 	}
 	return n
 }
+
+func nonnegPixelAttr(v string) (int, bool) {
+	v = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(v)), "px")
+	if v == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 || n > 16384 {
+		return 0, false
+	}
+	return n, true
+}
+
+func missingImageSpacer(n *node, s style, availW, parentH, maxH int) (int, int, bool) {
+	iw, okW := nonnegPixelAttr(n.attrs["width"])
+	ih, okH := nonnegPixelAttr(n.attrs["height"])
+	if !okW || !okH {
+		return 0, 0, false
+	}
+	if s.width.definite(availW) {
+		iw = s.width.resolve(availW, 16384)
+	}
+	if s.height.definite(parentH) {
+		ih = s.height.resolve(parentH, maxH)
+	}
+	iw = min(iw, max(0, availW))
+	ih = min(ih, max(0, maxH))
+	return iw, ih, true
+}
+
+func (l *layout) imgHasBox(n *node, s style) bool {
+	if src := l.opts.Images[n.attrs["src"]]; src != nil && !src.Bounds().Empty() {
+		return true
+	}
+	if cleanText(n.attrs["alt"]) != "" {
+		return true
+	}
+	_, _, ok := missingImageSpacer(n, s, 4096, -1, l.d.limits.Height)
+	return ok
+}
