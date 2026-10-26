@@ -438,7 +438,7 @@ func (w *blockExtractor) inlineSpansWithIDs(n *node, parent style) ([]Span, []st
 		if cur.tag == "" {
 			txt := applyTextTransform(cur.text, p.textTransform)
 			if !p.pre && p.whiteSpace != "pre-wrap" && p.whiteSpace != "pre-line" {
-				txt = cleanText(txt)
+				txt = collapseSpaces(cleanText(txt))
 			}
 			if txt == "" {
 				return
@@ -489,8 +489,29 @@ func (w *blockExtractor) inlineSpansWithIDs(n *node, parent style) ([]Span, []st
 			})
 			return
 		}
+		startLen := len(out)
 		for _, ch := range cur.children {
 			visit(ch, s)
+		}
+		if !s.pre && s.whiteSpace != "pre-wrap" && len(out) > startLen && ((s.underline && !p.underline) || (s.strike && !p.strike) || (s.linkID != p.linkID)) {
+			last := &out[len(out)-1]
+			if strings.HasSuffix(last.Text, " ") {
+				last.Text = strings.TrimSuffix(last.Text, " ")
+				out = append(out, Span{
+					Text:          " ",
+					Size:          max(1, p.size),
+					Bold:          p.bold,
+					Italic:        p.italic,
+					Monospace:     p.mono,
+					Strike:        p.strike,
+					Underline:     p.underline,
+					SmallCaps:     p.smallCaps,
+					Accent:        p.linkID != 0 && !p.explicitFg,
+					ExplicitColor: p.explicitFg,
+					Color:         p.fg,
+					Href:          w.hrefs[p.linkID],
+				})
+			}
 		}
 	}
 	for _, ch := range n.children {
@@ -499,26 +520,78 @@ func (w *blockExtractor) inlineSpansWithIDs(n *node, parent style) ([]Span, []st
 	return mergeSpans(out), ids
 }
 
+func collapseSpaces(s string) string {
+	if !strings.Contains(s, "  ") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	prevSpace := false
+	for _, r := range s {
+		if r == ' ' {
+			if prevSpace {
+				continue
+			}
+			prevSpace = true
+		} else {
+			prevSpace = false
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func sameSpanStyle(a, b Span) bool {
+	return a.Size == b.Size && a.Bold == b.Bold && a.Italic == b.Italic && a.Monospace == b.Monospace &&
+		a.Strike == b.Strike && a.Underline == b.Underline && a.SmallCaps == b.SmallCaps &&
+		a.Accent == b.Accent && a.ExplicitColor == b.ExplicitColor && a.Color == b.Color && a.Href == b.Href
+}
+
 func mergeSpans(spans []Span) []Span {
 	if len(spans) == 0 {
 		return nil
 	}
 	var out []Span
+	atLineStart := true
 	for _, sp := range spans {
+		if atLineStart {
+			sp.Text = strings.TrimLeft(sp.Text, " ")
+		}
 		if sp.Text == "" {
 			continue
 		}
 		if len(out) > 0 {
 			last := &out[len(out)-1]
-			if !strings.HasSuffix(last.Text, " ") && !strings.HasSuffix(last.Text, "\n") && !strings.HasPrefix(sp.Text, " ") && !strings.HasPrefix(sp.Text, "\n") && !strings.HasPrefix(sp.Text, ".") && !strings.HasPrefix(sp.Text, ",") && !strings.HasPrefix(sp.Text, ":") && !strings.HasPrefix(sp.Text, ";") && !strings.HasPrefix(sp.Text, ")") && !strings.HasPrefix(sp.Text, "]") && !strings.HasPrefix(sp.Text, "!") && !strings.HasPrefix(sp.Text, "?") {
-				last.Text += " "
+			if strings.HasPrefix(sp.Text, "\n") {
+				last.Text = strings.TrimRight(last.Text, " ")
+			} else if strings.HasSuffix(last.Text, " ") && strings.HasPrefix(sp.Text, " ") {
+				sp.Text = strings.TrimLeft(sp.Text, " ")
+				if sp.Text == "" {
+					continue
+				}
 			}
-			if last.Size == sp.Size && last.Bold == sp.Bold && last.Italic == sp.Italic && last.Monospace == sp.Monospace && last.Strike == sp.Strike && last.Underline == sp.Underline && last.SmallCaps == sp.SmallCaps && last.Accent == sp.Accent && last.ExplicitColor == sp.ExplicitColor && last.Color == sp.Color && last.Href == sp.Href {
+			if last.Text == "" {
+				out = out[:len(out)-1]
+			}
+		}
+		if len(out) > 0 {
+			last := &out[len(out)-1]
+			if sameSpanStyle(*last, sp) {
 				last.Text += sp.Text
+				atLineStart = strings.HasSuffix(last.Text, "\n")
 				continue
 			}
 		}
+		atLineStart = strings.HasSuffix(sp.Text, "\n")
 		out = append(out, sp)
+	}
+	for len(out) > 0 {
+		last := &out[len(out)-1]
+		last.Text = strings.TrimRight(last.Text, " ")
+		if last.Text != "" {
+			break
+		}
+		out = out[:len(out)-1]
 	}
 	return out
 }
@@ -976,7 +1049,7 @@ func (w *blockExtractor) walkChildren(n *node, s style, indent, availW int) erro
 	}
 	for _, c := range n.children {
 		if c.tag == "" {
-			if strings.TrimSpace(c.text) != "" {
+			if strings.TrimSpace(c.text) != "" || len(inlineBuf) > 0 {
 				inlineBuf = append(inlineBuf, c)
 			}
 			continue

@@ -183,3 +183,147 @@ func TestCSSWideKeywords(t *testing.T) {
 		t.Fatalf("expected background:unset to clear background to transparent, got %v", bg)
 	}
 }
+
+func TestInlineLinkFollowedByPunctuation(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		html     string
+		wantText string
+		wantLink string
+	}{
+		{`<p>by <a href="x">W</a>.</p>`, "by W.", "W"},
+		{`<p style="font-family:serif;font-size:15px">The weather turned by <a href="#wednesday">Wednesday</a>.</p>`, "The weather turned by Wednesday.", "Wednesday"},
+		{`<p><a href="x">the end</a>.</p>`, "the end.", "the end"},
+	} {
+		r := renderCSS(t, tc.html)
+		idx := r.TextIndex()
+		if idx.Text != tc.wantText {
+			t.Fatalf("%s: TextIndex().Text = %q, want %q", tc.html, idx.Text, tc.wantText)
+		}
+		if len(r.Links) != 1 {
+			t.Fatalf("%s: Links = %d, want 1", tc.html, len(r.Links))
+		}
+		link := r.Links[0]
+		if len(link.Regions) != 1 {
+			t.Fatalf("%s: expected 1 unified link region on one line, got %v", tc.html, link.Regions)
+		}
+		var dotBox *Box
+		for i := range r.Boxes {
+			if r.Boxes[i].Tag == "text" && r.Boxes[i].Text == "." {
+				dotBox = &r.Boxes[i]
+				break
+			}
+		}
+		if dotBox == nil {
+			t.Fatalf("%s: missing '.' text box in %+v", tc.html, r.Boxes)
+		}
+		if link.Regions[0].Max.X != dotBox.Bounds.Min.X {
+			t.Fatalf("%s: link region Max.X = %d, want '.' Min.X = %d", tc.html, link.Regions[0].Max.X, dotBox.Bounds.Min.X)
+		}
+		ttyRes, err := r.TTYLayout(ctx, 80)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ttyRes.Text != tc.wantText {
+			t.Fatalf("%s: TTYLayout.Text = %q, want %q", tc.html, ttyRes.Text, tc.wantText)
+		}
+	}
+}
+
+func TestInlineBoundaryWhitespaceCollapsing(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		html string
+		want string
+	}{
+		{`<p><em>a</em> <em>b</em></p>`, "a b"},
+		{`<p><em>a </em> b</p>`, "a b"},
+		{`<p><em>a </em> <em> b</em></p>`, "a b"},
+		{`<p><a href="x">a </a> b</p>`, "a b"},
+		{`<p><a href="x">a </a>b</p>`, "a b"},
+		{`<p>by <a href="x"> W</a>.</p>`, "by W."},
+		{`<p><em>a</em>, <code>b</code>)</p>`, "a, b)"},
+	} {
+		r := renderCSS(t, tc.html)
+		if got := r.TextIndex().Text; got != tc.want {
+			t.Fatalf("%s: TextIndex().Text = %q, want %q", tc.html, got, tc.want)
+		}
+		ttyRes, err := r.TTYLayout(ctx, 80)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ttyRes.Text != tc.want {
+			t.Fatalf("%s: TTYLayout.Text = %q, want %q", tc.html, ttyRes.Text, tc.want)
+		}
+		blocks, err := r.Document().Blocks(ctx, Options{Width: 400})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(blocks) != 1 {
+			t.Fatalf("%s: len(Blocks) = %d, want 1", tc.html, len(blocks))
+		}
+		var sb strings.Builder
+		for _, sp := range blocks[0].Spans {
+			sb.WriteString(sp.Text)
+		}
+		if sb.String() != tc.want {
+			t.Fatalf("%s: typeset spans = %q (%+v), want %q", tc.html, sb.String(), blocks[0].Spans, tc.want)
+		}
+	}
+
+	// Verify trailing space inside <a> does not extend link region or underline in native or TTY.
+	r := renderCSS(t, `<p><a href="x">a </a> b</p>`)
+	var aBox, bBox *Box
+	for i := range r.Boxes {
+		if r.Boxes[i].Tag == "text" {
+			switch r.Boxes[i].Text {
+			case "a":
+				aBox = &r.Boxes[i]
+			case "b":
+				bBox = &r.Boxes[i]
+			}
+		}
+	}
+	if aBox == nil || bBox == nil {
+		t.Fatalf("missing 'a' or 'b' text boxes: %+v", r.Boxes)
+	}
+	if len(r.Links) != 1 || len(r.Links[0].Regions) != 1 {
+		t.Fatalf("unexpected links: %+v", r.Links)
+	}
+	if r.Links[0].Regions[0].Max.X != aBox.Bounds.Max.X || aBox.Bounds.Max.X >= bBox.Bounds.Min.X {
+		t.Fatalf("trailing space inside <a> leaked into link region: region=%v a=%v b=%v", r.Links[0].Regions[0], aBox.Bounds, bBox.Bounds)
+	}
+	ttyRes, err := r.TTYLayout(ctx, 80)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ttyRes.Spans) != 1 || ttyRes.Text[ttyRes.Spans[0].Start:ttyRes.Spans[0].End] != "a" {
+		t.Fatalf("expected TTY link span to cover only 'a', got spans=%+v text=%q", ttyRes.Spans, ttyRes.Text)
+	}
+}
+
+func TestSerifInterWordSpacingConsistency(t *testing.T) {
+	r := renderCSS(t, `<p style="font-family:serif;font-size:17px;width:600px">A light westerly. The slipway was repainted</p>`)
+	var words []Box
+	for _, b := range r.Boxes {
+		if b.Tag == "text" && strings.TrimSpace(b.Text) != "" {
+			words = append(words, b)
+		}
+	}
+	if len(words) < 6 {
+		t.Fatalf("expected at least 6 word boxes, got %d", len(words))
+	}
+	wantGap := words[1].Bounds.Min.X - words[0].Bounds.Max.X
+	if wantGap <= 0 {
+		t.Fatalf("invalid word gap %d", wantGap)
+	}
+	for i := 1; i < len(words)-1; i++ {
+		if words[i+1].Bounds.Min.Y != words[i].Bounds.Min.Y {
+			continue
+		}
+		gap := words[i+1].Bounds.Min.X - words[i].Bounds.Max.X
+		if gap != wantGap {
+			t.Fatalf("gap between %q and %q = %dpx, want %dpx", words[i].Text, words[i+1].Text, gap, wantGap)
+		}
+	}
+}

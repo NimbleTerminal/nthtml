@@ -52,6 +52,13 @@ func (l *layout) glyphAdvanceStyled(st style, f font.Face, r rune) int {
 	return glyphAdvanceWithLetter(f, r, st.wordSpacing, st.letterSpacing)
 }
 func (l *layout) measureTextStyled(st style, f font.Face, text string) int {
+	clean := stripZeroWidth(text)
+	if clean == "" {
+		return 0
+	}
+	if st.wordSpacing == 0 && st.letterSpacing == 0 && !st.smallCaps {
+		return max(1, font.MeasureString(f, clean).Ceil())
+	}
 	width := 0
 	for _, r := range text {
 		width += l.glyphAdvanceStyled(st, f, r)

@@ -338,7 +338,7 @@ func normalizeTTY(text string) string {
 	var prefix string
 	lastVisible := -1
 	for _, line := range strings.Split(text, "\n") {
-		line = strings.Join(strings.Fields(line), " ")
+		line = collapseTTYSpaces(line)
 		if line == "" {
 			if len(lines) > 0 && lines[len(lines)-1] != "" {
 				lines = append(lines, "")
@@ -367,6 +367,46 @@ func normalizeTTY(text string) string {
 		return prefix
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func collapseTTYSpaces(line string) string {
+	var out strings.Builder
+	const (
+		stateStart = iota
+		stateWord
+		statePendingSpace
+		stateSpaceEmitted
+	)
+	state := stateStart
+	for len(line) > 0 {
+		if strings.HasPrefix(line, "\x1b]") {
+			if end := strings.IndexByte(line, '\x07'); end >= 0 {
+				seq := line[:end+1]
+				isEnd := seq == linkEnd || strings.HasPrefix(seq, "\x1b]1337;nthtml-anchor-end=")
+				if !isEnd && state == statePendingSpace {
+					out.WriteByte(' ')
+					state = stateSpaceEmitted
+				}
+				out.WriteString(seq)
+				line = line[end+1:]
+				continue
+			}
+		}
+		if cssSpace(rune(line[0])) {
+			if state == stateWord {
+				state = statePendingSpace
+			}
+			line = line[1:]
+			continue
+		}
+		if state == statePendingSpace {
+			out.WriteByte(' ')
+		}
+		state = stateWord
+		out.WriteByte(line[0])
+		line = line[1:]
+	}
+	return out.String()
 }
 func cleanText(s string) string {
 	return strings.Map(func(r rune) rune {

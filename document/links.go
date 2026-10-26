@@ -190,7 +190,9 @@ func (r *Result) LinkAt(p image.Point) (Link, bool) {
 func appendLinkRegion(link *Link, r image.Rectangle) {
 	if len(link.Regions) > 0 {
 		last := &link.Regions[len(link.Regions)-1]
-		if last.Min.Y == r.Min.Y && last.Max.Y == r.Max.Y && last.Max.X == r.Min.X {
+		if last.Max.X == r.Min.X && last.Min.Y <= r.Max.Y && r.Min.Y <= last.Max.Y {
+			last.Min.Y = min(last.Min.Y, r.Min.Y)
+			last.Max.Y = max(last.Max.Y, r.Max.Y)
 			last.Max.X = r.Max.X
 			return
 		}

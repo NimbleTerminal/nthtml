@@ -337,9 +337,9 @@ func measureRunCharX(l *layout, b Box, clean string, bounds image.Rectangle) []i
 			letterSpacing: b.LetterSpacing,
 		}
 		f := l.face(st)
-		x := bounds.Min.X
-		for _, ch := range clean {
-			x += l.glyphAdvanceStyled(st, f, ch)
+		for idx, ch := range clean {
+			end := idx + utf8.RuneLen(ch)
+			x := bounds.Min.X + l.measureTextStyled(st, f, clean[:end])
 			charX = append(charX, min(bounds.Max.X, max(bounds.Min.X, x)))
 		}
 		if len(charX) > 0 {

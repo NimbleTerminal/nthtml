@@ -1057,6 +1057,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 			}
 			activeSpans = activeSpans[:len(activeSpans)-1]
 			paintSpanBorder(sp)
+			if pendingSpace && (sp.st.underline || sp.st.strike || sp.st.linkID != 0) {
+				pendingSpaceStyle, _ = curContext(parentSpan)
+			}
 			if hasText && !pendingSpace {
 				px += sp.padding[1] + sp.st.bw[1] + sp.margin[1]
 			} else {
@@ -1225,26 +1228,33 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 					willTruncate = px+restW > x+w
 				}
 				truncated := false
-				for _, r := range word {
-					adv := l.glyphAdvanceStyled(st, f, r)
-					if willTruncate && px+adv+ellW > x+w {
-						run.WriteRune('…')
-						px = min(x+w, px+ellW)
-						truncated = true
-						break
-					}
-					if st.whiteSpace != "nowrap" && st.overflowWrap != "normal" && px > x && px+adv > x+w {
-						emit()
-						wrapLine()
-						refreshTextStyle()
-						prepareLine()
-						px += pendingLeft
-						pendingLeft = 0
-						runX = px
-					}
-					run.WriteRune(r)
-					px += adv
+				if !willTruncate && (st.whiteSpace == "nowrap" || st.overflowWrap == "normal" || px+ww <= x+w) {
+					run.WriteString(word)
+					px = runX + ww
 					lineHeight = max(lineHeight, st.line)
+				} else {
+					for _, r := range word {
+						nextW := l.measureTextStyled(st, f, run.String()+string(r))
+						if willTruncate && runX+nextW+ellW > x+w {
+							run.WriteRune('…')
+							px = min(x+w, runX+l.measureTextStyled(st, f, run.String()))
+							truncated = true
+							break
+						}
+						if st.whiteSpace != "nowrap" && st.overflowWrap != "normal" && px > x && runX+nextW > x+w {
+							emit()
+							wrapLine()
+							refreshTextStyle()
+							prepareLine()
+							px += pendingLeft
+							pendingLeft = 0
+							runX = px
+							nextW = l.measureTextStyled(st, f, string(r))
+						}
+						run.WriteRune(r)
+						px = runX + nextW
+						lineHeight = max(lineHeight, st.line)
+					}
 				}
 				emit()
 				if truncated {
