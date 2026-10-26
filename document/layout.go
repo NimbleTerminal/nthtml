@@ -953,8 +953,8 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 					var ok bool
 					iw, ih, ok = missingImageSpacer(n, st, availW, parentH, l.d.limits.Height)
 					if !ok {
-						if name := anchorName(n); name != "" {
-							l.add(Box{Tag: "anchor", Anchor: name, SourceID: name, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
+						if name := anchorName(n); name != "" || st.linkID != 0 {
+							l.add(Box{Tag: "anchor", Anchor: name, SourceID: name, LinkID: st.linkID, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
 						}
 						return
 					}
@@ -1074,10 +1074,12 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 			}
 			margin, padding := resolveEdges(st.margin, baseW), resolveEdges(st.padding, baseW)
 			pendingLeft += margin[3] + st.bw[3] + padding[3]
+			anchorOp := -1
 			if name := anchorName(n); name != "" {
 				prevSource := l.activeSource
 				l.activeSource = name
 				defer func() { l.activeSource = prevSource }()
+				anchorOp = len(l.ops)
 				l.add(Box{Tag: "anchor", Anchor: name, SourceID: name, Bounds: image.Rect(px, y, px+1, y+st.line)}, nil)
 			}
 			sp := &activeSpan{node: n, st: st, bg: inlineBg, margin: margin, padding: padding, startOp: len(l.ops)}
@@ -1086,6 +1088,18 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 				visit(c, sp)
 			}
 			activeSpans = activeSpans[:len(activeSpans)-1]
+			if n.tag == "a" && st.linkID != 0 && anchorOp >= 0 {
+				hasLinkBox := false
+				for i := sp.startOp; i < len(l.ops); i++ {
+					if l.ops[i].box.LinkID == st.linkID {
+						hasLinkBox = true
+						break
+					}
+				}
+				if !hasLinkBox {
+					l.ops[anchorOp].box.LinkID = st.linkID
+				}
+			}
 			paintSpanBorder(sp)
 			if pendingSpace && (sp.st.underline || sp.st.strike || sp.st.linkID != 0) {
 				pendingSpaceStyle, _ = curContext(parentSpan)

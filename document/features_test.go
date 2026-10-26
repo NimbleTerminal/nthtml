@@ -740,3 +740,41 @@ func TestImageEmptyAltAndSpacer(t *testing.T) {
 		t.Fatalf("unexpected ExtractTypeset spans for alt: %q", joinedTypeset)
 	}
 }
+
+func TestLinkAnchorAndEmptyImageLink(t *testing.T) {
+	ctx := context.Background()
+	src := `<!doctype html><body>
+<a id="img-link" href="HTTP://example.test/A"><img alt=""></a>
+<a id="dup-1" href="/dup">one</a> <a name="dup-2" href="/dup">two</a>
+<a id="empty-anchor" href="/empty"></a>
+</body>`
+	doc, err := Parse(ctx, strings.NewReader(src), Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := doc.Render(ctx, Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Links) != 4 {
+		t.Fatalf("expected 4 links in Result.Links, got %+v", r.Links)
+	}
+	wantAnchors := []string{"img-link", "dup-1", "dup-2", "empty-anchor"}
+	wantHrefs := []string{"http://example.test/A", "/dup", "/dup", "/empty"}
+	wantTexts := []string{"http://example.test/A", "one", "two", "/empty"}
+	for i := range wantAnchors {
+		if r.Links[i].Anchor != wantAnchors[i] || r.Links[i].Href != wantHrefs[i] || r.Links[i].Text != wantTexts[i] {
+			t.Fatalf("link[%d] = %+v, want anchor=%q href=%q text=%q", i, r.Links[i], wantAnchors[i], wantHrefs[i], wantTexts[i])
+		}
+		if len(r.Links[i].Regions) == 0 {
+			t.Fatalf("link[%d] has no regions: %+v", i, r.Links[i])
+		}
+	}
+	ttyRes, err := doc.TTYLayout(ctx, 80)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ttyRes.Links) != 2 || ttyRes.Links[0].Anchor != "dup-1" || ttyRes.Links[1].Anchor != "dup-2" {
+		t.Fatalf("unexpected TTYResult.Links: %+v", ttyRes.Links)
+	}
+}

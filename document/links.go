@@ -9,11 +9,12 @@ import (
 )
 
 // Link describes one visible anchor. ID is stable across layouts of a parsed
-// document. Regions are pixels in Result and terminal cells in TTYResult.
+// document. Anchor is the element's id (or name) attribute when present.
+// Regions are pixels in Result and terminal cells in TTYResult.
 type Link struct {
-	ID         int
-	Href, Text string
-	Regions    []image.Rectangle
+	ID                 int
+	Anchor, Href, Text string
+	Regions            []image.Rectangle
 }
 
 // SafeURL allows HTTP(S), mailto, and relative references. It rejects controls,
@@ -138,11 +139,12 @@ func (d *Document) Links(ctx context.Context) ([]Link, error) {
 				if text == "" {
 					text = href
 				}
-				metadataBytes += len(href) + len(text)
+				anchor := anchorName(n)
+				metadataBytes += len(anchor) + len(href) + len(text)
 				if metadataBytes > max(maxTTYBytes, d.limits.Bytes) {
 					return limitError("link metadata")
 				}
-				out = append(out, Link{ID: n.id, Href: href, Text: text})
+				out = append(out, Link{ID: n.id, Anchor: anchor, Href: href, Text: text})
 			}
 		}
 		for _, c := range n.children {
