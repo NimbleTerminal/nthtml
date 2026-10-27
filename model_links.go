@@ -4,10 +4,12 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"math"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"nimbleterminal.dev/nthtml/document"
+	"nimbleterminal.dev/ntpicture"
 )
 
 // LinkMsg asks the host to activate a link. The component never starts a browser
@@ -76,14 +78,14 @@ func (m *Model) NextLink(backward bool) tea.Cmd {
 	}
 	return m.showLinkFocus()
 }
-func (m *Model) showLinkFocus() tea.Cmd {
-	if m.source == nil {
-		return nil
-	}
-	link, ok := m.FocusedLink()
-	if !ok && len(m.matches) == 0 && m.selectStart == m.selectEnd {
-		return m.pic.SetImageCropped(m.source, m.cropRect())
-	}
+func (m *Model) hasSearchOrSelectionOverlay() bool {
+	return (m.match >= 0 && m.match < len(m.matches)) || m.selectStart != m.selectEnd
+}
+func (m *Model) hasOverlay() bool {
+	_, ok := m.FocusedLink()
+	return ok || m.hasSearchOrSelectionOverlay()
+}
+func (m *Model) paintSearchAndSelectionOverlay() *image.RGBA {
 	b := m.source.Bounds()
 	img := image.NewRGBA(b)
 	draw.Draw(img, b, m.source, b.Min, draw.Src)
@@ -96,6 +98,61 @@ func (m *Model) showLinkFocus() tea.Cmd {
 	for _, r := range m.textIndex().Regions(m.selectStart, m.selectEnd) {
 		draw.Draw(img, r, image.NewUniform(color.NRGBA{40, 120, 255, 110}), image.Point{}, draw.Over)
 	}
+	return img
+}
+func (m *Model) presentSource() tea.Cmd {
+	m.overlayPainted = false
+	m.overlayImg = nil
+	m.focusKey = focusOverlayKey{}
+	if m.source == nil {
+		m.kittyBandActive = false
+		m.focusCellRect = image.Rectangle{}
+		return nil
+	}
+	if m.kittyViewportMode() {
+		if m.hasSearchOrSelectionOverlay() {
+			m.overlayImg = m.paintSearchAndSelectionOverlay()
+			m.overlayPainted = true
+		}
+		return tea.Batch(m.syncKittyBand(true), m.updateKittyFocusOverlay())
+	}
+	m.kittyBandActive = false
+	m.focusCellRect = image.Rectangle{}
+	if m.hasOverlay() {
+		return m.showLinkFocus()
+	}
+	return m.pic.SetImageCropped(m.source, m.cropRect())
+}
+func (m *Model) showLinkFocus() tea.Cmd {
+	if m.source == nil {
+		return nil
+	}
+	if m.kittyViewportMode() {
+		var bandCmd tea.Cmd
+		if m.hasSearchOrSelectionOverlay() {
+			m.overlayImg = m.paintSearchAndSelectionOverlay()
+			m.overlayPainted = true
+			bandCmd = m.syncKittyBand(true)
+		} else if m.overlayPainted {
+			m.overlayPainted = false
+			m.overlayImg = nil
+			bandCmd = m.syncKittyBand(true)
+		} else {
+			bandCmd = m.syncKittyBand(false)
+		}
+		focusCmd := m.updateKittyFocusOverlay()
+		return tea.Batch(bandCmd, focusCmd)
+	}
+	link, ok := m.FocusedLink()
+	if !ok && !m.hasSearchOrSelectionOverlay() {
+		if m.overlayPainted {
+			m.overlayPainted = false
+			m.overlayImg = nil
+			return m.pic.SetImageCropped(m.source, m.cropRect())
+		}
+		return m.viewport()
+	}
+	img := m.paintSearchAndSelectionOverlay()
 	ink := image.NewUniform(color.RGBA{235, 155, 35, 255})
 	for _, r := range link.Regions {
 		r = r.Inset(-1)
@@ -103,7 +160,224 @@ func (m *Model) showLinkFocus() tea.Cmd {
 			draw.Draw(img, edge, ink, image.Point{}, draw.Over)
 		}
 	}
-	return m.pic.SetImageCropped(img, m.cropRect())
+	m.overlayPainted = true
+	return m.pic.SetImageImmutableCropped(img, m.cropRect())
+}
+
+func (m *Model) updateKittyFocusOverlay() tea.Cmd {
+	if !m.kittyViewportMode() || m.focusPic == nil {
+		m.focusCellRect = image.Rectangle{}
+		m.focusKey = focusOverlayKey{}
+		return nil
+	}
+	link, ok := m.FocusedLink()
+	if !ok || len(link.Regions) == 0 {
+		m.focusCellRect = image.Rectangle{}
+		m.focusKey = focusOverlayKey{}
+		return nil
+	}
+	cells := image.Pt(m.bandCols, m.bandRows)
+	pixels := m.pic.RasterGeometry().Pixels
+	crop := m.bandCrop
+	if cells.X <= 0 || cells.Y <= 0 || pixels.X <= 0 || pixels.Y <= 0 || crop.Empty() {
+		m.focusCellRect = image.Rectangle{}
+		m.focusKey = focusOverlayKey{}
+		return nil
+	}
+	cellRect, patchSrc := focusBandCellsAndSource(link.Regions, cells, pixels, crop)
+	if cellRect.Empty() || patchSrc.Empty() {
+		m.focusCellRect = image.Rectangle{}
+		m.focusKey = focusOverlayKey{}
+		return nil
+	}
+	m.focusCellRect = cellRect
+	cellW, cellH := m.pic.CellPixelSize()
+	if cellW <= 0 {
+		cellW = 10
+	}
+	if cellH <= 0 {
+		cellH = 20
+	}
+	key := focusOverlayKey{
+		focusID:  link.ID,
+		bandCrop: crop,
+		cols:     cells.X,
+		bandRows: cells.Y,
+		cellW:    cellW,
+		cellH:    cellH,
+		match:    m.match,
+		selStart: m.selectStart,
+		selEnd:   m.selectEnd,
+	}
+	if m.focusKey == key {
+		return nil
+	}
+	m.focusKey = key
+	base := m.source
+	if m.overlayImg != nil {
+		base = m.overlayImg
+	}
+	patch := image.NewRGBA(patchSrc)
+	draw.Draw(patch, patchSrc, base, patchSrc.Min, draw.Src)
+	ink := image.NewUniform(color.RGBA{235, 155, 35, 255})
+	for _, r := range link.Regions {
+		r = r.Inset(-1)
+		for _, edge := range []image.Rectangle{
+			image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1),
+			image.Rect(r.Min.X, r.Max.Y-1, r.Max.X, r.Max.Y),
+			image.Rect(r.Min.X, r.Min.Y, r.Min.X+1, r.Max.Y),
+			image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y),
+		} {
+			draw.Draw(patch, edge.Intersect(patchSrc), ink, image.Point{}, draw.Over)
+		}
+	}
+	return m.focusPic.Submit(ntpicture.Frame{
+		Image:      patch,
+		Cols:       cellRect.Dx(),
+		Rows:       cellRect.Dy(),
+		Mode:       ntpicture.PictureKitty,
+		CellWidth:  cellW,
+		CellHeight: cellH,
+		Immutable:  true,
+	})
+}
+
+func focusBandCellsAndSource(regions []image.Rectangle, cells, pixels image.Point, crop image.Rectangle) (image.Rectangle, image.Rectangle) {
+	tw, th := pixels.X, pixels.Y
+	sw, sh := crop.Dx(), crop.Dy()
+	iw, ih := tw, th
+	if int64(sw)*int64(th) >= int64(sh)*int64(tw) {
+		ih = max(1, int(int64(sh)*int64(tw)/int64(sw)))
+	} else {
+		iw = max(1, int(int64(sw)*int64(th)/int64(sh)))
+	}
+	ox, oy := (tw-iw)/2, (th-ih)/2
+	var cellUnion image.Rectangle
+	for _, r := range regions {
+		ring := r.Inset(-1).Intersect(crop)
+		if ring.Empty() {
+			continue
+		}
+		rx0 := float64(ox) + float64(ring.Min.X-crop.Min.X)*float64(iw)/float64(sw)
+		ry0 := float64(oy) + float64(ring.Min.Y-crop.Min.Y)*float64(ih)/float64(sh)
+		rx1 := float64(ox) + float64(ring.Max.X-crop.Min.X)*float64(iw)/float64(sw)
+		ry1 := float64(oy) + float64(ring.Max.Y-crop.Min.Y)*float64(ih)/float64(sh)
+		cx0 := max(0, min(cells.X-1, int(math.Floor(rx0*float64(cells.X)/float64(tw)))))
+		cy0 := max(0, min(cells.Y-1, int(math.Floor(ry0*float64(cells.Y)/float64(th)))))
+		cx1 := max(cx0+1, min(cells.X, int(math.Ceil(rx1*float64(cells.X)/float64(tw)))))
+		cy1 := max(cy0+1, min(cells.Y, int(math.Ceil(ry1*float64(cells.Y)/float64(th)))))
+		cr := image.Rect(cx0, cy0, cx1, cy1)
+		if cellUnion.Empty() {
+			cellUnion = cr
+		} else {
+			cellUnion = cellUnion.Union(cr)
+		}
+	}
+	if cellUnion.Empty() || cellUnion.Dx() > maxKittyBandRows || cellUnion.Dy() > maxKittyBandRows {
+		return image.Rectangle{}, image.Rectangle{}
+	}
+	tl := rasterCellSource(image.Pt(cellUnion.Min.X, cellUnion.Min.Y), cells, pixels, crop)
+	br := rasterCellSource(image.Pt(cellUnion.Max.X-1, cellUnion.Max.Y-1), cells, pixels, crop)
+	patchSrc := tl.Union(br).Intersect(crop)
+	return cellUnion, patchSrc
+}
+
+func (m *Model) spliceFocusOverlay(base string) string {
+	if base == "" || m.focusPic == nil || m.focusCellRect.Empty() {
+		return base
+	}
+	vp, ok := m.pic.Viewport()
+	if !ok {
+		return base
+	}
+	screenRect := m.focusCellRect.Sub(image.Pt(vp.X, vp.Y))
+	visRect := screenRect.Intersect(image.Rect(0, 0, m.cols, m.rows))
+	if visRect.Empty() {
+		return base
+	}
+	focusView := m.focusPic.View()
+	if focusView == "" || !strings.ContainsRune(focusView, '\U0010EEEE') {
+		return base
+	}
+	baseLines := strings.Split(base, "\n")
+	focusLines := strings.Split(focusView, "\n")
+	changed := false
+	for sy := visRect.Min.Y; sy < visRect.Max.Y && sy < len(baseLines); sy++ {
+		fy := sy - screenRect.Min.Y
+		if fy < 0 || fy >= len(focusLines) {
+			continue
+		}
+		fx0 := visRect.Min.X - screenRect.Min.X
+		fx1 := visRect.Max.X - screenRect.Min.X
+		spliced := spliceKittyRow(baseLines[sy], focusLines[fy], visRect.Min.X, visRect.Max.X, fx0, fx1)
+		if spliced != baseLines[sy] {
+			baseLines[sy] = spliced
+			changed = true
+		}
+	}
+	if !changed {
+		return base
+	}
+	return strings.Join(baseLines, "\n")
+}
+
+func parseKittyRowCells(row string) (sgr string, cells []string, ok bool) {
+	first := strings.IndexRune(row, '\U0010EEEE')
+	if first < 0 {
+		return "", nil, false
+	}
+	end := strings.LastIndex(row, "\x1b[39m")
+	if end < first {
+		return "", nil, false
+	}
+	sgr = row[:first]
+	body := row[first:end]
+	var starts []int
+	for i, r := range body {
+		if r == '\U0010EEEE' {
+			starts = append(starts, i)
+		}
+	}
+	if len(starts) == 0 {
+		return "", nil, false
+	}
+	cells = make([]string, len(starts))
+	for i, st := range starts {
+		if i+1 < len(starts) {
+			cells[i] = body[st:starts[i+1]]
+		} else {
+			cells[i] = body[st:]
+		}
+	}
+	return sgr, cells, true
+}
+
+func spliceKittyRow(baseRow, focusRow string, bx0, bx1, fx0, fx1 int) string {
+	baseSGR, baseCells, ok1 := parseKittyRowCells(baseRow)
+	focusSGR, focusCells, ok2 := parseKittyRowCells(focusRow)
+	if !ok1 || !ok2 || bx0 < 0 || bx1 > len(baseCells) || bx0 >= bx1 || fx0 < 0 || fx1 > len(focusCells) || fx1-fx0 != bx1-bx0 {
+		return baseRow
+	}
+	var sb strings.Builder
+	sb.Grow(len(baseRow) + len(focusSGR) + len(baseSGR))
+	if bx0 > 0 {
+		sb.WriteString(baseSGR)
+		for _, c := range baseCells[:bx0] {
+			sb.WriteString(c)
+		}
+	}
+	sb.WriteString(focusSGR)
+	for _, c := range focusCells[fx0:fx1] {
+		sb.WriteString(c)
+	}
+	if bx1 < len(baseCells) {
+		sb.WriteString(baseSGR)
+		for _, c := range baseCells[bx1:] {
+			sb.WriteString(c)
+		}
+	}
+	sb.WriteString("\x1b[39m")
+	return sb.String()
 }
 
 // ActivateLink emits a LinkMsg for the host, or does nothing without a selection.

@@ -6,11 +6,22 @@ import (
 	"context"
 	"github.com/charmbracelet/x/ansi"
 	"image"
+	"math"
 	"nimbleterminal.dev/nthtml/document"
 	"nimbleterminal.dev/ntpicture"
 	"strconv"
 	"strings"
 )
+
+const maxKittyBandRows = 283
+
+type focusOverlayKey struct {
+	focusID                 int
+	bandCrop                image.Rectangle
+	cols, bandRows          int
+	cellW, cellH            int
+	match, selStart, selEnd int
+}
 
 // LayoutMode selects styled pixels or plain terminal-cell text.
 // LayoutTypeset uses nthtml's rasterizer, not the separate nttypeset engine.
@@ -49,6 +60,7 @@ type Model struct {
 	mouseDown, dragging           bool
 	dragStart                     document.Match
 	pic                           *ntpicture.Picture
+	focusPic                      *ntpicture.Picture
 	result                        *document.Result
 	renderOpts                    document.Options
 	reflowTypeset                 bool
@@ -61,6 +73,15 @@ type Model struct {
 	ttyTop                        int
 	err                           error
 	source                        image.Image
+	overlayImg                    image.Image
+	overlayPainted                bool
+	kittyBandActive               bool
+	kittyCellSize                 image.Point
+	bandCols, bandRows            int
+	bandStartRow                  int
+	bandCrop                      image.Rectangle
+	focusCellRect                 image.Rectangle
+	focusKey                      focusOverlayKey
 	initial                       tea.Cmd
 	zoom, x, y, cols, rows        int
 }
@@ -80,8 +101,22 @@ func NewWithOptions(result *document.Result, opts ModelOptions) *Model {
 	if opts.NextID != nil {
 		picOpts.NextID = opts.NextID
 	}
+	pic := ntpicture.New(picOpts)
+	focusPic := ntpicture.New(ntpicture.Options{
+		Session:      pic.Session(),
+		HostGeometry: true,
+		StableID:     true,
+		RetireDelay:  -1,
+		Render: ntpicture.Config{
+			Fit:         ntpicture.FitFill,
+			KittyFormat: picOpts.Render.KittyFormat,
+			KittyMedium: picOpts.Render.KittyMedium,
+			KittyZ:      picOpts.Render.KittyZ,
+		},
+	})
 	m := &Model{
-		pic:           ntpicture.New(picOpts),
+		pic:           pic,
+		focusPic:      focusPic,
 		cols:          80,
 		rows:          24,
 		match:         -1,
@@ -101,7 +136,7 @@ func NewWithOptions(result *document.Result, opts ModelOptions) *Model {
 			}
 		}
 		if m.source != nil {
-			m.initial = m.pic.SetImage(m.source)
+			m.initial = m.presentSource()
 		}
 	}
 	return m
@@ -117,7 +152,12 @@ func (m *Model) Bounds() image.Rectangle {
 func (m *Model) Picture() *ntpicture.Picture { return m.pic }
 
 // SetVisible shows or hides the widget and its Kitty placements.
-func (m *Model) SetVisible(visible bool) tea.Cmd { return m.pic.SetVisible(visible) }
+func (m *Model) SetVisible(visible bool) tea.Cmd {
+	if m.focusPic != nil {
+		return tea.Batch(m.pic.SetVisible(visible), m.focusPic.SetVisible(visible))
+	}
+	return m.pic.SetVisible(visible)
+}
 
 // Visible reports whether the widget's picture is visible.
 func (m *Model) Visible() bool { return m.pic.Visible() }
@@ -157,6 +197,10 @@ func (m *Model) setResult(result *document.Result, keepView bool) tea.Cmd {
 	if !keepView {
 		m.focusID = 0
 		m.zoom, m.x, m.y, m.ttyTop = 0, 0, 0, 0
+		m.bandStartRow = 0
+		m.kittyBandActive = false
+		m.focusCellRect = image.Rectangle{}
+		m.focusKey = focusOverlayKey{}
 		m.query, m.searchInput = "", ""
 		m.searching = false
 		m.matches = nil
@@ -167,6 +211,11 @@ func (m *Model) setResult(result *document.Result, keepView bool) tea.Cmd {
 		m.matches = nil
 		m.match = -1
 		m.source = nil
+		m.overlayImg = nil
+		m.overlayPainted = false
+		m.kittyBandActive = false
+		m.focusCellRect = image.Rectangle{}
+		m.focusKey = focusOverlayKey{}
 		return nil
 	}
 	m.renderOpts = result.Options()
@@ -189,7 +238,7 @@ func (m *Model) setResult(result *document.Result, keepView bool) tea.Cmd {
 	if _, ok := m.FocusedLink(); !ok {
 		m.focusID = 0
 	}
-	return tea.Batch(m.pic.SetImage(m.source), m.refreshHighlights(), m.viewport())
+	return m.presentSource()
 }
 func (m *Model) Init() tea.Cmd { return tea.Batch(m.pic.Init(), m.initial, m.SetSize(m.cols, m.rows)) }
 func (m *Model) View() string {
@@ -203,7 +252,11 @@ func (m *Model) View() string {
 		}
 		return text
 	}
-	return m.pic.View()
+	base := m.pic.View()
+	if m.kittyViewportMode() && m.focusID != 0 && !m.focusCellRect.Empty() && m.focusPic != nil {
+		return m.spliceFocusOverlay(base)
+	}
+	return base
 }
 func (m *Model) LayoutMode() LayoutMode { return m.mode }
 func (m *Model) Err() error             { return m.err }
@@ -223,9 +276,9 @@ func (m *Model) SetLayoutMode(mode LayoutMode) tea.Cmd {
 	}
 	if mode == LayoutTypeset {
 		m.resetTextLayout()
-		return tea.Batch(m.pic.SetVisible(true), m.showLinkFocus())
+		return tea.Batch(m.SetVisible(true), m.showLinkFocus())
 	}
-	return tea.Batch(m.pic.SetVisible(false), m.refreshHighlights())
+	return tea.Batch(m.SetVisible(false), m.refreshHighlights())
 }
 func (m *Model) ToggleLayout() tea.Cmd {
 	if m.mode == LayoutTypeset {
@@ -248,16 +301,32 @@ func (m *Model) reflowTTY() {
 func (m *Model) scrollTTY(delta int) {
 	m.ttyTop = max(0, min(max(0, len(m.ttyLines)-m.rows), m.ttyTop+delta))
 }
-func (m *Model) Close() tea.Cmd { return m.pic.Close() }
+func (m *Model) Close() tea.Cmd {
+	if m.focusPic != nil {
+		return tea.Batch(m.pic.Close(), m.focusPic.Close())
+	}
+	return m.pic.Close()
+}
 func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	m.pressedLink = 0
 	m.cols = max(1, min(cols, 1000))
 	m.rows = max(1, min(rows, 1000))
 	m.clearSelection()
-	sizeCmd := m.pic.SetSize(m.cols, m.rows)
+	var cropCmd, sizeCmd tea.Cmd
+	if !m.kittyViewportMode() {
+		cropCmd = m.viewport()
+		sizeCmd = m.pic.SetSize(m.cols, m.rows)
+	}
 	var reflowCmd tea.Cmd
+	reflowed := false
 	if m.reflowTypeset && m.result != nil && m.result.Document() != nil {
 		targetW := m.pic.RasterGeometry().Pixels.X
+		if m.pic.Mode() == ntpicture.PictureKitty {
+			cw, _ := m.pic.CellPixelSize()
+			if cw > 0 {
+				targetW = max(1, int(math.Round(float64(m.cols)*float64(cw)*m.pic.Resolution())))
+			}
+		}
 		if targetW <= 0 || targetW == m.cols {
 			targetW = m.cols * 10
 		}
@@ -274,7 +343,8 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 				m.result = next
 				m.source = next.Image
 				m.resetTextLayout()
-				reflowCmd = m.pic.SetImage(m.source)
+				reflowCmd = m.presentSource()
+				reflowed = true
 			} else {
 				m.err = err
 			}
@@ -282,17 +352,25 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	}
 	if m.mode == LayoutTTY {
 		m.reflowTTY()
+		return tea.Batch(cropCmd, sizeCmd, reflowCmd, m.refreshHighlights())
 	}
-	return tea.Batch(sizeCmd, reflowCmd, m.refreshHighlights(), m.viewport())
+	if reflowed {
+		return tea.Batch(cropCmd, sizeCmd, reflowCmd)
+	}
+	return tea.Batch(cropCmd, sizeCmd, m.refreshHighlights())
 }
 func (m *Model) Zoom(delta int) tea.Cmd {
 	m.pressedLink = 0
+	hadSelection := m.selectStart != m.selectEnd
 	m.clearSelection()
 	if m.mode == LayoutTTY {
 		return nil
 	}
 	m.zoom = max(0, min(6, m.zoom+delta))
-	return m.refreshHighlights()
+	if hadSelection {
+		return m.refreshHighlights()
+	}
+	return m.viewport()
 }
 func (m *Model) Pan(dx, dy int) tea.Cmd {
 	m.mouseDown, m.dragging = false, false
@@ -322,9 +400,109 @@ func (m *Model) Reset() tea.Cmd {
 	m.zoom, m.x, m.y = 0, 0, 0
 	return m.viewport()
 }
+func (m *Model) kittyViewportMode() bool {
+	return m.mode == LayoutTypeset && m.pic != nil && m.pic.Mode() == ntpicture.PictureKitty && m.source != nil
+}
+func (m *Model) syncKittyBand(forceUpload bool) tea.Cmd {
+	if !m.kittyViewportMode() {
+		return nil
+	}
+	b := m.source.Bounds()
+	srcW, srcH := b.Dx(), b.Dy()
+	if srcW <= 0 || srcH <= 0 {
+		return nil
+	}
+	cellW, cellH := m.pic.CellPixelSize()
+	if cellW <= 0 {
+		cellW = 10
+	}
+	if cellH <= 0 {
+		cellH = 20
+	}
+	visW := max(1, srcW>>m.zoom)
+	tw := max(1, m.cols*cellW)
+	scaledH := srcH << m.zoom
+	if visW > tw {
+		scaledH = max(1, int((int64(srcH)*int64(tw)+int64(visW)-1)/int64(visW)))
+	}
+	pageRows := max(1, (scaledH+cellH-1)/cellH)
+	maxBand := min(maxKittyBandRows, ntpicture.MaxImagePixels/max(1, m.cols*cellW*cellH))
+	if maxRaster := m.pic.MaxRasterPixels(); maxRaster > 0 {
+		maxBand = min(maxBand, maxRaster/max(1, m.cols*cellW*cellH))
+	}
+	maxBand = max(1, maxBand)
+	bandRows := min(pageRows, maxBand)
+
+	viewSrcH := min(srcH, max(1, int((int64(srcH)*int64(min(m.rows, pageRows))+int64(pageRows)-1)/int64(pageRows))))
+	maxY := max(0, srcH-viewSrcH)
+	m.x = max(0, min(m.x, srcW-visW))
+	m.y = max(0, min(m.y, maxY))
+
+	maxTopRow := max(0, pageRows-m.rows)
+	topRow := 0
+	if maxY > 0 && maxTopRow > 0 {
+		topRow = min(maxTopRow, int((int64(m.y)*int64(maxTopRow)+int64(maxY)/2)/int64(maxY)))
+		if m.y > 0 && topRow == 0 {
+			topRow = 1
+		}
+	}
+
+	if pageRows <= bandRows {
+		m.bandStartRow = 0
+	} else {
+		needNewBand := !m.kittyBandActive ||
+			topRow < m.bandStartRow ||
+			topRow+min(m.rows, bandRows) > m.bandStartRow+bandRows ||
+			(m.bandStartRow+bandRows < pageRows && topRow >= m.bandStartRow+bandRows-min(m.rows, bandRows/2))
+		if needNewBand {
+			margin := min(m.rows, max(0, (bandRows-m.rows)/2))
+			m.bandStartRow = max(0, min(topRow-margin, pageRows-bandRows))
+		}
+	}
+
+	y0 := b.Min.Y
+	y1 := b.Max.Y
+	if pageRows > bandRows {
+		y0 = b.Min.Y + int((int64(m.bandStartRow)*int64(srcH))/int64(pageRows))
+		y1 = b.Min.Y + int((int64(m.bandStartRow+bandRows)*int64(srcH)+int64(pageRows)-1)/int64(pageRows))
+		y1 = min(b.Max.Y, max(y0+1, y1))
+	}
+	bandCrop := image.Rect(b.Min.X+m.x, y0, b.Min.X+m.x+visW, y1)
+	rowOffset := max(0, min(topRow-m.bandStartRow, max(0, bandRows-min(m.rows, bandRows))))
+	m.pic.SetViewport(ntpicture.Viewport{X: 0, Y: rowOffset, Width: m.cols, Height: m.rows})
+
+	cellSize := image.Pt(cellW, cellH)
+	needUpload := forceUpload ||
+		!m.kittyBandActive ||
+		m.kittyCellSize != cellSize ||
+		m.bandCols != m.cols ||
+		m.bandRows != bandRows ||
+		m.bandCrop != bandCrop
+	m.kittyBandActive = true
+	m.kittyCellSize = cellSize
+	m.bandCols = m.cols
+	m.bandRows = bandRows
+	m.bandCrop = bandCrop
+	if !needUpload {
+		return nil
+	}
+	if forceUpload {
+		sizeCmd := m.pic.SetSize(m.cols, bandRows)
+		if m.overlayImg != nil {
+			return tea.Batch(sizeCmd, m.pic.SetImageImmutableCropped(m.overlayImg, bandCrop))
+		}
+		return tea.Batch(sizeCmd, m.pic.SetImageCropped(m.source, bandCrop))
+	}
+	cropCmd := m.pic.SetCrop(bandCrop)
+	sizeCmd := m.pic.SetSize(m.cols, bandRows)
+	return tea.Batch(cropCmd, sizeCmd)
+}
 func (m *Model) viewport() tea.Cmd {
 	if m.source == nil {
 		return nil
+	}
+	if m.kittyViewportMode() {
+		return tea.Batch(m.syncKittyBand(false), m.updateKittyFocusOverlay())
 	}
 	return m.pic.SetCrop(m.cropRect())
 }
@@ -433,5 +611,28 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			cmd = m.Pan(0, 40)
 		}
 	}
-	return tea.Batch(cmd, m.pic.Update(msg))
+	wasKitty := m.kittyViewportMode()
+	prevCW, prevCH := m.pic.CellPixelSize()
+	var preBandCmd tea.Cmd
+	if wasKitty && (!m.kittyBandActive || m.kittyCellSize != image.Pt(prevCW, prevCH)) {
+		preBandCmd = tea.Batch(m.syncKittyBand(false), m.updateKittyFocusOverlay())
+	}
+	picCmd := m.pic.Update(msg)
+	var focusCmd tea.Cmd
+	if m.focusPic != nil {
+		focusCmd = m.focusPic.Update(msg)
+	}
+	nowKitty := m.kittyViewportMode()
+	nowCW, nowCH := m.pic.CellPixelSize()
+	var postBandCmd tea.Cmd
+	if nowKitty && (!wasKitty || !m.kittyBandActive || m.kittyCellSize != image.Pt(nowCW, nowCH)) {
+		postBandCmd = tea.Batch(m.syncKittyBand(false), m.updateKittyFocusOverlay())
+	} else if !nowKitty && m.kittyBandActive {
+		m.kittyBandActive = false
+		m.focusCellRect = image.Rectangle{}
+		m.focusKey = focusOverlayKey{}
+		m.pic.ResetViewport()
+		postBandCmd = tea.Batch(m.pic.SetCrop(m.cropRect()), m.pic.SetSize(m.cols, m.rows), m.presentSource())
+	}
+	return tea.Batch(cmd, preBandCmd, picCmd, focusCmd, postBandCmd)
 }

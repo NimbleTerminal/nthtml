@@ -1,10 +1,14 @@
 package nthtml
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"context"
+	"fmt"
 	"github.com/charmbracelet/x/ansi"
 	"image"
 	"nimbleterminal.dev/nthtml/document"
+	"nimbleterminal.dev/ntpicture"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -229,4 +233,277 @@ func TestSetResultKeepViewAndSetResultReset(t *testing.T) {
 	if _, ok := m.FocusedLink(); ok {
 		t.Fatal("SetResult did not reset link focus")
 	}
+}
+
+func driveRaw(t *testing.T, m *Model, cmds ...tea.Cmd) string {
+	t.Helper()
+	var out strings.Builder
+	var run func(tea.Cmd)
+	run = func(cmd tea.Cmd) {
+		if cmd == nil {
+			return
+		}
+		msg := cmd()
+		if msg == nil {
+			return
+		}
+		v := reflect.ValueOf(msg)
+		if v.Kind() == reflect.Slice {
+			for i := 0; i < v.Len(); i++ {
+				run(v.Index(i).Interface().(tea.Cmd))
+			}
+			return
+		}
+		if raw, ok := msg.(tea.RawMsg); ok {
+			if s, ok := raw.Msg.(string); ok {
+				out.WriteString(s)
+			}
+		}
+		run(m.Update(msg))
+	}
+	for _, cmd := range cmds {
+		run(cmd)
+	}
+	return out.String()
+}
+
+func renderHNTestPage(t *testing.T, extraTitle string) *document.Result {
+	t.Helper()
+	var rows strings.Builder
+	for i := 1; i <= 30; i++ {
+		fmt.Fprintf(&rows, `<tr class="athing" id="story-%d">
+			<td align="right" valign="top" class="title">%d.</td>
+			<td class="title"><a href="https://example.com/%d">Show HN: High-density terminal document rendering %s #%d</a> <span class="comhead">(example.com)</span></td>
+		</tr>
+		<tr>
+			<td></td>
+			<td class="subtext">%d points by <a href="user?id=user%d">user%d</a> 3 hours ago | <a href="item?id=%d">%d comments</a></td>
+		</tr>
+		<tr style="height:5px"></tr>`, i, i, i, extraTitle, i, 40+i*7, i, i, 1000+i, 12+i*3)
+	}
+	html := `<!doctype html><html><head><style>
+		body { font-family: Verdana, Geneva, sans-serif; font-size: 10pt; color: #828282; background: #ffffff; margin: 8px; }
+		table { border-collapse: collapse; }
+		.title { font-size: 10pt; color: #000000; }
+		.subtext { font-size: 7pt; color: #828282; }
+		.comhead { font-size: 8pt; color: #828282; }
+		a:link { color: #000000; text-decoration: none; }
+		.subtext a:link { color: #828282; }
+	</style></head><body>
+		<center>
+			<table id="hnmain" border="0" cellpadding="0" cellspacing="0" width="85%" bgcolor="#f6f6ef">
+				<tr><td bgcolor="#ff6600" style="padding:2px"><b><a href="news">Hacker News</a></b> new | past | comments | ask | show | jobs | submit</td></tr>
+				<tr style="height:10px"></tr>
+				<tr><td><table border="0" cellpadding="0" cellspacing="0">` + rows.String() + `</table></td></tr>
+			</table>
+		</center>
+	</body></html>`
+	r, err := document.Render(context.Background(), strings.NewReader(html), document.Options{Width: 800})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func TestKittyViewportScrollBandCrossingFocusAndKeepView(t *testing.T) {
+	first := renderHNTestPage(t, "v1")
+	var idCalls int
+	m := NewWithOptions(first, ModelOptions{
+		NextID: func() (int, error) {
+			idCalls++
+			return 40 + idCalls, nil
+		},
+		Picture: ntpicture.Options{
+			StableID:    true,
+			RetireDelay: -1,
+			Render:      ntpicture.Config{KittyFormat: ntpicture.KittyFormatZlib},
+		},
+	})
+	defer func() { driveRaw(t, m, m.Close()) }()
+
+	// 120x40 terminal with 11x21 px cells.
+	initOut := driveRaw(t, m, m.Picture().SetTerminal(true, 11, 21), m.SetSize(120, 40))
+	if strings.Count(initOut, "a=T") != 1 {
+		t.Fatalf("expected 1 initial band upload (a=T), got %d in %d bytes", strings.Count(initOut, "a=T"), len(initOut))
+	}
+	vp0, ok := m.Picture().Viewport()
+	if !ok || vp0 != (ntpicture.Viewport{X: 0, Y: 0, Width: 120, Height: 40}) {
+		t.Fatalf("initial Viewport() = %+v (ok=%v), want {0 0 120 40}", vp0, ok)
+	}
+	viewBefore := m.View()
+	if !strings.Contains(viewBefore, "\U0010EEEE") {
+		t.Fatalf("expected Kitty Unicode placeholder view, got %q", viewBefore)
+	}
+	linesBefore := strings.Split(viewBefore, "\n")
+	if len(linesBefore) != 40 {
+		t.Fatalf("expected 40 view lines, got %d", len(linesBefore))
+	}
+
+	// 1. A Down key in Kitty typeset mode emits no Kitty command and changes View() by the scrolled rows only.
+	downOut := driveRaw(t, m, m.Update(tea.KeyPressMsg{Code: tea.KeyDown}))
+	if downOut != "" {
+		t.Fatalf("Down key emitted %d bytes of Kitty output (%q), want 0 bytes", len(downOut), downOut)
+	}
+	vp1, ok := m.Picture().Viewport()
+	if !ok || vp1.Y <= vp0.Y || vp1.Width != 120 || vp1.Height != 40 {
+		t.Fatalf("Viewport() after Down = %+v (ok=%v), expected Y > %d", vp1, ok, vp0.Y)
+	}
+	scrolledRows := vp1.Y - vp0.Y
+	viewAfterDown := m.View()
+	linesAfterDown := strings.Split(viewAfterDown, "\n")
+	if len(linesAfterDown) != 40 {
+		t.Fatalf("expected 40 view lines after Down, got %d", len(linesAfterDown))
+	}
+	for i := 0; i < 40-scrolledRows; i++ {
+		if linesAfterDown[i] != linesBefore[i+scrolledRows] {
+			t.Fatalf("row %d after Down does not match row %d before Down", i, i+scrolledRows)
+		}
+	}
+	if linesAfterDown[39] == linesBefore[39] {
+		t.Fatal("expected bottom row of View() to advance to a new placement row after Down")
+	}
+
+	// 2. Hit testing (CellToDocument and LinkAtCell) adds the viewport offset.
+	topCellBeforeScroll := image.Pt(60, 0)
+	docRectScrolled, ok := m.CellToDocument(topCellBeforeScroll)
+	if !ok || docRectScrolled.Min.Y <= 0 {
+		t.Fatalf("CellToDocument(60, 0) after scroll = %v (ok=%v), expected Min.Y > 0", docRectScrolled, ok)
+	}
+	// Find a link visible after scrolling and verify LinkAtCell hits it at its scrolled screen row.
+	foundScrolledLink := false
+	for y := 0; y < 40 && !foundScrolledLink; y++ {
+		for x := 0; x < 120; x++ {
+			if link, ok := m.LinkAtCell(image.Pt(x, y)); ok {
+				area, ok2 := m.CellToDocument(image.Pt(x, y))
+				if !ok2 {
+					t.Fatalf("LinkAtCell hit %+v at (%d,%d) but CellToDocument returned false", link, x, y)
+				}
+				overlaps := false
+				for _, r := range link.Regions {
+					if !r.Intersect(area).Empty() {
+						overlaps = true
+						break
+					}
+				}
+				if !overlaps {
+					t.Fatalf("LinkAtCell(%d,%d) = %+v does not overlap CellToDocument %v", x, y, link.Regions, area)
+				}
+				foundScrolledLink = true
+				break
+			}
+		}
+	}
+	if !foundScrolledLink {
+		t.Fatal("expected LinkAtCell to find a link in the scrolled viewport")
+	}
+
+	// 3. SetResultKeepView keeps the viewport row and re-transmits once under StableID.
+	idBeforeReflow := idCalls
+	second := renderHNTestPage(t, "v2")
+	reflowOut := driveRaw(t, m, m.SetResultKeepView(second))
+	if idCalls != idBeforeReflow {
+		t.Fatalf("SetResultKeepView allocated a new id under StableID: idCalls=%d, want %d", idCalls, idBeforeReflow)
+	}
+	vpReflow, ok := m.Picture().Viewport()
+	if !ok || vpReflow.Y != vp1.Y {
+		t.Fatalf("SetResultKeepView viewport = %+v (ok=%v), want Y=%d", vpReflow, ok, vp1.Y)
+	}
+	if strings.Count(reflowOut, "a=T") != 1 || strings.Contains(reflowOut, "a=d") {
+		t.Fatalf("SetResultKeepView expected 1 a=T and no a=d, got a=T=%d a=d=%v", strings.Count(reflowOut, "a=T"), strings.Contains(reflowOut, "a=d"))
+	}
+
+	// 4. Tab (NextLink) paints the link-focus ring without re-uploading the full page band.
+	idBeforeTab := idCalls
+	viewBeforeTab := m.View()
+	tabOut := driveRaw(t, m, m.Update(tea.KeyPressMsg{Code: tea.KeyTab}))
+	if idCalls != idBeforeTab {
+		t.Fatalf("Tab re-uploaded or allocated a new page band ID: idCalls=%d, want %d", idCalls, idBeforeTab)
+	}
+	if strings.Count(tabOut, "a=T") != 1 || len(tabOut) > 8192 {
+		t.Fatalf("Tab should upload only the small focus ring overlay (< 8 KB, 1 a=T), got %d bytes and %d a=T", len(tabOut), strings.Count(tabOut, "a=T"))
+	}
+	if m.View() == viewBeforeTab {
+		t.Fatal("expected View() to splice the focused link overlay after Tab")
+	}
+
+	// 5. Zoom re-sizes and re-uploads the band, then subsequent Down scrolls with 0 Kitty bytes.
+	zoomOut := driveRaw(t, m, m.Zoom(1))
+	if strings.Count(zoomOut, "a=T") < 1 {
+		t.Fatalf("expected Zoom(1) to re-upload band, got %q", zoomOut)
+	}
+	downAfterZoom := driveRaw(t, m, m.Update(tea.KeyPressMsg{Code: tea.KeyDown}))
+	if downAfterZoom != "" {
+		t.Fatalf("expected Down after Zoom(1) to emit 0 Kitty bytes, got %d bytes", len(downAfterZoom))
+	}
+
+	// 6. Band crossing on a tall page (> 283 rows) uploads exactly one new image.
+	tallImg := image.NewRGBA(image.Rect(0, 0, 800, 9000)) // 9000 / 21 = 429 rows (> 283)
+	if first.Image != nil {
+		srcB := first.Image.Bounds()
+		for y := 0; y < 9000; y++ {
+			srcY := srcB.Min.Y + (y % srcB.Dy())
+			for x := 0; x < 800; x++ {
+				tallImg.Set(x, y, first.Image.At(srcB.Min.X+x, srcY))
+			}
+		}
+	}
+	mTall := NewWithOptions(&document.Result{Image: tallImg}, ModelOptions{
+		Picture: ntpicture.Options{
+			StableID:    true,
+			RetireDelay: -1,
+			Render:      ntpicture.Config{KittyFormat: ntpicture.KittyFormatZlib},
+		},
+	})
+	defer func() { driveRaw(t, mTall, mTall.Close()) }()
+	tallInit := driveRaw(t, mTall, mTall.Picture().SetTerminal(true, 11, 21), mTall.SetSize(120, 40))
+	if strings.Count(tallInit, "a=T") != 1 {
+		t.Fatalf("expected 1 initial band upload for tall page, got %d", strings.Count(tallInit, "a=T"))
+	}
+	if _, rows := mTall.Picture().Size(); rows != maxKittyBandRows {
+		t.Fatalf("tall page band rows = %d, want %d", rows, maxKittyBandRows)
+	}
+	// Scroll within the first band: 0 Kitty bytes.
+	inBandOut := driveRaw(t, mTall, mTall.Pan(0, 200))
+	if inBandOut != "" {
+		t.Fatalf("expected 0 Kitty bytes scrolling within band 0, got %d bytes", len(inBandOut))
+	}
+	// Cross into the last screen of band 0 (row >= 243 -> y >= 243*21 = 5103): uploads exactly 1 new band image.
+	crossOut := driveRaw(t, mTall, mTall.Pan(0, 5200))
+	if strings.Count(crossOut, "a=T") != 1 {
+		t.Fatalf("expected band crossing to upload exactly 1 new image (a=T), got %d in %d bytes", strings.Count(crossOut, "a=T"), len(crossOut))
+	}
+	// Subsequent scroll inside the new band emits 0 Kitty bytes.
+	afterCrossDown := driveRaw(t, mTall, mTall.Update(tea.KeyPressMsg{Code: tea.KeyDown}))
+	if afterCrossDown != "" {
+		t.Fatalf("expected 0 Kitty bytes after band crossing, got %d bytes", len(afterCrossDown))
+	}
+
+	// 7. Also verify AutoMode discovery via Update(KittyCapabilityMsg) after SetSize(120, 40).
+	var autoIDCalls int
+	mAuto := NewWithOptions(first, ModelOptions{
+		NextID: func() (int, error) {
+			autoIDCalls++
+			return 100 + autoIDCalls, nil
+		},
+		Picture: ntpicture.Options{
+			StableID:    true,
+			RetireDelay: -1,
+			Render: ntpicture.Config{
+				KittyFormat:     ntpicture.KittyFormatZlib,
+				CellPixelWidth:  11,
+				CellPixelHeight: 21,
+			},
+		},
+	})
+	defer func() { driveRaw(t, mAuto, mAuto.Close()) }()
+	autoInit := driveRaw(t, mAuto, mAuto.SetSize(120, 40), mAuto.Update(ntpicture.KittyCapabilityMsg{Capability: ntpicture.KittyCapabilitySupported}))
+	if autoIDCalls != 1 || strings.Count(autoInit, "a=T") != 1 {
+		t.Fatalf("AutoMode transition allocated %d IDs and sent %d a=T commands (want 1 each)", autoIDCalls, strings.Count(autoInit, "a=T"))
+	}
+	if autoDown := driveRaw(t, mAuto, mAuto.Update(tea.KeyPressMsg{Code: tea.KeyDown})); autoDown != "" {
+		t.Fatalf("expected 0 Kitty bytes on Down after AutoMode transition, got %d", len(autoDown))
+	}
+
+	t.Logf("HN page (120x40 cells, 11x21 px): initial band upload=%d bytes (%d chunks), Down keypress=%d Kitty bytes (%d scrolled rows in View()), Tab link focus=%d Kitty bytes (%d chunks)",
+		len(initOut), strings.Count(initOut, "\x1b_G"), len(downOut), scrolledRows, len(tabOut), strings.Count(tabOut, "\x1b_G"))
 }

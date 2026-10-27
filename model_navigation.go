@@ -222,6 +222,18 @@ func (m *Model) cellArea(p image.Point) image.Rectangle {
 	if m.mode == LayoutTTY {
 		return image.Rect(p.X, p.Y+m.ttyTop, p.X+1, p.Y+m.ttyTop+1)
 	}
+	if vp, ok := m.pic.Viewport(); ok {
+		geom := m.pic.RasterGeometry()
+		crop := m.pic.Crop()
+		if crop.Empty() && m.source != nil {
+			crop = m.source.Bounds()
+		}
+		cell := image.Pt(p.X+vp.X, p.Y+vp.Y)
+		if cell.X < 0 || cell.Y < 0 || cell.X >= geom.Cells.X || cell.Y >= geom.Cells.Y {
+			return image.Rectangle{}
+		}
+		return rasterCellSource(cell, geom.Cells, geom.Pixels, crop)
+	}
 	return rasterCellSource(p, image.Pt(m.cols, m.rows), m.pic.RasterGeometry().Pixels, m.cropRect())
 }
 func (m *Model) selectMotion(p image.Point) tea.Cmd {
