@@ -586,7 +586,10 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		if srcID == "" {
 			srcID = l.activeSource
 		}
-		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchor, SourceID: srcID, Color: bg}
+		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchor, SourceID: srcID, Color: bg, LinkID: s.linkID}
+		if !s.hidden && s.bgImage != "" && s.bgImage != "none" {
+			l.ops[opStart].source = l.renderBackgroundImage(w, cy-start, s)
+		}
 	}
 	if s.overflow == "hidden" || s.overflow == "clip" {
 		clip := image.Rect(x+s.bw[3], start+s.bw[0], x+w-s.bw[1], cy-s.bw[2])
@@ -1077,6 +1080,19 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 				lineHeight = max(lineHeight, endY-y)
 				hasText = true
 				prefix = ""
+				return
+			}
+			if st.display != "inline" {
+				if hasText {
+					newline()
+				}
+				y = l.blockStyled(n, x, y, w, parentH, st)
+				px = x
+				lineStart = len(l.ops)
+				lineHeight = 0
+				hasText = false
+				pendingSpace = false
+				pendingSpaceBg = color.RGBA{}
 				return
 			}
 			if st.hidden {

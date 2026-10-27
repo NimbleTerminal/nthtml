@@ -112,6 +112,9 @@ func (l *layout) paint(dst *image.RGBA, ops []operation, area image.Rectangle, s
 		}
 		switch {
 		case op.source != nil:
+			if b.Color.A > 0 {
+				draw.Draw(opDst, rect(b.Bounds), image.NewUniform(b.Color), image.Point{}, draw.Over)
+			}
 			xdraw.ApproxBiLinear.Scale(opDst, rect(b.Bounds), op.source, op.source.Bounds(), draw.Over, nil)
 		case b.Text != "":
 			if b.FontSize == 0 || b.Color.A == 0 {

@@ -1017,3 +1017,124 @@ body { margin: 0; }
 		t.Fatalf("unexpected g-foot bounds: %v, want Min.X=0 Min.Y=60 Dx=310", boxes["g-foot"].Bounds)
 	}
 }
+
+func TestBackgroundImagesAndGradients(t *testing.T) {
+	ctx := context.Background()
+	white := color.RGBA{255, 255, 255, 255}
+	red := color.RGBA{255, 0, 0, 255}
+	blue := color.RGBA{0, 0, 255, 255}
+
+	// Decode HN-style SVG arrow via DecodeImage
+	triangleSVG := `<svg height="32" viewBox="0 0 32 32" width="32" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="32" height="32" fill="#ff0000"/></svg>`
+	svgImg, err := DecodeImage(strings.NewReader(triangleSVG))
+	if err != nil {
+		t.Fatalf("DecodeImage SVG: %v", err)
+	}
+
+	src := `<style>
+body { margin: 0; }
+.lin {
+	width: 100px;
+	height: 20px;
+	background: linear-gradient(to right, #ff0000 0%, #0000ff 100%);
+}
+.rad {
+	width: 40px;
+	height: 40px;
+	background-image: radial-gradient(circle, #ff0000 0%, #0000ff 100%);
+}
+.votearrow {
+	width: 10px;
+	height: 10px;
+	border: 0px;
+	margin: 3px 2px 6px;
+	background: url("triangle.svg"), linear-gradient(transparent, transparent) no-repeat;
+	background-size: 10px;
+}
+.positioned {
+	width: 60px;
+	height: 40px;
+	background-image: url("badge.png");
+	background-repeat: no-repeat;
+	background-size: 20px 20px;
+	background-position: right bottom;
+}
+</style>
+<body>
+<div class="lin"></div>
+<div class="rad"></div>
+<table><tr><td><center><a id="up_1" href="vote?id=1"><div class="votearrow" title="upvote"></div></a></center></td></tr></table>
+<div id="pos-box" class="positioned"></div>
+<img src="inline.png" width="10" height="10">
+</body>`
+
+	doc, err := Parse(ctx, strings.NewReader(src), Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bgSources := doc.BackgroundImageSources()
+	if len(bgSources) != 2 || bgSources[0] != "triangle.svg" || bgSources[1] != "badge.png" {
+		t.Fatalf("unexpected BackgroundImageSources: %v", bgSources)
+	}
+	allSources := doc.ImageSources()
+	if len(allSources) != 3 || allSources[0] != "triangle.svg" || allSources[1] != "badge.png" || allSources[2] != "inline.png" {
+		t.Fatalf("unexpected ImageSources: %v", allSources)
+	}
+
+	badge := image.NewRGBA(image.Rect(0, 0, 10, 10))
+	for y := 0; y < 10; y++ {
+		for x := 0; x < 10; x++ {
+			badge.SetRGBA(x, y, blue)
+		}
+	}
+
+	r, err := doc.Render(ctx, Options{
+		Width:            200,
+		Images:           map[string]image.Image{"triangle.svg": svgImg},
+		BackgroundImages: map[string]image.Image{"badge.png": badge},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Linear gradient: left edge is red, right edge is blue
+	if gotLeft := r.Image.RGBAAt(0, 10); gotLeft.R < 245 || gotLeft.B > 10 {
+		t.Fatalf("linear-gradient left edge: got %v, want red", gotLeft)
+	}
+	if gotRight := r.Image.RGBAAt(99, 10); gotRight.B < 245 || gotRight.R > 10 {
+		t.Fatalf("linear-gradient right edge: got %v, want blue", gotRight)
+	}
+
+	// 2. Radial gradient: center (20, 40) is red, corner is blue
+	if gotCenter := r.Image.RGBAAt(20, 40); gotCenter.R < 230 || gotCenter.B > 25 {
+		t.Fatalf("radial-gradient center: got %v, want near red", gotCenter)
+	}
+	if gotCorner := r.Image.RGBAAt(0, 20); gotCorner.B < 245 || gotCorner.R > 10 {
+		t.Fatalf("radial-gradient corner: got %v, want blue", gotCorner)
+	}
+
+	// 3. HN votearrow inside <center><a href="vote?id=1"><div class="votearrow"></div></a></center>
+	if len(r.Links) != 1 || r.Links[0].Anchor != "up_1" || len(r.Links[0].Regions) == 0 {
+		t.Fatalf("expected clickable link region for votearrow anchor, got %+v", r.Links)
+	}
+	arrowRect := r.Links[0].Regions[0]
+	if got := r.Image.RGBAAt(arrowRect.Min.X+5, arrowRect.Min.Y+5); got != red {
+		t.Fatalf("expected votearrow SVG background painted red at center of %v, got %v", arrowRect, got)
+	}
+
+	// 4. Positioned no-repeat background at right bottom of 60x40 box
+	var posBox Box
+	for _, b := range r.Boxes {
+		if b.Anchor == "pos-box" {
+			posBox = b
+			break
+		}
+	}
+	if gotTopLeft := r.Image.RGBAAt(posBox.Bounds.Min.X+5, posBox.Bounds.Min.Y+5); gotTopLeft != white {
+		t.Fatalf("expected no-repeat background top-left to remain white, got %v", gotTopLeft)
+	}
+	if gotBotRight := r.Image.RGBAAt(posBox.Bounds.Max.X-5, posBox.Bounds.Max.Y-5); gotBotRight != blue {
+		t.Fatalf("expected right-bottom 20x20 background to be blue at bottom-right, got %v", gotBotRight)
+	}
+}

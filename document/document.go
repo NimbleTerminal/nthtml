@@ -91,6 +91,10 @@ type Options struct {
 	// Images is an explicit allowlist of already decoded images, keyed by src.
 	// The caller owns decoding and must keep these images immutable during Render.
 	Images map[string]image.Image
+	// BackgroundImages is an optional allowlist of already decoded CSS
+	// background-image url(...) resources, keyed by URL. Lookup falls back
+	// to Images when an entry is absent here.
+	BackgroundImages map[string]image.Image
 	// NoImage lays the page out without painting it: Result.Image is nil,
 	// and Result.Paint draws the parts wanted, at the scale wanted.
 	NoImage bool
@@ -148,6 +152,9 @@ func hasAuthorColorDecl(decl map[string]string) bool {
 		if _, ok := cssColor(v, color.RGBA{0, 0, 0, 255}); ok {
 			return true
 		}
+	}
+	if v, ok := decl["background-image"]; ok && v != "" && !strings.EqualFold(strings.TrimSpace(v), "none") {
+		return true
 	}
 	return false
 }

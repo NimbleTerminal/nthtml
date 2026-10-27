@@ -323,11 +323,20 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 		if len(row.anchors) > 0 {
 			rowSource = row.anchors[len(row.anchors)-1]
 		}
+		var rowSrc image.Image
+		if !row.style.hidden && row.style.bgImage != "" && row.style.bgImage != "none" {
+			rowSrc = l.renderBackgroundImage(w-2*sx, bottom-top, row.style)
+		}
 		l.ops[rowOps[ri]].box = Box{Tag: "tr", Bounds: image.Rect(x+sx, top, x+w-sx, bottom), Color: rowBg, SourceID: rowSource}
+		l.ops[rowOps[ri]].source = rowSrc
 		if len(rowPieces[ri]) > 0 {
 			l.ops[rowOps[ri]].box.Color.A = 0
+			l.ops[rowOps[ri]].source = nil
 			for col, op := range rowPieces[ri] {
 				l.ops[op].box = Box{Tag: "row-background", Bounds: image.Rect(xs[col], top, xs[col]+widths[col], bottom), Color: rowBg, SourceID: rowSource}
+				if !row.style.hidden && row.style.bgImage != "" && row.style.bgImage != "none" {
+					l.ops[op].source = l.renderBackgroundImage(widths[col], bottom-top, row.style)
+				}
 			}
 		}
 		for _, name := range row.anchors {
@@ -345,6 +354,9 @@ func (l *layout) table(n *node, x, y, w, parentHeight int, autoWidth bool, minWi
 			l.ops[i].box.translate(image.Pt(0, top))
 		}
 		l.ops[cell.start].box.Bounds.Max.Y = bottom
+		if !cell.s.hidden && cell.s.bgImage != "" && cell.s.bgImage != "none" && bottom-top != cell.height {
+			l.ops[cell.start].source = l.renderBackgroundImage(l.ops[cell.start].box.Bounds.Dx(), bottom-top, cell.s)
+		}
 		shift := 0
 		switch cell.s.vertical {
 		case "middle":

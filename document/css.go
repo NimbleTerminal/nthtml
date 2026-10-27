@@ -72,6 +72,9 @@ type style struct {
 	gridCols                                   []gridTrack
 	gridColStart, gridColSpan                  int
 	gridColEnd, gridColEndSpan                 int
+	bgImage, bgSizeMode, bgRepeat              string
+	bgSize, bgPos                              [2]cssLength
+	bgPosSet                                   bool
 }
 
 func (s style) effectiveOpacity() float64 {
@@ -339,7 +342,9 @@ func expandVarDeclaration(k, v string, put func(string, string)) {
 	case "word-wrap":
 		put("overflow-wrap", "\x00overflow-wrap:"+v)
 	case "background":
-		put("background-color", marker)
+		for _, sub := range []string{"background-color", "background-image", "background-size", "background-position", "background-repeat"} {
+			put(sub, marker)
+		}
 	case "text-decoration":
 		put("text-decoration-line", "\x00text-decoration-line:"+v)
 	default:
@@ -698,7 +703,9 @@ func declarations(s string) map[string]string {
 			case "word-wrap":
 				put("overflow-wrap", kw)
 			case "background":
-				put("background-color", kw)
+				for _, sub := range []string{"background-color", "background-image", "background-size", "background-position", "background-repeat"} {
+					put(sub, kw)
+				}
 			case "text-decoration":
 				put("text-decoration-line", kw)
 			default:
@@ -706,7 +713,7 @@ func declarations(s string) map[string]string {
 			}
 			continue
 		}
-		if k == "color" || k == "background" || k == "background-color" {
+		if k == "color" || k == "background-color" {
 			if _, ok := cssColor(v, color.RGBA{}); !ok {
 				continue
 			}
@@ -956,7 +963,31 @@ func declarations(s string) map[string]string {
 		case "word-wrap":
 			put("overflow-wrap", v)
 		case "background":
-			put("background-color", v)
+			if bgVals, ok := parseBackgroundShorthand(v); ok {
+				for bk, bv := range bgVals {
+					put(bk, bv)
+				}
+			}
+		case "background-image":
+			if img, ok := parseBackgroundImage(v); ok {
+				put(k, img)
+			}
+		case "background-size":
+			if _, _, ok := parseBackgroundSize(v); ok {
+				put(k, v)
+			}
+		case "background-position":
+			if _, ok := parseBackgroundPosition(v); ok {
+				put(k, v)
+			}
+		case "background-position-x", "background-position-y":
+			if _, ok := parseBackgroundPosition(v); ok {
+				put(k, v)
+			}
+		case "background-repeat":
+			if rep, ok := parseBackgroundRepeat(v); ok {
+				put(k, rep)
+			}
 		case "text-decoration":
 			put("text-decoration-line", v)
 		case "list-style":
@@ -2179,6 +2210,67 @@ func (d *Document) styled(n *node, parent style) style {
 				s.bg = color.RGBA{}
 			} else {
 				s.bg, _ = cssColor(v, s.fg)
+			}
+		case "background-image":
+			if kw == "inherit" {
+				s.bgImage = parent.bgImage
+			} else if kw == "initial" {
+				s.bgImage = ""
+			} else if img, ok := parseBackgroundImage(v); ok {
+				if img == "none" {
+					s.bgImage = ""
+				} else {
+					s.bgImage = img
+				}
+			}
+		case "background-size":
+			if kw == "inherit" {
+				s.bgSizeMode, s.bgSize = parent.bgSizeMode, parent.bgSize
+			} else if kw == "initial" {
+				s.bgSizeMode, s.bgSize = "", [2]cssLength{}
+			} else if mode, sz, ok := parseBackgroundSize(v); ok {
+				s.bgSizeMode = mode
+				s.bgSize = [2]cssLength{s.computeLen(sz[0]), s.computeLen(sz[1])}
+			}
+		case "background-position":
+			if kw == "inherit" {
+				s.bgPos, s.bgPosSet = parent.bgPos, parent.bgPosSet
+			} else if kw == "initial" {
+				s.bgPos, s.bgPosSet = [2]cssLength{}, false
+			} else if pos, ok := parseBackgroundPosition(v); ok {
+				s.bgPos = [2]cssLength{s.computeLen(pos[0]), s.computeLen(pos[1])}
+				s.bgPosSet = true
+			}
+		case "background-position-x":
+			if kw == "inherit" {
+				s.bgPos[0], s.bgPosSet = parent.bgPos[0], parent.bgPosSet
+			} else if kw == "initial" {
+				s.bgPos[0] = cssLength{}
+			} else if pos, ok := parseBackgroundPosition(v); ok {
+				s.bgPos[0] = s.computeLen(pos[0])
+				s.bgPosSet = true
+			}
+		case "background-position-y":
+			if kw == "inherit" {
+				s.bgPos[1], s.bgPosSet = parent.bgPos[1], parent.bgPosSet
+			} else if kw == "initial" {
+				s.bgPos[1] = cssLength{}
+			} else if pos, ok := parseBackgroundPosition(v); ok {
+				lv := strings.ToLower(strings.TrimSpace(v))
+				if lv == "top" || lv == "bottom" || lv == "center" {
+					s.bgPos[1] = s.computeLen(pos[1])
+				} else {
+					s.bgPos[1] = s.computeLen(pos[0])
+				}
+				s.bgPosSet = true
+			}
+		case "background-repeat":
+			if kw == "inherit" {
+				s.bgRepeat = parent.bgRepeat
+			} else if kw == "initial" {
+				s.bgRepeat = ""
+			} else if rep, ok := parseBackgroundRepeat(v); ok {
+				s.bgRepeat = rep
 			}
 		case "border-collapse":
 			if kw == "inherit" {

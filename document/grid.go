@@ -18,16 +18,16 @@ type gridTrack struct {
 }
 
 type gridItem struct {
-	node       *node
-	cs         style
-	margin     [4]int
-	colStart   int
-	colSpan    int
-	opStart    int
-	opEnd      int
-	innerH     int
-	finalW     int
-	itemX      int
+	node     *node
+	cs       style
+	margin   [4]int
+	colStart int
+	colSpan  int
+	opStart  int
+	opEnd    int
+	innerH   int
+	finalW   int
+	itemX    int
 }
 
 func parseGridFr(s string) (float64, bool) {
