@@ -25,6 +25,7 @@ func fontValues(value string) (map[string]string, bool) {
 			i++
 		} else {
 			quote := byte(0)
+			parenDepth := 0
 			for i < len(value) {
 				c := value[i]
 				if c == '\\' {
@@ -42,12 +43,25 @@ func fontValues(value string) (map[string]string, bool) {
 					i++
 					continue
 				}
-				if c == '/' || cssSpace(rune(c)) {
+				if c == '(' {
+					parenDepth++
+					i++
+					continue
+				}
+				if c == ')' {
+					if parenDepth == 0 {
+						return nil, false
+					}
+					parenDepth--
+					i++
+					continue
+				}
+				if parenDepth == 0 && (c == '/' || cssSpace(rune(c))) {
 					break
 				}
 				i++
 			}
-			if quote != 0 {
+			if quote != 0 || parenDepth != 0 {
 				return nil, false
 			}
 		}

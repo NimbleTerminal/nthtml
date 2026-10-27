@@ -179,7 +179,7 @@ func (d *Document) ExtractTypeset(ctx context.Context, o Options) (*TypesetDocum
 		}
 		linkColor = o.Colors.Link
 	}
-	base := style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor, explicitFg: explicitFg}
+	base := style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor, explicitFg: explicitFg, vw: o.Width, vh: viewportHeight(o)}
 	probe := &layout{ctx: ctx, d: d, opts: o, lim: d.limits}
 	canvasBg, _ := probe.resolveCanvasBackground(base)
 	bodyFg := resolveDocumentForeground(d, base)

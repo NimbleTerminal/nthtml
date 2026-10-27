@@ -104,7 +104,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 		minimum, preferred = 32, 300
 	} else if n.tag == "img" {
 		if src := l.opts.Images[n.attrs["src"]]; src != nil && !src.Bounds().Empty() {
-			iw, _ := imageSize(n, src.Bounds().Size(), s.width.definite(basis), max(1, basis), -1)
+			iw, _ := imageSizeStyled(n, s, src.Bounds().Size(), s.width.definite(basis), max(1, basis), -1)
 			preferred = min(4096, iw)
 			minimum = preferred
 		} else if alt := cleanText(n.attrs["alt"]); alt != "" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"image"
 	"image/color"
+	"math"
 	"strings"
 
 	"golang.org/x/image/font"
@@ -223,7 +224,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		}
 		linkColor = o.Colors.Link
 	}
-	rootStyle := style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor, explicitFg: !d.hasAuthorColors && o.Colors.Text.A > 0}
+	rootStyle := style{rootSize: 16, size: 16, line: 22, spacing: [2]int{2, 2}, fg: fg, defaultFg: fg, defaultLink: linkColor, explicitFg: !d.hasAuthorColors && o.Colors.Text.A > 0, vw: o.Width, vh: viewportHeight(o)}
 	l.canvasBg, l.canvasNode = l.resolveCanvasBackground(rootStyle)
 	h := l.block(d.root, 0, 0, o.Width, -1, rootStyle)
 	if l.err != nil {
@@ -328,6 +329,10 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			s.bw = [4]int{}
 		}
 	}
+	if s.aspectRatio > 0 && n.tag != "img" && !s.width.definite(w) && s.height.definite(parentHeight) {
+		hVal := s.height.resolve(parentHeight, l.d.limits.Height)
+		s.width = px(int(math.Round(float64(hVal) * s.aspectRatio)))
+	}
 	profile := l.margins(n, s, w, parentHeight)
 	margin, padding, target := boxWidth(s, w)
 	margin[0], margin[2] = profile.before, profile.after
@@ -340,6 +345,14 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		height = s.height.resolve(parentHeight, l.d.limits.Height)
 		if s.borderBox {
 			height = max(0, height-padding[0]-padding[2]-s.borderV())
+		}
+	} else if s.aspectRatio > 0 && n.tag != "img" {
+		if s.borderBox {
+			boxH := int(math.Round(float64(w) / s.aspectRatio))
+			height = min(l.d.limits.Height, max(0, boxH-padding[0]-padding[2]-s.borderV()))
+		} else {
+			cw := max(0, w-extra)
+			height = min(l.d.limits.Height, max(0, int(math.Round(float64(cw)/s.aspectRatio))))
 		}
 	}
 	kind, _ := diagramSource(n)
@@ -444,12 +457,10 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	} else if n.tag == "img" {
 		src := l.opts.Images[n.attrs["src"]]
 		if src != nil && !src.Bounds().Empty() {
-			iw, h := imageSize(n, src.Bounds().Size(), s.width.definite(cw), cw, height)
+			iw, h := imageSizeStyled(n, s, src.Bounds().Size(), s.width.definite(cw), cw, height)
 			h = min(h, l.d.limits.Height)
-			if s.hidden {
-				src = nil
-			}
-			l.add(Box{Bounds: image.Rect(cx, cy, cx+iw, cy+h), Tag: "img", LinkID: s.linkID}, src)
+			imgSrc := prepareImageSource(src, iw, h, s)
+			l.add(Box{Bounds: image.Rect(cx, cy, cx+iw, cy+h), Tag: "img", LinkID: s.linkID}, imgSrc)
 			cy += h
 			if !s.width.definite(basisWidth) {
 				w = min(w, iw+extra)
@@ -983,7 +994,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 						targetW = max(targetW, mw)
 					}
 					targetW = max(1, min(availW, targetW))
-					iw, ih = imageSize(n, src.Bounds().Size(), hasCSSW || st.maxWidth.definite(baseW) || st.minWidth.definite(baseW), targetW, imgH)
+					iw, ih = imageSizeStyled(n, st, src.Bounds().Size(), hasCSSW || st.maxWidth.definite(baseW) || st.minWidth.definite(baseW), targetW, imgH)
 					ih = min(ih, l.d.limits.Height)
 				}
 				outerW := iw + padding[1] + padding[3] + st.borderH() + margin[1] + margin[3]
@@ -1021,10 +1032,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 				if st.position == "relative" {
 					shift = relativeOffset(st, baseW, parentH)
 				}
-				imgSrc := src
-				if st.hidden {
-					imgSrc = nil
-				}
+				imgSrc := prepareImageSource(src, iw, ih, st)
 				l.add(Box{Bounds: image.Rect(ix, iy, ix+iw, iy+ih).Add(shift), Tag: "img", Anchor: anchorName(n), LinkID: st.linkID}, imgSrc)
 				if st.hasBorder() && !st.hidden {
 					bRect := image.Rect(px+margin[3], y+vOff+margin[0], px+margin[3]+iw+padding[1]+padding[3]+st.borderH(), y+vOff+margin[0]+ih+padding[0]+padding[2]+st.borderV()).Add(shift)

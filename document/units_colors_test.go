@@ -15,7 +15,7 @@ func TestCSSLengthUnits(t *testing.T) {
 			t.Errorf("%s = %+v", s, l)
 		}
 	}
-	for _, s := range []string{"1ex", "1ch", "1vw", "1 rem", "NaNem", "Infpx", "0x1p2", "-1cm", "1e999in", "1."} {
+	for _, s := range []string{"1ex", "1ch", "1svw", "1 rem", "NaNem", "Infpx", "0x1p2", "-1cm", "1e999in", "1."} {
 		if _, ok := parseLength(s, false, false); ok {
 			t.Errorf("accepted %q", s)
 		}

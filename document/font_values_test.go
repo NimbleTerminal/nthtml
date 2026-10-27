@@ -83,7 +83,7 @@ func TestWordSpacingLayout(t *testing.T) {
 	if bn[1].Bounds.Min.X != bn[0].Bounds.Max.X || bn[1].Bounds.Min.X >= b0[1].Bounds.Min.X {
 		t.Fatal("negative space clamp", bn)
 	}
-	for _, bad := range []string{"10%", "NaNpx", "1ex", "calc(1px)"} {
+	for _, bad := range []string{"10%", "NaNpx", "1ex", "calc(10%)"} {
 		if _, ok := wordSpacingValue(bad); ok {
 			t.Fatal(bad)
 		}

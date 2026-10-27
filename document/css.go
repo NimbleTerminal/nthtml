@@ -64,6 +64,98 @@ type style struct {
 	mono, pre, hidden, explicitFg              bool
 	linkID                                     int
 	lineMultiplier                             float64
+	vw, vh                                     int
+	opacity, ownOpacity                        float64
+	opacitySet                                 bool
+	aspectRatio                                float64
+	objectFit                                  string
+}
+
+func (s style) effectiveOpacity() float64 {
+	if !s.opacitySet {
+		return 1
+	}
+	return s.opacity
+}
+
+func (s style) computeLen(l cssLength) cssLength {
+	return l.computedViewport(s.size, s.rootSize, s.vw, s.vh)
+}
+
+func scaleColorAlpha(c color.RGBA, alpha float64) color.RGBA {
+	if alpha >= 1 || c.A == 0 {
+		return c
+	}
+	if alpha <= 0 {
+		return color.RGBA{}
+	}
+	scale := func(v uint8) uint8 {
+		return uint8(max(0, min(255, int(math.Round(float64(v)*alpha)))))
+	}
+	return color.RGBA{R: scale(c.R), G: scale(c.G), B: scale(c.B), A: scale(c.A)}
+}
+
+func parseOpacity(v string) (float64, bool) {
+	v = strings.TrimSpace(v)
+	isPct := strings.HasSuffix(v, "%")
+	if isPct {
+		v = strings.TrimSpace(strings.TrimSuffix(v, "%"))
+	}
+	if len(v) > 64 || !cssNumber.MatchString(v) {
+		return 0, false
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, false
+	}
+	if isPct {
+		f /= 100
+	}
+	return max(0, min(1, f)), true
+}
+
+func parseAspectRatio(v string) (float64, bool) {
+	v = strings.ToLower(strings.TrimSpace(v))
+	if v == "auto" {
+		return 0, true
+	}
+	fields := strings.Fields(v)
+	if len(fields) >= 2 {
+		if fields[0] == "auto" {
+			v = strings.Join(fields[1:], " ")
+		} else if fields[len(fields)-1] == "auto" {
+			v = strings.Join(fields[:len(fields)-1], " ")
+		}
+	}
+	if numStr, denStr, ok := strings.Cut(v, "/"); ok {
+		numStr = strings.TrimSpace(numStr)
+		denStr = strings.TrimSpace(denStr)
+		if !cssNumber.MatchString(numStr) || !cssNumber.MatchString(denStr) {
+			return 0, false
+		}
+		num, err1 := strconv.ParseFloat(numStr, 64)
+		den, err2 := strconv.ParseFloat(denStr, 64)
+		if err1 != nil || err2 != nil || !(num > 0 && num <= 16384) || !(den > 0 && den <= 16384) {
+			return 0, false
+		}
+		return num / den, true
+	}
+	if !cssNumber.MatchString(v) {
+		return 0, false
+	}
+	r, err := strconv.ParseFloat(v, 64)
+	if err != nil || !(r > 0 && r <= 16384) {
+		return 0, false
+	}
+	return r, true
+}
+
+func isObjectFit(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "fill", "contain", "cover", "none", "scale-down":
+		return true
+	}
+	return false
 }
 
 func (s style) borderH() int { return s.bw[1] + s.bw[3] }
@@ -667,8 +759,8 @@ func declarations(s string) map[string]string {
 			}
 		}
 		if k == "border-spacing" {
-			parts := strings.Fields(v)
-			valid := len(parts) == 1 || len(parts) == 2
+			parts, ok := cssTokens(v)
+			valid := ok && (len(parts) == 1 || len(parts) == 2)
 			for _, p := range parts {
 				l, ok := parseLength(p, false, false)
 				valid = valid && ok && l.absolute()
@@ -685,7 +777,10 @@ func declarations(s string) map[string]string {
 				}
 			}
 		case "margin", "padding", "inset":
-			parts := strings.Fields(v)
+			parts, ok := cssTokens(v)
+			if !ok {
+				continue
+			}
 			sides, ok := expandFour(parts)
 			if !ok {
 				continue
@@ -712,8 +807,8 @@ func declarations(s string) map[string]string {
 				}
 			}
 		case "margin-block", "padding-block", "margin-inline", "padding-inline":
-			parts := strings.Fields(v)
-			if len(parts) < 1 || len(parts) > 2 {
+			parts, ok := cssTokens(v)
+			if !ok || len(parts) < 1 || len(parts) > 2 {
 				continue
 			}
 			isMargin := strings.HasPrefix(k, "margin")
@@ -789,7 +884,10 @@ func declarations(s string) map[string]string {
 				}
 			}
 		case "border-width":
-			parts := strings.Fields(v)
+			parts, ok := cssTokens(v)
+			if !ok {
+				continue
+			}
 			sides, ok := expandFour(parts)
 			if !ok {
 				continue
@@ -855,8 +953,11 @@ func declarations(s string) map[string]string {
 					put("list-style-type", tok)
 				}
 			}
-		case "gap":
-			parts := strings.Fields(v)
+		case "gap", "grid-gap":
+			parts, ok := cssTokens(v)
+			if !ok {
+				continue
+			}
 			if len(parts) == 1 {
 				if _, ok := parseLength(parts[0], false, false); ok {
 					put("row-gap", parts[0])
@@ -870,6 +971,14 @@ func declarations(s string) map[string]string {
 					put("column-gap", parts[1])
 				}
 			}
+		case "grid-row-gap":
+			if _, ok := parseLength(v, false, false); ok {
+				put("row-gap", v)
+			}
+		case "grid-column-gap":
+			if _, ok := parseLength(v, false, false); ok {
+				put("column-gap", v)
+			}
 		case "flex":
 			lv := strings.ToLower(strings.TrimSpace(v))
 			if lv == "none" {
@@ -881,7 +990,10 @@ func declarations(s string) map[string]string {
 				put("flex-shrink", "1")
 				put("flex-basis", "auto")
 			} else {
-				parts := strings.Fields(lv)
+				parts, ok := cssTokens(lv)
+				if !ok {
+					continue
+				}
 				if len(parts) == 1 {
 					if _, err := strconv.ParseFloat(parts[0], 64); err == nil {
 						put("flex-grow", parts[0])
@@ -913,6 +1025,18 @@ func declarations(s string) map[string]string {
 						put("flex-basis", parts[2])
 					}
 				}
+			}
+		case "opacity":
+			if _, ok := parseOpacity(v); ok {
+				put(k, v)
+			}
+		case "aspect-ratio":
+			if _, ok := parseAspectRatio(v); ok {
+				put(k, v)
+			}
+		case "object-fit":
+			if isObjectFit(v) {
+				put(k, strings.ToLower(strings.TrimSpace(v)))
 			}
 		case "z-index":
 			if strings.EqualFold(v, "auto") {
@@ -1458,7 +1582,19 @@ func htmlFontSize(s string) (int, bool) {
 }
 
 func (d *Document) styled(n *node, parent style) style {
-	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, cellPadding: parent.cellPadding, hasCellPadding: parent.hasCellPadding, tableCellBorder: parent.tableCellBorder, centerBlock: parent.centerBlock, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block"}
+	vw, vh := parent.vw, parent.vh
+	if vw <= 0 {
+		if d != nil && d.cascadedWidth > 0 {
+			vw = d.cascadedWidth
+		} else {
+			vw = 800
+		}
+	}
+	if vh <= 0 {
+		vh = 600
+	}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, cellPadding: parent.cellPadding, hasCellPadding: parent.hasCellPadding, tableCellBorder: parent.tableCellBorder, centerBlock: parent.centerBlock, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block", vw: vw, vh: vh, opacity: parent.effectiveOpacity(), ownOpacity: 1, opacitySet: parent.opacitySet}
+	fgInherited := true
 	rawBW := [4]int{3, 3, 3, 3}
 	if n.tag == "svg" {
 		s.width, _ = parseLength(n.attrs["width"], true, false)
@@ -1587,6 +1723,7 @@ func (d *Document) styled(n *node, parent style) style {
 			s.fg = c
 			s.defaultFg = c
 			s.explicitFg = true
+			fgInherited = false
 		}
 		if c, ok := htmlColor(n.attrs["link"]); ok {
 			s.defaultLink = c
@@ -1639,6 +1776,7 @@ func (d *Document) styled(n *node, parent style) style {
 		if c, ok := htmlColor(n.attrs["color"]); ok {
 			s.fg = c
 			s.explicitFg = true
+			fgInherited = false
 		}
 		if face := strings.TrimSpace(n.attrs["face"]); face != "" {
 			s.family = face
@@ -1659,6 +1797,7 @@ func (d *Document) styled(n *node, parent style) style {
 		s.bg = color.RGBA{255, 243, 163, 255}
 		s.fg = color.RGBA{0, 0, 0, 255}
 		s.explicitFg = true
+		fgInherited = false
 	}
 	if n.tag == "em" || n.tag == "i" {
 		s.italic = true
@@ -1685,6 +1824,7 @@ func (d *Document) styled(n *node, parent style) style {
 		if SafeURL(n.attrs["href"]) != "" {
 			s.linkID = n.id
 			s.underline = true
+			fgInherited = false
 			if s.defaultLink.A > 0 {
 				s.fg = s.defaultLink
 				s.explicitFg = true
@@ -1702,16 +1842,20 @@ func (d *Document) styled(n *node, parent style) style {
 		if resolveCSSKeyword("color", cv) == "inherit" {
 			s.fg = parent.fg
 			s.explicitFg = parent.explicitFg
+			fgInherited = true
 		} else if s.defaultFg.A > 0 {
 			s.fg = s.defaultFg
 			s.explicitFg = true
+			fgInherited = false
 		} else {
 			s.fg = color.RGBA{0, 0, 0, 255}
 			s.explicitFg = false
+			fgInherited = false
 		}
 	} else if c, ok := cssColor(cv, parent.fg); ok {
 		s.fg = c
 		s.explicitFg = true
+		fgInherited = !strings.EqualFold(strings.TrimSpace(cv), "currentcolor")
 	}
 	if fsv := values["font-size"]; isCSSKeyword(fsv) {
 		if resolveCSSKeyword("font-size", fsv) == "inherit" {
@@ -1722,7 +1866,7 @@ func (d *Document) styled(n *node, parent style) style {
 	} else if sz, ok := fontSizeKeyword(fsv, parent.size); ok {
 		s.size = sz
 	} else if value, ok := parseLength(fsv, false, false); ok {
-		value = value.computed(parent.size, s.rootSize)
+		value = value.computedViewport(parent.size, s.rootSize, s.vw, s.vh)
 		s.size = value.resolve(parent.size, 128)
 	}
 	if n.tag == "html" {
@@ -1801,7 +1945,7 @@ func (d *Document) styled(n *node, parent style) style {
 					s.lineMode = 2
 				}
 			} else if l, ok := parseLength(v, false, false); ok {
-				s.line = l.computed(s.size, s.rootSize).resolve(s.size, 256)
+				s.line = s.computeLen(l).resolve(s.size, 256)
 				s.lineMultiplier = 0
 				s.lineMode = 1
 			}
@@ -1811,7 +1955,7 @@ func (d *Document) styled(n *node, parent style) style {
 			} else if kw == "initial" {
 				s.wordSpacing = 0
 			} else if l, ok := wordSpacingValue(v); ok {
-				s.wordSpacing = max(-256, min(256, l.computed(s.size, s.rootSize).offset(0)))
+				s.wordSpacing = max(-256, min(256, s.computeLen(l).offset(0)))
 			}
 		case "letter-spacing":
 			if kw == "inherit" {
@@ -1819,7 +1963,7 @@ func (d *Document) styled(n *node, parent style) style {
 			} else if kw == "initial" {
 				s.letterSpacing = 0
 			} else if l, ok := wordSpacingValue(v); ok {
-				s.letterSpacing = max(-256, min(256, l.computed(s.size, s.rootSize).offset(0)))
+				s.letterSpacing = max(-256, min(256, s.computeLen(l).offset(0)))
 			}
 		case "text-indent":
 			if kw == "inherit" {
@@ -1827,7 +1971,7 @@ func (d *Document) styled(n *node, parent style) style {
 			} else if kw == "initial" {
 				s.textIndent = cssLength{}
 			} else if l, ok := parseInset(v); ok && l.unit != lengthAuto {
-				s.textIndent = l.computed(s.size, s.rootSize)
+				s.textIndent = s.computeLen(l)
 			}
 		case "text-transform":
 			if kw == "inherit" {
@@ -1952,7 +2096,7 @@ func (d *Document) styled(n *node, parent style) style {
 			} else if kw == "initial" {
 				s.flexBasis = cssLength{}
 			} else if l, ok := parseLength(v, true, false); ok {
-				s.flexBasis = l.computed(s.size, s.rootSize)
+				s.flexBasis = s.computeLen(l)
 			}
 		case "row-gap":
 			if kw == "inherit" {
@@ -1960,7 +2104,7 @@ func (d *Document) styled(n *node, parent style) style {
 			} else if kw == "initial" {
 				s.rowGap = cssLength{}
 			} else if l, ok := parseLength(v, false, false); ok {
-				s.rowGap = l.computed(s.size, s.rootSize)
+				s.rowGap = s.computeLen(l)
 			}
 		case "column-gap":
 			if kw == "inherit" {
@@ -1968,7 +2112,7 @@ func (d *Document) styled(n *node, parent style) style {
 			} else if kw == "initial" {
 				s.colGap = cssLength{}
 			} else if l, ok := parseLength(v, false, false); ok {
-				s.colGap = l.computed(s.size, s.rootSize)
+				s.colGap = s.computeLen(l)
 			}
 		case "text-decoration-line":
 			if kw == "inherit" {
@@ -2155,8 +2299,8 @@ func (d *Document) styled(n *node, parent style) style {
 			} else if kw == "initial" {
 				s.spacing = [2]int{2, 2}
 			} else {
-				parts := strings.Fields(v)
-				if len(parts) == 1 || len(parts) == 2 {
+				parts, ok := cssTokens(v)
+				if ok && (len(parts) == 1 || len(parts) == 2) {
 					a, ok := parseLength(parts[0], false, false)
 					b := a
 					valid := ok && a.absolute()
@@ -2165,9 +2309,43 @@ func (d *Document) styled(n *node, parent style) style {
 						valid = valid && ok && b.absolute()
 					}
 					if valid {
-						s.spacing = [2]int{a.computed(s.size, s.rootSize).resolve(0, 256), b.computed(s.size, s.rootSize).resolve(0, 256)}
+						s.spacing = [2]int{s.computeLen(a).resolve(0, 256), s.computeLen(b).resolve(0, 256)}
 					}
 				}
+			}
+		case "opacity":
+			if kw == "inherit" {
+				own := 1.0
+				if parent.opacitySet {
+					own = parent.ownOpacity
+				}
+				s.ownOpacity = own
+				s.opacity = parent.effectiveOpacity() * own
+				s.opacitySet = parent.opacitySet
+			} else if kw == "initial" {
+				s.ownOpacity = 1
+				s.opacity = parent.effectiveOpacity()
+				s.opacitySet = parent.opacitySet
+			} else if op, ok := parseOpacity(v); ok {
+				s.ownOpacity = op
+				s.opacity = parent.effectiveOpacity() * op
+				s.opacitySet = true
+			}
+		case "aspect-ratio":
+			if kw == "inherit" {
+				s.aspectRatio = parent.aspectRatio
+			} else if kw == "initial" {
+				s.aspectRatio = 0
+			} else if ar, ok := parseAspectRatio(v); ok {
+				s.aspectRatio = ar
+			}
+		case "object-fit":
+			if kw == "inherit" {
+				s.objectFit = parent.objectFit
+			} else if kw == "initial" {
+				s.objectFit = ""
+			} else if isObjectFit(v) {
+				s.objectFit = strings.ToLower(strings.TrimSpace(v))
 			}
 		case "vertical-align":
 			if kw == "inherit" {
@@ -2236,7 +2414,7 @@ func (d *Document) styled(n *node, parent style) style {
 					} else if kw == "initial" {
 						rawBW[i] = 3
 					} else if l, ok := borderWidth(v); ok {
-						rawBW[i] = l.computed(s.size, s.rootSize).resolve(0, 256)
+						rawBW[i] = s.computeLen(l).resolve(0, 256)
 					}
 				}
 				if k == "border-"+side+"-style" {
@@ -2260,8 +2438,26 @@ func (d *Document) styled(n *node, parent style) style {
 			}
 		}
 	}
+	if s.opacitySet {
+		eff := s.effectiveOpacity()
+		if eff <= 0 {
+			s.hidden = true
+		} else if eff < 1 {
+			if fgInherited {
+				s.fg = scaleColorAlpha(s.fg, s.ownOpacity)
+			} else {
+				s.fg = scaleColorAlpha(s.fg, eff)
+			}
+			s.bg = scaleColorAlpha(s.bg, eff)
+			for i := range s.border {
+				if s.borderSet[i] {
+					s.border[i] = scaleColorAlpha(s.border[i], eff)
+				}
+			}
+		}
+	}
 	for i := range s.inset {
-		s.inset[i] = s.inset[i].computed(s.size, s.rootSize)
+		s.inset[i] = s.computeLen(s.inset[i])
 	}
 	if n.tag == "document" || n.tag == "html" || n.tag == "li" || n.tag == "caption" || n.tag == "tr" || n.tag == "td" || n.tag == "th" || n.tag == "thead" || n.tag == "tbody" || n.tag == "tfoot" {
 		s.position = "static"
@@ -2285,11 +2481,11 @@ func (d *Document) styled(n *node, parent style) style {
 		}
 	}
 	for _, p := range []*cssLength{&s.width, &s.height, &s.maxWidth, &s.minWidth, &s.minHeight, &s.maxHeight} {
-		*p = p.computed(s.size, s.rootSize)
+		*p = s.computeLen(*p)
 	}
 	for i := range s.margin {
-		s.margin[i] = s.margin[i].computed(s.size, s.rootSize)
-		s.padding[i] = s.padding[i].computed(s.size, s.rootSize)
+		s.margin[i] = s.computeLen(s.margin[i])
+		s.padding[i] = s.computeLen(s.padding[i])
 	}
 	if s.lineMode == 2 {
 		s.line = min(256, int(float64(s.size)*s.lineMultiplier))

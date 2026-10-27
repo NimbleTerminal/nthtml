@@ -132,7 +132,7 @@ func (d *Document) collectColSpecs(n *node, s style) []style {
 	applyColAttr := func(cn *node, st *style) {
 		if !st.width.definite(100) && cn.attrs["width"] != "" {
 			if l, ok := parseLength(cn.attrs["width"], true, false); ok {
-				st.width = l.computed(st.size, st.rootSize)
+				st.width = st.computeLen(l)
 			}
 		}
 	}

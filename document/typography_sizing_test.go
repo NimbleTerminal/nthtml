@@ -53,7 +53,7 @@ func TestSpacingCascade(t *testing.T) {
 	if m := resolveEdges(s.margin, 400); m != [4]int{1, 2, 3, 2} {
 		t.Fatal(m)
 	}
-	for _, bad := range []string{"NaN", "Inf", "-1px", "1e300%", "calc(1px)"} {
+	for _, bad := range []string{"NaN", "Inf", "-1px", "1e300%", "calc(1px +)"} {
 		if _, ok := parseLength(bad, true, true); ok {
 			t.Fatal(bad)
 		}

@@ -84,7 +84,10 @@ type Options struct {
 	// DisableDiagrams keeps labels/source text without invoking a renderer.
 	DisableDiagrams bool
 	Width           int
-	Limits          Limits
+	// ViewportHeight sets the CSS viewport height in pixels for vh/vmin/vmax
+	// units. Zero defaults to 600.
+	ViewportHeight int
+	Limits         Limits
 	// Images is an explicit allowlist of already decoded images, keyed by src.
 	// The caller owns decoding and must keep these images immutable during Render.
 	Images map[string]image.Image
@@ -124,6 +127,13 @@ func normalizeColorScheme(s string) string {
 		return "dark"
 	}
 	return "light"
+}
+
+func viewportHeight(o Options) int {
+	if o.ViewportHeight <= 0 {
+		return 600
+	}
+	return min(16384, max(32, o.ViewportHeight))
 }
 
 func hasAuthorColorDecl(decl map[string]string) bool {

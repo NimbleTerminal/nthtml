@@ -869,3 +869,103 @@ body { margin: 0; background-color: var(--bg); color: var(--fg); }
 		t.Fatalf("dark theme: bg=%v fg=%v, want %v / %v", rDark.Background(), tagged(rDark, "text").Color, darkBg, red)
 	}
 }
+
+func TestCalcClampMinMaxAndViewportUnits(t *testing.T) {
+	ctx := context.Background()
+	src := `<style>
+body { margin: 0; }
+#calc-box {
+	width: calc(100% - 100px);
+	height: calc(10vh + 20px);
+	margin-left: calc(10vw - 30px);
+}
+#clamp-box {
+	width: min(80%, 300px);
+	height: max(20px, 5vmin);
+	font-size: clamp(14px, 3vw, 24px);
+}
+</style>
+<body>
+<div id="calc-box">CalcText</div>
+<div id="clamp-box">ClampText</div>
+</body>`
+	r, err := Render(ctx, strings.NewReader(src), Options{Width: 800, ViewportHeight: 500})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calcDiv, clampDiv, clampTxt Box
+	for _, b := range r.Boxes {
+		if b.Anchor == "calc-box" {
+			calcDiv = b
+		}
+		if b.Anchor == "clamp-box" {
+			clampDiv = b
+		}
+		if b.Text == "ClampText" {
+			clampTxt = b
+		}
+	}
+	// margin-left: calc(10vw - 30px) = 80 - 30 = 50; width: calc(100% - 100px) = 700; height: calc(10vh + 20px) = 50 + 20 = 70
+	if calcDiv.Bounds.Min.X != 50 || calcDiv.Bounds.Dx() != 700 || calcDiv.Bounds.Dy() != 70 {
+		t.Fatalf("unexpected #calc-box bounds: %v, want Min.X=50 Dx=700 Dy=70", calcDiv.Bounds)
+	}
+	// width: min(80% of 800=640, 300px) = 300; height: max(20px, 5% of min(800,500)=25) = 25; font-size: clamp(14px, 24px, 24px) = 24
+	if clampDiv.Bounds.Dx() != 300 || clampDiv.Bounds.Dy() != 25 || clampTxt.FontSize != 24 {
+		t.Fatalf("unexpected #clamp-box: bounds=%v fontSize=%d", clampDiv.Bounds, clampTxt.FontSize)
+	}
+}
+
+func TestOpacityAspectRatioAndObjectFit(t *testing.T) {
+	ctx := context.Background()
+	white := color.RGBA{255, 255, 255, 255}
+	red := color.RGBA{255, 0, 0, 255}
+
+	// 1. opacity: 0 hides content while keeping layout box; opacity: 0.5 blends over white canvas
+	src := `<style>
+body { margin: 0; }
+.zero { opacity: 0; height: 40px; background: red; color: blue; }
+.half { opacity: 50%; height: 40px; background: #ff0000; }
+.ratio { width: 160px; aspect-ratio: 16 / 9; background: red; }
+</style>
+<body>
+<div class="zero">HiddenByOpacity</div>
+<div class="half">HalfVisible</div>
+<div class="ratio" id="ratio-box"></div>
+</body>`
+	r, err := Render(ctx, strings.NewReader(src), Options{Width: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Image.RGBAAt(20, 20); got != white {
+		t.Fatalf("opacity: 0 box should not paint red at (20,20), got %v", got)
+	}
+	halfPx := r.Image.RGBAAt(20, 60)
+	if halfPx.R < 250 || halfPx.G < 120 || halfPx.G > 135 || halfPx.B < 120 || halfPx.B > 135 {
+		t.Fatalf("opacity: 50%% red over white at (20,60): got %v, want ~{255,127,127,255}", halfPx)
+	}
+	for _, b := range r.Boxes {
+		if b.Anchor == "ratio-box" {
+			if b.Bounds.Dx() != 160 || b.Bounds.Dy() != 90 {
+				t.Fatalf("aspect-ratio 16/9 on 160px box: got %v, want 160x90", b.Bounds)
+			}
+		}
+	}
+
+	// 2. object-fit: contain letterboxes a 20x10 red image inside a 40x40 box
+	img := image.NewRGBA(image.Rect(0, 0, 20, 10))
+	for y := 0; y < 10; y++ {
+		for x := 0; x < 20; x++ {
+			img.SetRGBA(x, y, red)
+		}
+	}
+	rFit, err := Render(ctx, strings.NewReader(`<body style="margin:0"><img src="wide.png" style="width:40px;height:40px;object-fit:contain"></body>`), Options{
+		Width:  200,
+		Images: map[string]image.Image{"wide.png": img},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if topBar, middle := rFit.Image.RGBAAt(20, 2), rFit.Image.RGBAAt(20, 20); topBar != white || middle != red {
+		t.Fatalf("object-fit: contain on 20x10 in 40x40: top=(20,2)=%v middle=(20,20)=%v, want white, red", topBar, middle)
+	}
+}

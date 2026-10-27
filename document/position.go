@@ -26,11 +26,22 @@ type absoluteBox struct {
 
 func parseInset(v string) (cssLength, bool) {
 	v = strings.TrimSpace(v)
+	if isMathFunc(v) {
+		return parseLength(v, true, false)
+	}
 	negative := strings.HasPrefix(v, "-")
 	if negative {
 		v = v[1:]
 		if len(v) == 0 || v[0] == '+' || cssSpace(rune(v[0])) {
 			return cssLength{}, false
+		}
+		if isMathFunc(v) {
+			l, ok := parseLength(v, false, false)
+			if !ok {
+				return cssLength{}, false
+			}
+			l.expr = &cssMathNode{kind: mathMul, args: []*cssMathNode{{kind: mathNumber, val: -1}, l.expr}}
+			return l, true
 		}
 	}
 	l, ok := parseLength(v, true, false)
@@ -44,11 +55,18 @@ func parseInset(v string) (cssLength, bool) {
 }
 func (l cssLength) offset(base int) int {
 	value := l.value
-	if l.unit == lengthPercent {
+	if l.expr != nil {
+		if l.unit == lengthPercent && base < 0 {
+			return 0
+		}
+		value = l.expr.eval(float64(base))
+	} else if l.unit == lengthPercent {
 		if base < 0 {
 			return 0
 		}
 		value = value * float64(base) / 100
+	} else if l.unit != lengthPX {
+		return 0
 	}
 	return int(max(-16384, min(16384, value+math.Copysign(1e-9, value))))
 }
