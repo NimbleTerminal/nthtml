@@ -22,7 +22,7 @@ type attrSelector struct {
 type pseudoSelector struct {
 	name string
 	arg  string
-	sub  *selectorPart
+	subs []selector
 	a, b int
 }
 
@@ -35,7 +35,15 @@ type selectorPart struct {
 }
 
 func (p selectorPart) termCount() int {
-	return max(1, len(p.terms)+len(p.attrs)+len(p.pseudos))
+	n := len(p.terms) + len(p.attrs) + len(p.pseudos)
+	for _, ps := range p.pseudos {
+		for _, sub := range ps.subs {
+			for _, sp := range sub {
+				n += sp.termCount()
+			}
+		}
+	}
+	return max(1, n)
 }
 
 type selector []selectorPart
@@ -48,6 +56,13 @@ func parseSelector(s string) (selector, int, bool) {
 // Bound both selector length and matching work. Unsupported syntax rejects the
 // entire selector; it must never accidentally become a broader match.
 func parseSelectorWithPseudo(s string) (selector, int, string, bool) {
+	return parseSelectorWithPseudoDepth(s, 0)
+}
+
+func parseSelectorWithPseudoDepth(s string, depth int) (selector, int, string, bool) {
+	if depth > 4 {
+		return nil, 0, "", false
+	}
 	s = strings.TrimFunc(s, cssSpace)
 	if len(s) == 0 || len(s) > 1024 {
 		return nil, 0, "", false
@@ -61,7 +76,7 @@ func parseSelectorWithPseudo(s string) (selector, int, string, bool) {
 			return nil, 0, "", false
 		}
 		part := selectorPart{comb: comb, child: comb == '>'}
-		partScore, partTerms, pe, rest, ok := parseCompoundPart(s, &part, true)
+		partScore, partTerms, pe, rest, ok := parseCompoundPart(s, &part, depth == 0, depth)
 		if !ok {
 			return nil, 0, "", false
 		}
@@ -88,7 +103,20 @@ func parseSelectorWithPseudo(s string) (selector, int, string, bool) {
 	return out, score, pseudoElem, len(out) > 0
 }
 
-func parseCompoundPart(s string, part *selectorPart, allowPseudoElem bool) (int, int, string, string, bool) {
+func isSupportedPseudoElement(name string, doubleColon bool) bool {
+	switch name {
+	case "before", "after", "first-line", "first-letter":
+		return true
+	case "placeholder", "marker", "selection", "backdrop", "file-selector-button", "cue", "spelling-error", "grammar-error":
+		return true
+	}
+	if doubleColon && (strings.HasPrefix(name, "-webkit-") || strings.HasPrefix(name, "-moz-") || strings.HasPrefix(name, "-ms-")) {
+		return true
+	}
+	return false
+}
+
+func parseCompoundPart(s string, part *selectorPart, allowPseudoElem bool, depth int) (int, int, string, string, bool) {
 	score, terms := 0, 0
 	pseudoElem := ""
 	hasTag := false
@@ -123,7 +151,7 @@ func parseCompoundPart(s string, part *selectorPart, allowPseudoElem bool) (int,
 			}
 			name := strings.ToLower(s[:end])
 			s = s[end:]
-			if name == "before" || name == "after" || name == "first-line" || name == "first-letter" {
+			if isSupportedPseudoElement(name, doubleColon) {
 				if !allowPseudoElem || (len(s) > 0 && s[0] == '(') {
 					return 0, 0, "", "", false
 				}
@@ -135,13 +163,13 @@ func parseCompoundPart(s string, part *selectorPart, allowPseudoElem bool) (int,
 			if doubleColon {
 				return 0, 0, "", "", false
 			}
-			ps, psScore, rest, ok := parsePseudoClass(name, s)
+			ps, psScore, psTerms, rest, ok := parsePseudoClass(name, s, depth)
 			if !ok {
 				return 0, 0, "", "", false
 			}
 			part.pseudos = append(part.pseudos, ps)
 			score += psScore
-			terms++
+			terms += psTerms
 			s = rest
 			continue
 		}
@@ -267,56 +295,140 @@ func parseAttrSelector(s string) (attrSelector, string, bool) {
 	return attrSelector{name: name, op: op, val: val, ignoreCase: ignoreCase}, s[1:], true
 }
 
-func parsePseudoClass(name, s string) (pseudoSelector, int, string, bool) {
+func isStatePseudoClass(name string) bool {
 	switch name {
-	case "root", "first-child", "last-child", "only-child", "empty", "first-of-type", "last-of-type", "only-of-type", "link", "visited", "hover", "active", "focus":
+	case "visited", "hover", "active", "focus", "focus-visible", "focus-within",
+		"target", "target-within", "local-link",
+		"checked", "disabled", "enabled", "indeterminate", "default", "required", "optional",
+		"valid", "invalid", "in-range", "out-of-range", "read-only", "read-write",
+		"placeholder-shown", "autofill", "blank", "user-invalid", "user-valid",
+		"fullscreen", "modal", "picture-in-picture", "playing", "paused", "seeking",
+		"buffering", "stalled", "muted", "volume-locked", "open", "closed", "popover-open", "defined",
+		"-webkit-autofill", "-moz-focusring", "-moz-ui-invalid", "-moz-placeholder", "-ms-input-placeholder":
+		return true
+	}
+	return false
+}
+
+func parsePseudoClass(name, s string, depth int) (pseudoSelector, int, int, string, bool) {
+	switch {
+	case name == "root" || name == "scope" || name == "first-child" || name == "last-child" ||
+		name == "only-child" || name == "empty" || name == "first-of-type" || name == "last-of-type" ||
+		name == "only-of-type" || name == "link" || name == "any-link" || name == "-webkit-any-link" ||
+		name == "-moz-any-link" || isStatePseudoClass(name):
 		if len(s) > 0 && s[0] == '(' {
-			return pseudoSelector{}, 0, "", false
+			return pseudoSelector{}, 0, 0, "", false
 		}
-		return pseudoSelector{name: name}, 1 << 10, s, true
-	case "lang", "nth-child", "nth-last-child", "nth-of-type", "nth-last-of-type", "not":
+		return pseudoSelector{name: name}, 1 << 10, 1, s, true
+	case name == "lang" || name == "nth-child" || name == "nth-last-child" ||
+		name == "nth-of-type" || name == "nth-last-of-type" ||
+		name == "not" || name == "is" || name == "where" || name == "has" ||
+		name == "matches" || name == "-webkit-any" || name == "-moz-any":
 		if len(s) == 0 || s[0] != '(' {
-			return pseudoSelector{}, 0, "", false
+			return pseudoSelector{}, 0, 0, "", false
 		}
-		depth := 0
-		closeIdx := -1
-		for i := 0; i < len(s); i++ {
-			if s[i] == '(' {
-				depth++
-			} else if s[i] == ')' {
-				depth--
-				if depth == 0 {
-					closeIdx = i
-					break
-				}
-			}
-		}
+		closeIdx := findMatchingParen(s)
 		if closeIdx < 0 {
-			return pseudoSelector{}, 0, "", false
+			return pseudoSelector{}, 0, 0, "", false
 		}
 		arg := strings.TrimFunc(s[1:closeIdx], cssSpace)
 		rest := s[closeIdx+1:]
 		if name == "lang" {
 			if arg == "" || !identStart(arg) {
-				return pseudoSelector{}, 0, "", false
+				return pseudoSelector{}, 0, 0, "", false
 			}
-			return pseudoSelector{name: name, arg: strings.ToLower(arg)}, 1 << 10, rest, true
+			return pseudoSelector{name: name, arg: strings.ToLower(arg)}, 1 << 10, 1, rest, true
 		}
-		if name == "not" {
-			var sub selectorPart
-			subScore, _, pe, subRest, ok := parseCompoundPart(arg, &sub, false)
-			if !ok || pe != "" || strings.TrimFunc(subRest, cssSpace) != "" || len(sub.pseudos) > 0 && sub.pseudos[0].name == "not" {
-				return pseudoSelector{}, 0, "", false
+		if name == "not" || name == "is" || name == "where" || name == "matches" || name == "-webkit-any" || name == "-moz-any" {
+			if arg == "" {
+				return pseudoSelector{}, 0, 0, "", false
 			}
-			return pseudoSelector{name: name, sub: &sub}, subScore, rest, true
+			items, ok := splitSelectorList(arg)
+			if !ok || len(items) == 0 {
+				return pseudoSelector{}, 0, 0, "", false
+			}
+			forgiving := name == "is" || name == "where"
+			var subs []selector
+			maxScore := 0
+			totalTerms := 1
+			for _, item := range items {
+				item = strings.TrimFunc(item, cssSpace)
+				if item == "" {
+					return pseudoSelector{}, 0, 0, "", false
+				}
+				subSel, subScore, pe, ok := parseSelectorWithPseudoDepth(item, depth+1)
+				if !ok || pe != "" {
+					if forgiving {
+						continue
+					}
+					return pseudoSelector{}, 0, 0, "", false
+				}
+				if name == "not" && len(subSel) == 1 && len(subSel[0].terms) == 0 && len(subSel[0].attrs) == 0 && len(subSel[0].pseudos) == 1 && subSel[0].pseudos[0].name == "not" {
+					return pseudoSelector{}, 0, 0, "", false
+				}
+				subs = append(subs, subSel)
+				if subScore > maxScore {
+					maxScore = subScore
+				}
+				for _, sp := range subSel {
+					totalTerms += sp.termCount()
+				}
+			}
+			if len(subs) == 0 {
+				return pseudoSelector{}, 0, 0, "", false
+			}
+			if name == "where" {
+				maxScore = 0
+			}
+			return pseudoSelector{name: name, subs: subs}, maxScore, totalTerms, rest, true
+		}
+		if name == "has" {
+			if arg == "" {
+				return pseudoSelector{}, 0, 0, "", false
+			}
+			items, ok := splitSelectorList(arg)
+			if !ok || len(items) == 0 {
+				return pseudoSelector{}, 0, 0, "", false
+			}
+			var subs []selector
+			maxScore := 0
+			totalTerms := 1
+			for _, item := range items {
+				item = strings.TrimFunc(item, cssSpace)
+				if item == "" {
+					return pseudoSelector{}, 0, 0, "", false
+				}
+				leadComb := byte(' ')
+				if item[0] == '>' || item[0] == '+' || item[0] == '~' {
+					leadComb = item[0]
+					item = strings.TrimLeftFunc(item[1:], cssSpace)
+					if item == "" {
+						return pseudoSelector{}, 0, 0, "", false
+					}
+				}
+				subSel, subScore, pe, ok := parseSelectorWithPseudoDepth(item, depth+1)
+				if !ok || pe != "" || len(subSel) == 0 {
+					return pseudoSelector{}, 0, 0, "", false
+				}
+				subSel[0].comb = leadComb
+				subSel[0].child = leadComb == '>'
+				subs = append(subs, subSel)
+				if subScore > maxScore {
+					maxScore = subScore
+				}
+				for _, sp := range subSel {
+					totalTerms += sp.termCount()
+				}
+			}
+			return pseudoSelector{name: name, subs: subs}, maxScore, totalTerms, rest, true
 		}
 		a, b, ok := parseNth(arg)
 		if !ok {
-			return pseudoSelector{}, 0, "", false
+			return pseudoSelector{}, 0, 0, "", false
 		}
-		return pseudoSelector{name: name, a: a, b: b}, 1 << 10, rest, true
+		return pseudoSelector{name: name, a: a, b: b}, 1 << 10, 1, rest, true
 	}
-	return pseudoSelector{}, 0, "", false
+	return pseudoSelector{}, 0, 0, "", false
 }
 
 func parseNth(s string) (int, int, bool) {
@@ -419,7 +531,7 @@ func (a attrSelector) matches(n *node) bool {
 
 func (ps pseudoSelector) matches(n *node) bool {
 	switch ps.name {
-	case "root":
+	case "root", "scope":
 		if n.tag == "html" {
 			return true
 		}
@@ -503,8 +615,27 @@ func (ps pseudoSelector) matches(n *node) bool {
 		}
 		return matchNth(ps.a, ps.b, idx)
 	case "not":
-		return ps.sub != nil && !ps.sub.matches(n)
-	case "link":
+		for _, sub := range ps.subs {
+			if sub.matches(n) {
+				return false
+			}
+		}
+		return len(ps.subs) > 0
+	case "is", "where", "matches", "-webkit-any", "-moz-any":
+		for _, sub := range ps.subs {
+			if sub.matches(n) {
+				return true
+			}
+		}
+		return false
+	case "has":
+		for _, sub := range ps.subs {
+			if matchRelativeSelector(n, sub) {
+				return true
+			}
+		}
+		return false
+	case "link", "any-link", "-webkit-any-link", "-moz-any-link":
 		return n.tag == "a" && n.attrs["href"] != ""
 	case "lang":
 		for cur := n; cur != nil && cur.tag != "document"; cur = cur.parent {
@@ -514,10 +645,149 @@ func (ps pseudoSelector) matches(n *node) bool {
 			}
 		}
 		return false
-	case "visited", "hover", "active", "focus":
-		return false
+	default:
+		if isStatePseudoClass(ps.name) {
+			return false
+		}
 	}
 	return false
+}
+
+const maxHasSteps = 64
+
+func matchRelativeSelector(anchor *node, rel selector) bool {
+	if anchor == nil || len(rel) == 0 {
+		return false
+	}
+	leadComb := rel[0].comb
+	if leadComb == '+' && len(rel) == 1 {
+		return anchor.nextSib != nil && rel[0].matches(anchor.nextSib)
+	}
+	if leadComb == '>' && len(rel) == 1 {
+		steps := 0
+		for _, c := range anchor.children {
+			if c.tag == "" || c.pseudo != "" {
+				continue
+			}
+			steps++
+			if steps > maxHasSteps {
+				break
+			}
+			if rel[0].matches(c) {
+				return true
+			}
+		}
+		return false
+	}
+	steps := 0
+	if leadComb == '+' || leadComb == '~' {
+		for sib := anchor.nextSib; sib != nil; sib = sib.nextSib {
+			if matchRelativeSubtree(anchor, rel, sib, &steps) {
+				return true
+			}
+			if leadComb == '+' || steps > maxHasSteps {
+				break
+			}
+		}
+		return false
+	}
+	for _, c := range anchor.children {
+		if c.tag == "" || c.pseudo != "" {
+			continue
+		}
+		if matchRelativeSubtree(anchor, rel, c, &steps) {
+			return true
+		}
+		if steps > maxHasSteps {
+			break
+		}
+	}
+	return false
+}
+
+func matchRelativeSubtree(anchor *node, rel selector, cur *node, steps *int) bool {
+	if cur == nil || cur.tag == "" || cur.pseudo != "" {
+		return false
+	}
+	*steps++
+	if *steps > maxHasSteps {
+		return false
+	}
+	if matchRelativeChain(anchor, rel, cur) {
+		return true
+	}
+	for _, c := range cur.children {
+		if c.tag == "" || c.pseudo != "" {
+			continue
+		}
+		if matchRelativeSubtree(anchor, rel, c, steps) {
+			return true
+		}
+		if *steps > maxHasSteps {
+			return false
+		}
+	}
+	return false
+}
+
+func matchRelativeChain(anchor *node, rel selector, cand *node) bool {
+	if !rel[len(rel)-1].matches(cand) {
+		return false
+	}
+	chainSteps := 0
+	var matchAt func(int, *node) bool
+	matchAt = func(idx int, cur *node) bool {
+		if idx == 0 {
+			switch rel[0].comb {
+			case '>':
+				return cur.parent == anchor
+			case '+':
+				return cur == anchor.nextSib
+			case '~':
+				for p := anchor.nextSib; p != nil; p = p.nextSib {
+					if p == cur {
+						return true
+					}
+				}
+				return false
+			default:
+				for p := cur.parent; p != nil && p.tag != "document"; p = p.parent {
+					if p == anchor {
+						return true
+					}
+				}
+				return false
+			}
+		}
+		chainSteps++
+		if chainSteps > maxHasSteps {
+			return false
+		}
+		comb := rel[idx].comb
+		prevPart := rel[idx-1]
+		switch comb {
+		case '>':
+			p := cur.parent
+			return p != nil && p.tag != "document" && prevPart.matches(p) && matchAt(idx-1, p)
+		case ' ', 0:
+			for p := cur.parent; p != nil && p != anchor && p.tag != "document"; p = p.parent {
+				if prevPart.matches(p) && matchAt(idx-1, p) {
+					return true
+				}
+			}
+		case '+':
+			p := cur.prevSib
+			return p != nil && prevPart.matches(p) && matchAt(idx-1, p)
+		case '~':
+			for p := cur.prevSib; p != nil; p = p.prevSib {
+				if prevPart.matches(p) && matchAt(idx-1, p) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return matchAt(len(rel)-1, cand)
 }
 
 func (p selectorPart) matches(n *node) bool {

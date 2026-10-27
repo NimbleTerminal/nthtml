@@ -1072,8 +1072,8 @@ func parseCSSBlock(s string, media []string, depth int, out *[]rule, budget int)
 		body := s[openIdx+1 : openIdx+closeRel]
 		s = s[openIdx+closeRel+1:]
 		var group []rule
-		valid := true
-		for _, v := range strings.Split(sel, ",") {
+		selList, valid := splitSelectorList(sel)
+		for _, v := range selList {
 			compiled, sp, pe, ok := parseSelectorWithPseudo(strings.TrimSpace(v))
 			if !ok {
 				valid = false
@@ -1107,6 +1107,54 @@ func isMediaAtRule(prelude string) bool {
 	}
 	c := prelude[5]
 	return cssSpace(rune(c)) || c == '('
+}
+
+func splitSelectorList(s string) ([]string, bool) {
+	var out []string
+	parenDepth, bracketDepth := 0, 0
+	var quote byte
+	start := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == '\\' && i+1 < len(s) {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '(':
+			parenDepth++
+		case ')':
+			if parenDepth == 0 {
+				return nil, false
+			}
+			parenDepth--
+		case '[':
+			bracketDepth++
+		case ']':
+			if bracketDepth == 0 {
+				return nil, false
+			}
+			bracketDepth--
+		case ',':
+			if parenDepth == 0 && bracketDepth == 0 {
+				out = append(out, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	if parenDepth != 0 || bracketDepth != 0 || quote != 0 {
+		return nil, false
+	}
+	out = append(out, s[start:])
+	return out, true
 }
 
 func scanPreludeEnd(s string) int {

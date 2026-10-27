@@ -153,3 +153,84 @@ func TestPseudoElementsBeforeAfterAndFirstLine(t *testing.T) {
 		t.Fatalf("expected green :first-line, got %v", textBoxes[len(textBoxes)-1].Color)
 	}
 }
+
+func TestFunctionalAndStatePseudoClasses(t *testing.T) {
+	red := color.RGBA{255, 0, 0, 255}
+	blue := color.RGBA{0, 0, 255, 255}
+	green := color.RGBA{0, 128, 0, 255}
+	white := color.RGBA{255, 255, 255, 255}
+
+	// 1. Exact 5b repro: :is(h1,h2){color:red} .a, .b:focus-visible{background:red}
+	repro := renderCSS(t, `<style>:is(h1,h2){color:red} .a, .b:focus-visible{background:red}</style><body style="margin:0"><div class="a" style="height:40px"><h1>H1</h1></div><div class="b" style="height:40px"><h2>H2</h2></div></body>`)
+	if gotA, gotB := repro.Image.RGBAAt(20, 20), repro.Image.RGBAAt(20, 60); gotA != red || gotB != white {
+		t.Fatalf("5b repro backgrounds: got A=%v B=%v, want red, white", gotA, gotB)
+	}
+	for _, b := range repro.Boxes {
+		if b.Tag == "text" && (b.Text == "H1" || b.Text == "H2") && b.Color != red {
+			t.Fatalf("5b repro heading %q: got color=%v, want red", b.Text, b.Color)
+		}
+	}
+
+	// 2. :where() has zero specificity; :is() and :not() take max specificity
+	rWhere := renderCSS(t, `<style>:where(#target) { color: red } p { color: blue }</style><p id="target">WhereText</p>`)
+	if got := tagged(rWhere, "text").Color; got != blue {
+		t.Fatalf(":where(#target) vs p: got %v, want blue (0 specificity)", got)
+	}
+	rIs := renderCSS(t, `<style>:is(p, #nonexistent) { color: red } p.note { color: blue }</style><p class="note">IsText</p>`)
+	if got := tagged(rIs, "text").Color; got != red {
+		t.Fatalf(":is(p, #nonexistent) vs p.note: got %v, want red (ID specificity from :is)", got)
+	}
+
+	// 3. Multi-argument :not(.skip, .muted)
+	rNot := renderCSS(t, `<style>span:not(.skip, .muted) { color: green }</style><p><span class="skip">A</span><span class="muted">B</span><span class="keep">C</span></p>`)
+	for _, b := range rNot.Boxes {
+		if b.Tag != "text" {
+			continue
+		}
+		if b.Text == "C" && b.Color != green {
+			t.Fatalf("expected C green, got %v", b.Color)
+		}
+		if (b.Text == "A" || b.Text == "B") && b.Color == green {
+			t.Fatalf("expected %s not green, got %v", b.Text, b.Color)
+		}
+	}
+
+	// 4. Bounded :has() with descendant, child (>), and adjacent sibling (+) combinators
+	rHas := renderCSS(t, `<style>
+div:has(> span.badge) { color: red }
+p:has(+ p.after) { color: green }
+section:has(a:any-link) { color: blue }
+</style>
+<div><span class="badge">HasChild</span></div>
+<p>BeforeSibling</p><p class="after">AfterSibling</p>
+<section><span>HasLinkDesc</span><a href="https://example.com">LinkText</a></section>`)
+	wantColors := map[string]color.RGBA{
+		"HasChild":      red,
+		"BeforeSibling": green,
+		"HasLinkDesc":   blue,
+	}
+	for _, b := range rHas.Boxes {
+		if want, ok := wantColors[b.Text]; ok && b.Color != want {
+			t.Fatalf(":has() for %q: got %v, want %v", b.Text, b.Color, want)
+		}
+	}
+
+	// 5. State pseudo-classes and pseudo-elements in selector lists preserve valid sibling selectors
+	rStates := renderCSS(t, `<style>
+.ok,
+input:focus-within,
+input:checked,
+input:disabled,
+input:placeholder-shown,
+:target,
+input::placeholder,
+li::marker,
+::selection,
+::-webkit-scrollbar {
+	color: green;
+}
+</style><p class="ok">Preserved</p>`)
+	if got := tagged(rStates, "text").Color; got != green {
+		t.Fatalf("expected selector list with state pseudo-classes and pseudo-elements to apply .ok, got %v", got)
+	}
+}
