@@ -69,6 +69,9 @@ type style struct {
 	opacitySet                                 bool
 	aspectRatio                                float64
 	objectFit                                  string
+	gridCols                                   []gridTrack
+	gridColStart, gridColSpan                  int
+	gridColEnd, gridColEndSpan                 int
 }
 
 func (s style) effectiveOpacity() float64 {
@@ -283,6 +286,9 @@ func expandVarDeclaration(k, v string, put func(string, string)) {
 		put("row-gap", "\x00row-gap:"+v)
 	case "grid-column-gap":
 		put("column-gap", "\x00column-gap:"+v)
+	case "grid-column":
+		put("grid-column-start", marker)
+		put("grid-column-end", marker)
 	case "flex":
 		put("flex-grow", marker)
 		put("flex-shrink", marker)
@@ -636,9 +642,16 @@ func declarations(s string) map[string]string {
 				}
 			case "list-style":
 				put("list-style-type", kw)
-			case "gap":
+			case "gap", "grid-gap":
 				put("row-gap", kw)
 				put("column-gap", kw)
+			case "grid-row-gap":
+				put("row-gap", kw)
+			case "grid-column-gap":
+				put("column-gap", kw)
+			case "grid-column":
+				put("grid-column-start", kw)
+				put("grid-column-end", kw)
 			case "flex":
 				put("flex-grow", kw)
 				put("flex-shrink", kw)
@@ -1037,6 +1050,19 @@ func declarations(s string) map[string]string {
 		case "object-fit":
 			if isObjectFit(v) {
 				put(k, strings.ToLower(strings.TrimSpace(v)))
+			}
+		case "grid-template-columns":
+			if _, ok := parseGridTemplateColumns(v); ok {
+				put(k, v)
+			}
+		case "grid-column":
+			if sVal, eVal, ok := parseGridColumnShorthand(v); ok {
+				put("grid-column-start", sVal)
+				put("grid-column-end", eVal)
+			}
+		case "grid-column-start", "grid-column-end":
+			if _, _, ok := parseGridLineOrSpan(v); ok {
+				put(k, v)
 			}
 		case "z-index":
 			if strings.EqualFold(v, "auto") {
@@ -2267,8 +2293,40 @@ func (d *Document) styled(n *node, parent style) style {
 				s.display = parent.display
 			} else if kw == "initial" {
 				s.display = "inline"
-			} else if v == "none" || v == "block" || v == "inline" || v == "inline-block" || v == "flex" || v == "inline-flex" {
+			} else if v == "none" || v == "block" || v == "inline" || v == "inline-block" || v == "flex" || v == "inline-flex" || v == "grid" || v == "inline-grid" {
 				s.display = v
+			}
+		case "grid-template-columns":
+			if kw == "inherit" {
+				if len(parent.gridCols) > 0 {
+					s.gridCols = append([]gridTrack(nil), parent.gridCols...)
+				} else {
+					s.gridCols = nil
+				}
+			} else if kw == "initial" {
+				s.gridCols = nil
+			} else if cols, ok := parseGridTemplateColumns(v); ok {
+				for i := range cols {
+					cols[i].minLen = s.computeLen(cols[i].minLen)
+					cols[i].maxLen = s.computeLen(cols[i].maxLen)
+				}
+				s.gridCols = cols
+			}
+		case "grid-column-start":
+			if kw == "inherit" {
+				s.gridColStart, s.gridColSpan = parent.gridColStart, parent.gridColSpan
+			} else if kw == "initial" {
+				s.gridColStart, s.gridColSpan = 0, 0
+			} else if line, span, ok := parseGridLineOrSpan(v); ok {
+				s.gridColStart, s.gridColSpan = line, span
+			}
+		case "grid-column-end":
+			if kw == "inherit" {
+				s.gridColEnd, s.gridColEndSpan = parent.gridColEnd, parent.gridColEndSpan
+			} else if kw == "initial" {
+				s.gridColEnd, s.gridColEndSpan = 0, 0
+			} else if line, span, ok := parseGridLineOrSpan(v); ok {
+				s.gridColEnd, s.gridColEndSpan = line, span
 			}
 		case "white-space":
 			if kw == "inherit" {

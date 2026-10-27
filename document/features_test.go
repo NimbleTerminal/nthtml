@@ -969,3 +969,51 @@ body { margin: 0; }
 		t.Fatalf("object-fit: contain on 20x10 in 40x40: top=(20,2)=%v middle=(20,20)=%v, want white, red", topBar, middle)
 	}
 }
+
+func TestCSSGridLayout(t *testing.T) {
+	ctx := context.Background()
+	src := `<style>
+body { margin: 0; }
+.scaffold {
+	display: grid;
+	width: 520px;
+	grid-template-columns: 100px repeat(2, 1fr);
+	grid-gap: 10px;
+}
+.span2 {
+	grid-column: span 2;
+}
+</style>
+<body>
+<div class="scaffold">
+	<div id="g-side" style="height:30px;background:red">Side</div>
+	<div id="g-main1" style="height:50px;background:blue">Main1</div>
+	<div id="g-main2" style="height:40px;background:green">Main2</div>
+	<div id="g-foot" class="span2" style="height:20px;background:purple">Foot</div>
+</div>
+</body>`
+	r, err := Render(ctx, strings.NewReader(src), Options{Width: 600})
+	if err != nil {
+		t.Fatal(err)
+	}
+	boxes := map[string]Box{}
+	for _, b := range r.Boxes {
+		if b.Anchor != "" {
+			boxes[b.Anchor] = b
+		}
+	}
+	// Columns: 100px, 200px, 200px (with 10px gaps: 100 + 10 + 200 + 10 + 200 = 520)
+	if boxes["g-side"].Bounds.Min.X != 0 || boxes["g-side"].Bounds.Dx() != 100 {
+		t.Fatalf("unexpected g-side bounds: %v, want Min.X=0 Dx=100", boxes["g-side"].Bounds)
+	}
+	if boxes["g-main1"].Bounds.Min.X != 110 || boxes["g-main1"].Bounds.Dx() != 200 {
+		t.Fatalf("unexpected g-main1 bounds: %v, want Min.X=110 Dx=200", boxes["g-main1"].Bounds)
+	}
+	if boxes["g-main2"].Bounds.Min.X != 320 || boxes["g-main2"].Bounds.Dx() != 200 {
+		t.Fatalf("unexpected g-main2 bounds: %v, want Min.X=320 Dx=200", boxes["g-main2"].Bounds)
+	}
+	// Row 2: g-foot spans 2 columns (100 + 10 + 200 = 310px) at y = 50 + 10 = 60
+	if boxes["g-foot"].Bounds.Min.X != 0 || boxes["g-foot"].Bounds.Min.Y != 60 || boxes["g-foot"].Bounds.Dx() != 310 {
+		t.Fatalf("unexpected g-foot bounds: %v, want Min.X=0 Min.Y=60 Dx=310", boxes["g-foot"].Bounds)
+	}
+}

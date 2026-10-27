@@ -26,11 +26,11 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				flushLine()
 				return
 			}
-			if n.tag == "img" || st.display == "inline-block" || st.display == "inline-flex" {
+			if n.tag == "img" || st.display == "inline-block" || st.display == "inline-flex" || st.display == "inline-grid" {
 				if n.tag == "img" && !l.imgHasBox(n, st) {
 					return
 				}
-				if st.display != "inline" && st.display != "inline-block" && st.display != "inline-flex" {
+				if st.display != "inline" && st.display != "inline-block" && st.display != "inline-flex" && st.display != "inline-grid" {
 					flushLine()
 					a, b := l.preferredCell(n, st, basis)
 					minimum = max(minimum, a)

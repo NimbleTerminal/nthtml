@@ -454,6 +454,8 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		}
 	} else if s.display == "flex" || s.display == "inline-flex" {
 		cy = l.flex(n, cx, cy, cw, height, s)
+	} else if s.display == "grid" || s.display == "inline-grid" {
+		cy = l.grid(n, cx, cy, cw, height, s)
 	} else if n.tag == "img" {
 		src := l.opts.Images[n.attrs["src"]]
 		if src != nil && !src.Bounds().Empty() {
@@ -522,7 +524,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 				continue
 			}
 			kind, _ := diagramSource(c)
-			if kind == "" && (c.tag == "" || cs.display == "inline" || cs.display == "inline-block" || cs.display == "inline-flex" || c.tag == "br") {
+			if kind == "" && (c.tag == "" || cs.display == "inline" || cs.display == "inline-block" || cs.display == "inline-flex" || cs.display == "inline-grid" || c.tag == "br") {
 				inline = append(inline, c)
 				continue
 			}
@@ -1044,10 +1046,12 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 				prefix = ""
 				return
 			}
-			if st.display == "inline-block" || st.display == "inline-flex" {
+			if st.display == "inline-block" || st.display == "inline-flex" || st.display == "inline-grid" {
 				ib, outerW := l.resolveInlineBlock(n, st, baseW)
 				if st.display == "inline-flex" {
 					ib.display = "flex"
+				} else if st.display == "inline-grid" {
+					ib.display = "grid"
 				}
 				prepareLine()
 				if pendingSpace && prefix == "" {

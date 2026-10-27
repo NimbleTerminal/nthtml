@@ -93,7 +93,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 	if s.display == "none" {
 		return blockMargins{through: true}
 	}
-	if marginBoundary(n) || s.display == "inline-block" || s.display == "flex" || s.display == "inline-flex" || s.overflow == "hidden" || s.overflow == "clip" || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" || s.clear != "" && s.clear != "none" {
+	if marginBoundary(n) || s.display == "inline-block" || s.display == "flex" || s.display == "inline-flex" || s.display == "grid" || s.display == "inline-grid" || s.overflow == "hidden" || s.overflow == "clip" || s.position == "absolute" || s.floatSide == "left" || s.floatSide == "right" || s.clear != "" && s.clear != "none" {
 		return info
 	}
 	cw := max(1, width-padding[1]-padding[3]-s.borderH())
@@ -143,7 +143,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 		if cs.display == "none" || cs.position == "absolute" || cs.floatSide == "left" || cs.floatSide == "right" {
 			continue
 		}
-		if child.tag == "" || cs.display == "inline" || cs.display == "inline-block" || cs.display == "inline-flex" || child.tag == "br" {
+		if child.tag == "" || cs.display == "inline" || cs.display == "inline-block" || cs.display == "inline-flex" || cs.display == "inline-grid" || child.tag == "br" {
 			inline = append(inline, child)
 			continue
 		}
@@ -234,7 +234,7 @@ func (l *layout) inlineLine(nodes []*node, parent style) bool {
 			}
 			continue
 		}
-		if n.tag == "br" || s.display == "inline-block" || s.display == "inline-flex" {
+		if n.tag == "br" || s.display == "inline-block" || s.display == "inline-flex" || s.display == "inline-grid" {
 			return true
 		}
 		if kind, _ := diagramSource(n); kind != "" {

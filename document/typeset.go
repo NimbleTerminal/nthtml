@@ -1024,7 +1024,7 @@ func hasBlockChildren(n *node, d *Document, parent style) bool {
 			return true
 		}
 		cs := d.styled(c, parent)
-		if cs.display == "block" || cs.display == "flex" || cs.display == "table" || cs.display == "list-item" {
+		if cs.display == "block" || cs.display == "flex" || cs.display == "grid" || cs.display == "table" || cs.display == "list-item" {
 			return true
 		}
 	}
@@ -1076,7 +1076,7 @@ func (w *blockExtractor) walkChildren(n *node, s style, indent, availW int) erro
 			case "p", "div", "center", "section", "article", "main", "header", "footer", "nav", "aside", "blockquote", "ul", "ol", "li", "dl", "dt", "dd", "pre", "table", "hr":
 				isBlock = true
 			default:
-				if cs.display == "block" || cs.display == "flex" || cs.display == "table" || cs.display == "list-item" {
+				if cs.display == "block" || cs.display == "flex" || cs.display == "grid" || cs.display == "table" || cs.display == "list-item" {
 					isBlock = true
 				}
 			}

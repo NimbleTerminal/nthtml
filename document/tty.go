@@ -313,7 +313,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			b.WriteByte('\n')
 			return nil
 		}
-		block := s.display != "inline" && s.display != "inline-block" && s.display != "inline-flex"
+		block := s.display != "inline" && s.display != "inline-block" && s.display != "inline-flex" && s.display != "inline-grid"
 		if block {
 			b.WriteByte('\n')
 		}
