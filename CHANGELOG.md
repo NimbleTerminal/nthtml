@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## Unreleased
+
+ * **Banded Kitty virtual-placement scrolling & focus-ring overlay (`Model`)**:
+   * Size Kitty virtual placements to the typeset page height in cells (in bands of up to 283 rows with half-viewport hysteresis) and scroll within a band via `Picture.SetViewport` (`0` bytes of Kitty APC traffic per keypress).
+   * Render the active link focus ring in a separate transparent `1×2` cell `ntpicture.Picture` (`z=1`) spliced over `Picture.View()` so `Tab` / `Shift+Tab` link cycling updates without re-encoding or re-uploading the page band.
+   * Add `Model.SetResultKeepView` (preserving scroll, pan, zoom, focused link, and selection across re-renders) and `Model.CellToDocument` (viewport-aware terminal cell to document CSS pixel mapping).
+ * **Link anchor element tracking (`Link.Anchor`)**:
+   * Expose `Link.Anchor *html.Node` on `document.Link` and `nthtml.Link` and preserve clickable link hit regions for `<a href>` elements wrapping empty-`alt` images with explicit dimensions.
+ * **CSS custom properties & `prefers-color-scheme`**:
+   * Support `--*` custom property declarations with cascade inheritance, `var(--name, fallback)` substitution (cycle-safe up to depth 16), and `@media (prefers-color-scheme: light | dark)` via `Options.ColorScheme` (`ColorSchemeLight`, `ColorSchemeDark`).
+ * **Functional (`:is`, `:where`, `:has`, `:not`) & state pseudo-classes**:
+   * Support forgiving `:is(...)` (taking maximum matched argument specificity) and `:where(...)` (zero specificity), selector-list `:not(s1, s2, ...)`, bounded `:has(...)` (including `>`, `+`, `~` relative selectors), and state pseudo-classes (`:checked`, `:disabled`, `:enabled`, `:required`, `:optional`, `:read-only`, `:read-write`).
+ * **CSS math functions, viewport units, `opacity`, `aspect-ratio`, & `object-fit`**:
+   * Support `calc(...)`, `min(...)`, `max(...)`, and `clamp(...)` over lengths and percentages; viewport units (`vw`, `vh`, `vmin`, `vmax`) against `Options.Width × Options.Height`; element/subtree `opacity` (`0..1`); `aspect-ratio: <w> / <h> | <n> | auto`; and `object-fit: fill | contain | cover | none | scale-down` on `<img>` and `<svg>`.
+ * **CSS Grid layout (`display: grid | inline-grid`)**:
+   * Support `display: grid` and `display: inline-grid` with `grid-template-columns` (`px`, `%`, `em`/`rem`, `fr`, `auto`, `minmax(min, max)`, `repeat(N, ...)`), `grid-column` / `grid-column-start` / `grid-column-end` (`span N`, `start / end`), and row/column `gap`.
+ * **Background images, CSS gradients, & background sizing/positioning**:
+   * Support `background-image` (`url(...)` via `Options.Images`, `linear-gradient(...)`, `radial-gradient(...)`) and `background` shorthand extraction along with `background-size` (`auto`, `cover`, `contain`, explicit lengths/percentages), `background-position`, and `background-repeat` (`repeat`, `repeat-x`, `repeat-y`, `no-repeat`).
+
 ## v0.1.1 (2026-10-26)
 
  * **CSS at-rules & `@media` queries**:
