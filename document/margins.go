@@ -138,7 +138,7 @@ func (l *layout) margins(n *node, s style, w, parentHeight int) blockMargins {
 		}
 		inline = nil
 	}
-	for _, child := range n.children {
+	for _, child := range displayedChildren(n) {
 		cs := l.d.styled(child, s)
 		if cs.display == "none" || cs.position == "absolute" || cs.floatSide == "left" || cs.floatSide == "right" {
 			continue

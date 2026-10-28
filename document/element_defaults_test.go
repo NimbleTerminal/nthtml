@@ -63,3 +63,17 @@ func TestPhrasingDefaults(t *testing.T) {
 		}
 	}
 }
+
+func TestDisclosureDefaults(t *testing.T) {
+	for _, tc := range []struct{ html, want string }{
+		{"<details><summary>S</summary>BODY</details>", "▸ S"},
+		{"<details>BODY</details>", "▸ Details"},
+		{"<details open><summary>S</summary>BODY</details>", "▾ S\nBODY"},
+		{"<dialog>X</dialog>", ""},
+		{"<dialog open>X</dialog>", "X"},
+	} {
+		if got := defaultTTY(t, tc.html); got != tc.want {
+			t.Errorf("%q != %q", got, tc.want)
+		}
+	}
+}

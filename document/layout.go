@@ -424,7 +424,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	} else if n.tag == "ul" || n.tag == "ol" {
 		index := listStart(n)
 		step := listStep(n)
-		for _, child := range n.children {
+		for _, child := range displayedChildren(n) {
 			if child.tag != "li" {
 				continue
 			}
@@ -478,7 +478,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		}
 	} else if n.tag == "tr" {
 		cells := []*node{}
-		for _, c := range n.children {
+		for _, c := range displayedChildren(n) {
 			if c.tag == "td" || c.tag == "th" {
 				cells = append(cells, c)
 			}
@@ -508,7 +508,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 				inline = nil
 			}
 		}
-		for _, c := range n.children {
+		for _, c := range displayedChildren(n) {
 			cs := l.d.styled(c, s)
 			if cs.display == "none" {
 				continue
@@ -1112,7 +1112,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 			}
 			sp := &activeSpan{node: n, st: st, bg: inlineBg, margin: margin, padding: padding, startOp: len(l.ops)}
 			activeSpans = append(activeSpans, sp)
-			for _, c := range n.children {
+			for _, c := range displayedChildren(n) {
 				visit(c, sp)
 			}
 			activeSpans = activeSpans[:len(activeSpans)-1]

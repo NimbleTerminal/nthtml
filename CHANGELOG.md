@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Render closed details with only the first summary, disclosure markers and a default summary; hide closed dialogs and give open dialogs a padded border.
+
  * Add phrasing font and decoration defaults, nested curly quotes through generated content, and inline parenthesized ruby annotations (with rp hidden). Abbreviations use a plain underline.
 
  * Honor the hidden attribute at UA priority, except hidden=until-found; author display overrides it.

@@ -148,7 +148,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 		if n.tag == "a" && s.linkID != 0 {
 			b.WriteString(marker)
 			b.WriteString(linkStart(s.linkID))
-			for _, child := range n.children {
+			for _, child := range displayedChildren(n) {
 				if err := walk(child, s, f, inCell); err != nil {
 					return err
 				}
@@ -167,7 +167,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			code := &ttyFlow{width: f.width, policy: s}
 			code.pending.policy = s
 			code.pending.WriteString(marker)
-			for _, child := range n.children {
+			for _, child := range displayedChildren(n) {
 				if err := walk(child, s, code, inCell); err != nil {
 					return err
 				}
@@ -197,7 +197,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			step := listStep(n)
 			var items []string
 			listBytes := 0
-			for _, child := range n.children {
+			for _, child := range displayedChildren(n) {
 				if child.tag != "li" {
 					continue
 				}
@@ -289,7 +289,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			b.WriteByte('\n')
 			b.WriteString(marker)
 			first := true
-			for _, c := range n.children {
+			for _, c := range displayedChildren(n) {
 				if c.tag != "td" && c.tag != "th" {
 					continue
 				}
@@ -318,7 +318,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			b.WriteByte('\n')
 		}
 		b.WriteString(marker)
-		for _, c := range n.children {
+		for _, c := range displayedChildren(n) {
 			if err := walk(c, s, f, inCell); err != nil {
 				return err
 			}

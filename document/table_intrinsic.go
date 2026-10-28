@@ -96,7 +96,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				}
 			}
 		}
-		for _, c := range n.children {
+		for _, c := range displayedChildren(n) {
 			visit(c, st)
 		}
 	}
@@ -151,7 +151,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 			minimum = min(4096, minimum+s.spacing[0]*(cols+1))
 			preferred = min(4096, preferred+s.spacing[0]*(cols+1))
 		}
-		for _, child := range n.children {
+		for _, child := range displayedChildren(n) {
 			if child.tag == "caption" {
 				cs := l.d.styled(child, s)
 				if cs.display != "none" {
@@ -163,7 +163,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 		}
 
 	} else {
-		for _, c := range n.children {
+		for _, c := range displayedChildren(n) {
 			visit(c, s)
 		}
 		flushLine()

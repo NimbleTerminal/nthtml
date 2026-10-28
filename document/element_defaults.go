@@ -12,6 +12,21 @@ func defaultPseudo(n *node, pseudo string) string {
 		return ""
 	}
 	switch n.tag {
+	case "summary":
+		if pseudo == "before" && n.parent != nil && n.parent.tag == "details" && firstSummary(n.parent) == n {
+			if hasAttr(n.parent, "open") {
+				return "▾ "
+			}
+			return "▸ "
+		}
+	case "details":
+		if pseudo == "before" && firstSummary(n) == nil {
+			if hasAttr(n, "open") {
+				return "▾ Details"
+			}
+			return "▸ Details"
+		}
+
 	case "q":
 		depth := 0
 		for p := n.parent; p != nil; p = p.parent {
@@ -36,4 +51,25 @@ func defaultPseudo(n *node, pseudo string) string {
 		return ")"
 	}
 	return ""
+}
+
+func firstSummary(n *node) *node {
+	for _, c := range n.children {
+		if c.tag == "summary" {
+			return c
+		}
+	}
+	return nil
+}
+
+func displayedChildren(n *node) []*node {
+	if n.tag == "details" && !hasAttr(n, "open") {
+		for i, c := range n.children {
+			if c.tag == "summary" || c.pseudo == "before" {
+				return n.children[i : i+1]
+			}
+		}
+		return nil
+	}
+	return n.children
 }

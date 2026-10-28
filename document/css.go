@@ -1769,6 +1769,14 @@ func (d *Document) styled(n *node, parent style) style {
 	if value, ok := n.attrs["hidden"]; ok && !strings.EqualFold(value, "until-found") {
 		s.display = "none"
 	}
+	if n.tag == "dialog" {
+		if !hasAttr(n, "open") {
+			s.display = "none"
+		}
+		rawBW = [4]int{1, 1, 1, 1}
+		s.borderStyle = [4]string{"solid", "solid", "solid", "solid"}
+		s.padding = uniform(16)
+	}
 	if parent.centerBlock && s.display == "block" {
 		s.margin[1] = cssLength{unit: lengthAuto}
 		s.margin[3] = cssLength{unit: lengthAuto}
@@ -2666,7 +2674,7 @@ func (d *Document) cascade(n *node) map[string]string {
 func (d *Document) cascadePseudo(n *node, pseudo string) map[string]string {
 	values := map[string]string{}
 	if content := defaultPseudo(n, pseudo); content != "" {
-		values["content"] = strconv.Quote(content)
+		values["content"] = "\x01" + content
 	}
 	scores := map[string]int{}
 	w := d.cascadedWidth
