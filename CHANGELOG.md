@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Upgrade `ntsvg` to `v0.5.4`, `ntpicture` to `v0.1.3`, and `oksvg` to `v0.1.4` for SVG image support.
+
  * Fix Kitty band coordinates for `CellToDocument`, link hit-testing, source lookup, and mouse selection across band transitions, zoom, and letterboxing. Add `Model.DocumentViewport()` for the visible document-pixel bounds. Clarify that `SetResultKeepView` clears selection and active mouse drags while preserving scroll, zoom, search, and link focus.
 
  * Add opt-in SVG raster images through `Options.SVGImages` (or `DefaultDiagramRenderer.Images`), with explicit decoded-resource allowlists, bounded dimensions, transforms, opacity, aspect-ratio fitting/cropping, and `svg-image` source discovery. No implicit resource loading.

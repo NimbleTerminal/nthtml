@@ -10,15 +10,15 @@ require (
 	golang.org/x/image v0.47.0
 	golang.org/x/net v0.62.0
 	nimbleterminal.dev/ntfonts v0.1.0
-	nimbleterminal.dev/ntpicture v0.1.2
-	nimbleterminal.dev/ntsvg v0.5.3
+	nimbleterminal.dev/ntpicture v0.1.3
+	nimbleterminal.dev/ntsvg v0.5.4
 	nimbleterminal.dev/nttypeset v0.1.6
 )
 
 require (
 	charm.land/bubbles/v2 v2.2.1 // indirect
 	charm.land/lipgloss/v2 v2.0.6 // indirect
-	github.com/NimbleMarkets/oksvg v0.1.3 // indirect
+	github.com/NimbleMarkets/oksvg v0.1.4 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20261023060817-a45b7c86333f // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
