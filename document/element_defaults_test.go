@@ -43,3 +43,23 @@ func TestHiddenDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestPhrasingDefaults(t *testing.T) {
+	for _, tc := range []struct{ html, want string }{
+		{"<q>a<q>b</q></q>", "“a‘b’”"},
+		{"<ruby>漢<rp>(</rp><rt>kan</rt><rp>)</rp></ruby>", "漢(kan)"},
+		{"<style>q::before{content:'['}q::after{content:']'}</style><q>x</q>", "[x]"},
+	} {
+		if got := defaultTTY(t, tc.html); got != tc.want {
+			t.Errorf("%q != %q", got, tc.want)
+		}
+	}
+	for _, tag := range strings.Fields("kbd samp tt code") {
+		r := render(t, "<"+tag+">x</"+tag+">")
+		for _, b := range r.Boxes {
+			if b.Text == "x" && !b.Monospace {
+				t.Errorf("%s not mono", tag)
+			}
+		}
+	}
+}

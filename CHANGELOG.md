@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Add phrasing font and decoration defaults, nested curly quotes through generated content, and inline parenthesized ruby annotations (with rp hidden). Abbreviations use a plain underline.
+
  * Honor the hidden attribute at UA priority, except hidden=until-found; author display overrides it.
 
  * Default unknown and phrasing elements to inline, with explicit HTML block and non-rendering defaults; author display declarations still win.

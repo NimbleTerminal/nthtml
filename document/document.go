@@ -431,7 +431,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 			}
 		}
 		if n.tag != "" && n.tag != "document" && n.pseudo == "" {
-			if hasBefore {
+			if hasBefore || defaultPseudo(n, "before") != "" {
 				if bDecl := d.cascadePseudo(n, "before"); len(bDecl) > 0 {
 					bVars := resolveElementVars(bDecl, vars)
 					bDecl = resolveDeclaredValues(bDecl, bVars)
@@ -451,7 +451,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 					}
 				}
 			}
-			if hasAfter {
+			if hasAfter || defaultPseudo(n, "after") != "" {
 				if aDecl := d.cascadePseudo(n, "after"); len(aDecl) > 0 {
 					aVars := resolveElementVars(aDecl, vars)
 					aDecl = resolveDeclaredValues(aDecl, aVars)

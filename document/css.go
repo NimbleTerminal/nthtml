@@ -1848,6 +1848,9 @@ func (d *Document) styled(n *node, parent style) style {
 			s.size = sz
 		}
 	}
+	if n.tag == "big" {
+		s.size = max(1, parent.size*6/5)
+	}
 	if n.tag == "small" && parent.size > 0 {
 		s.size = max(1, (parent.size*85+50)/100)
 	}
@@ -1861,13 +1864,13 @@ func (d *Document) styled(n *node, parent style) style {
 		s.explicitFg = true
 		fgInherited = false
 	}
-	if n.tag == "em" || n.tag == "i" {
+	if n.tag == "em" || n.tag == "i" || n.tag == "cite" || n.tag == "dfn" || n.tag == "var" || n.tag == "address" {
 		s.italic = true
 	}
-	if n.tag == "u" {
+	if n.tag == "u" || n.tag == "ins" || n.tag == "abbr" && hasAttr(n, "title") {
 		s.underline = true
 	}
-	if n.tag == "s" || n.tag == "del" {
+	if n.tag == "s" || n.tag == "del" || n.tag == "strike" {
 		s.strike = true
 	}
 	if n.tag == "pre" {
@@ -1877,7 +1880,7 @@ func (d *Document) styled(n *node, parent style) style {
 		s.whiteSpace = "pre-wrap"
 		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	}
-	if n.tag == "code" {
+	if n.tag == "code" || n.tag == "kbd" || n.tag == "samp" || n.tag == "tt" {
 		s.family = "Go Mono"
 		s.mono = true
 	}
@@ -2662,6 +2665,9 @@ func (d *Document) cascade(n *node) map[string]string {
 
 func (d *Document) cascadePseudo(n *node, pseudo string) map[string]string {
 	values := map[string]string{}
+	if content := defaultPseudo(n, pseudo); content != "" {
+		values["content"] = strconv.Quote(content)
+	}
 	scores := map[string]int{}
 	w := d.cascadedWidth
 	if w <= 0 {
