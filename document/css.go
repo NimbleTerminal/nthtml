@@ -1650,7 +1650,7 @@ func (d *Document) styled(n *node, parent style) style {
 	if vh <= 0 {
 		vh = 600
 	}
-	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, cellPadding: parent.cellPadding, hasCellPadding: parent.hasCellPadding, tableCellBorder: parent.tableCellBorder, centerBlock: parent.centerBlock, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "block", vw: vw, vh: vh, opacity: parent.effectiveOpacity(), ownOpacity: 1, opacitySet: parent.opacitySet}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, cellPadding: parent.cellPadding, hasCellPadding: parent.hasCellPadding, tableCellBorder: parent.tableCellBorder, centerBlock: parent.centerBlock, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "inline", vw: vw, vh: vh, opacity: parent.effectiveOpacity(), ownOpacity: 1, opacitySet: parent.opacitySet}
 	fgInherited := true
 	rawBW := [4]int{3, 3, 3, 3}
 	if n.tag == "svg" {
@@ -1658,10 +1658,12 @@ func (d *Document) styled(n *node, parent style) style {
 		s.height, _ = parseLength(n.attrs["height"], true, false)
 	}
 	switch n.tag {
-	case "span", "a", "em", "strong", "b", "i", "code", "small", "sub", "sup", "mark", "u", "s", "del", "img", "font":
-		s.display = "inline"
-	case "script", "style", "head", "meta", "link", "title", "template", "colgroup", "col":
+	case "document", "html", "body", "address", "article", "aside", "blockquote", "center", "dd", "details", "dialog", "dir", "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "legend", "li", "listing", "main", "menu", "nav", "ol", "p", "plaintext", "pre", "search", "section", "summary", "ul", "xmp", "table", "thead", "tbody", "tfoot", "tr", "td", "th", "caption":
+		s.display = "block"
+	case "area", "base", "basefont", "datalist", "head", "link", "meta", "noembed", "noframes", "param", "rp", "script", "style", "template", "title", "colgroup", "col":
 		s.display = "none"
+	}
+	switch n.tag {
 	case "h1":
 		s.size = 32
 		s.line = 40
