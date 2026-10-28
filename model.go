@@ -6,6 +6,7 @@ import (
 	"context"
 	"github.com/charmbracelet/x/ansi"
 	"image"
+	"image/draw"
 	"math"
 	"nimbleterminal.dev/nthtml/document"
 	"nimbleterminal.dev/ntpicture"
@@ -14,6 +15,25 @@ import (
 )
 
 const maxKittyBandRows = 283
+
+func cropBandImage(img image.Image, r image.Rectangle) image.Image {
+	if img == nil {
+		return nil
+	}
+	b := img.Bounds()
+	r = r.Intersect(b)
+	if r == b || r.Empty() {
+		return img
+	}
+	if sub, ok := img.(interface {
+		SubImage(image.Rectangle) image.Image
+	}); ok {
+		return sub.SubImage(r)
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+	draw.Draw(dst, dst.Bounds(), img, r.Min, draw.Src)
+	return dst
+}
 
 type focusOverlayKey struct {
 	focusID                 int
@@ -486,16 +506,11 @@ func (m *Model) syncKittyBand(forceUpload bool) tea.Cmd {
 	if !needUpload {
 		return nil
 	}
-	if forceUpload {
-		sizeCmd := m.pic.SetSize(m.cols, bandRows)
-		if m.overlayImg != nil {
-			return tea.Batch(sizeCmd, m.pic.SetImageImmutableCropped(m.overlayImg, bandCrop))
-		}
-		return tea.Batch(sizeCmd, m.pic.SetImageCropped(m.source, bandCrop))
-	}
-	cropCmd := m.pic.SetCrop(bandCrop)
 	sizeCmd := m.pic.SetSize(m.cols, bandRows)
-	return tea.Batch(cropCmd, sizeCmd)
+	if m.overlayImg != nil {
+		return tea.Batch(sizeCmd, m.pic.SetImageImmutableCropped(cropBandImage(m.overlayImg, bandCrop), image.Rectangle{}))
+	}
+	return tea.Batch(sizeCmd, m.pic.SetImageCropped(cropBandImage(m.source, bandCrop), image.Rectangle{}))
 }
 func (m *Model) viewport() tea.Cmd {
 	if m.source == nil {

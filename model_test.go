@@ -506,4 +506,40 @@ func TestKittyViewportScrollBandCrossingFocusAndKeepView(t *testing.T) {
 
 	t.Logf("HN page (120x40 cells, 11x21 px): initial band upload=%d bytes (%d chunks), Down keypress=%d Kitty bytes (%d scrolled rows in View()), Tab link focus=%d Kitty bytes (%d chunks)",
 		len(initOut), strings.Count(initOut, "\x1b_G"), len(downOut), scrolledRows, len(tabOut), strings.Count(tabOut, "\x1b_G"))
+
+	// 8. Verify ntpicture v0.1.2 FrameEdits + VirtualPlacement session:
+	//    - VirtualPlacement does not hijack banded SetViewport scrolling
+	//    - SetResultKeepView with identical pixels emits 0 bytes of Kitty APC
+	//    - SetResultKeepView with a localized pixel update emits an in-place a=f dirty-rect edit instead of a=T.
+	sess := ntpicture.NewTerminalSession(ntpicture.TerminalOptions{
+		Kitty:            ntpicture.KittyCapabilitySupported,
+		VirtualPlacement: ntpicture.KittyCapabilitySupported,
+		FrameEdits:       ntpicture.KittyCapabilitySupported,
+		CellPixelWidth:   11,
+		CellPixelHeight:  21,
+	})
+	defer sess.Close()
+	mFrame := NewWithOptions(first, ModelOptions{
+		Session: sess,
+		Picture: ntpicture.Options{
+			StableID:    true,
+			RetireDelay: -1,
+			Render:      ntpicture.Config{KittyFormat: ntpicture.KittyFormatZlib},
+		},
+	})
+	defer func() { driveRaw(t, mFrame, mFrame.Close()) }()
+	frameInit := driveRaw(t, mFrame, mFrame.Init(), mFrame.SetSize(120, 40))
+	if strings.Count(frameInit, "a=T") != 1 {
+		t.Fatalf("expected 1 initial a=T upload with FrameEdits session, got %d", strings.Count(frameInit, "a=T"))
+	}
+	if sameOut := driveRaw(t, mFrame, mFrame.SetResultKeepView(first)); sameOut != "" {
+		t.Fatalf("expected 0 Kitty bytes on SetResultKeepView with identical result, got %d bytes (%q)", len(sameOut), sameOut)
+	}
+	deltaOut := driveRaw(t, mFrame, mFrame.SetResultKeepView(second))
+	if !strings.Contains(deltaOut, "a=f") || strings.Contains(deltaOut, "a=T") || strings.Contains(deltaOut, "a=d") {
+		t.Fatalf("expected SetResultKeepView with FrameEdits to emit in-place a=f dirty-rect edit (no a=T/a=d), got %d bytes: %q", len(deltaOut), deltaOut)
+	}
+	if downOut := driveRaw(t, mFrame, mFrame.Update(tea.KeyPressMsg{Code: tea.KeyDown})); downOut != "" {
+		t.Fatalf("expected 0 Kitty bytes on Down with VirtualPlacement+FrameEdits session, got %d bytes", len(downOut))
+	}
 }

@@ -4,8 +4,11 @@
 
  * **Banded Kitty virtual-placement scrolling & focus-ring overlay (`Model`)**:
    * Size Kitty virtual placements to the typeset page height in cells (in bands of up to 283 rows with half-viewport hysteresis) and scroll within a band via `Picture.SetViewport` (`0` bytes of Kitty APC traffic per keypress).
+   * Slice page bands via zero-copy `SubImage` views so `ntpicture` `v0.1.2` `FrameEdits` dirty-rectangle updates (`a=f,r=1,X=1`) apply to in-place band updates (`SetResultKeepView`, search highlights, and selection) and unchanged updates emit `0` bytes.
    * Render the active link focus ring in a separate transparent `1×2` cell `ntpicture.Picture` (`z=1`) spliced over `Picture.View()` so `Tab` / `Shift+Tab` link cycling updates without re-encoding or re-uploading the page band.
    * Add `Model.SetResultKeepView` (preserving scroll, pan, zoom, focused link, and selection across re-renders) and `Model.CellToDocument` (viewport-aware terminal cell to document CSS pixel mapping).
+ * **Dependency upgrades**:
+   * Upgrade `nimbleterminal.dev/ntpicture` to `v0.1.2`, `nimbleterminal.dev/nttypeset` to `v0.1.6`, `nimbleterminal.dev/ntsvg` to `v0.5.3`, `charm.land/bubbletea/v2` to `v2.1.1` (and matching WASM Bubble Tea pin), `github.com/NimbleMarkets/oksvg` to `v0.1.3`, and pin `github.com/srwiley/rasterx` to `github.com/neomantra/rasterx v0.1.0`.
  * **Link anchor element tracking (`Link.Anchor`)**:
    * Expose `Link.Anchor *html.Node` on `document.Link` and `nthtml.Link` and preserve clickable link hit regions for `<a href>` elements wrapping empty-`alt` images with explicit dimensions.
  * **CSS custom properties & `prefers-color-scheme`**:

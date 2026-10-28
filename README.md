@@ -637,6 +637,10 @@ Run `task ci` before submitting changes. Contributions and feedback are welcome 
 - [Report an issue](https://github.com/NimbleTerminal/nthtml/issues)
 - [Submit a pull request](https://github.com/NimbleTerminal/nthtml/pulls)
 
+## Acknowledgements
+
+We are very thankful to the [`go-text`](https://github.com/go-text) authors for [`go-text/typesetting`](https://github.com/go-text/typesetting) and [`go-text/render`](https://github.com/go-text/render), to Steven R. Wiley for [`oksvg`](https://github.com/srwiley/oksvg) and [`rasterx`](https://github.com/srwiley/rasterx), and to [`go-mermaid`](https://github.com/zkrebbekx/go-mermaid), [Chroma](https://github.com/alecthomas/chroma), [Charm](https://charm.land), [Kitty](https://sw.kovidgoyal.net/kitty/), and [Ghostty](https://ghostty.org).
+
 ## License
 
 Part of the [Nimble Terminal](https://nimbleterminal.dev) family alongside [`ntpicture`](https://github.com/NimbleTerminal/ntpicture), [`ntsvg`](https://github.com/NimbleTerminal/ntsvg), [`ntpdf`](https://github.com/NimbleTerminal/ntpdf), [`nttypeset`](https://github.com/NimbleTerminal/nttypeset), and [`ntvideo`](https://github.com/NimbleTerminal/ntvideo). See [font notices](licenses/fonts/THIRD_PARTY_NOTICES.md) and [diagram dependency notices](licenses/diagrams/README.md).
