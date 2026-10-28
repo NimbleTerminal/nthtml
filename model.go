@@ -204,7 +204,8 @@ func (m *Model) SetResult(result *document.Result) tea.Cmd {
 
 // SetResultKeepView replaces the displayed document Result while preserving
 // scroll offset, zoom, search state, and the focused link (by Link.ID) when
-// present in the new Result.
+// present in the new Result. Selection and an in-progress mouse drag are cleared:
+// their text offsets may refer to different content in the replacement Result.
 func (m *Model) SetResultKeepView(result *document.Result) tea.Cmd {
 	return m.setResult(result, true)
 }

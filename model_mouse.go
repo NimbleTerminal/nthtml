@@ -27,6 +27,19 @@ func (m *Model) CellToDocument(p image.Point) (image.Rectangle, bool) {
 	return area, !area.Empty()
 }
 
+// DocumentViewport reports the visible document-pixel bounds in LayoutTypeset
+// mode, excluding letterboxing and accounting for the actual band, cell scroll,
+// zoom, and raster scaling. Min is the displayed scroll origin; Size is the
+// visible extent. Fractional pixel edges are rounded outward once for the whole
+// viewport. It returns false in LayoutTTY mode or when no document pixels are
+// visible. Like CellToDocument, it describes the current target geometry, which
+// may be pending presentation; it neither scrolls nor changes selection.
+func (m *Model) DocumentViewport() (image.Rectangle, bool) {
+	cells, pixels, crop, view := m.rasterMapping()
+	area := rasterAreaSource(view, cells, pixels, crop)
+	return area, !area.Empty()
+}
+
 // LinkAtCell hit-tests a terminal cell using the current layout, scroll/crop,
 // scaling, and letterboxing. Unlike Result.LinkAt, p is in terminal screen cells.
 // A coarse raster cell can cover several pixels; the greatest visible link
@@ -59,6 +72,16 @@ func (m *Model) LinkAtCell(p image.Point) (document.Link, bool) {
 // Match ntpicture's centered FitContain, including its integer rounding. The
 // glyph transport uses cols × 2*rows pixels; Kitty uses its raster target size.
 func rasterCellSource(p, cells, pixels image.Point, crop image.Rectangle) image.Rectangle {
+	return rasterAreaSource(image.Rectangle{Min: p, Max: p.Add(image.Pt(1, 1))}, cells, pixels, crop)
+}
+
+// rasterAreaSource maps a rectangle of cells in the full picture grid to its
+// source pixels, clipping letterboxing before rounding the outside edges.
+func rasterAreaSource(area image.Rectangle, cells, pixels image.Point, crop image.Rectangle) image.Rectangle {
+	area = area.Intersect(image.Rectangle{Max: cells})
+	if area.Empty() {
+		return image.Rectangle{}
+	}
 	if cells.X <= 0 || cells.Y <= 0 || pixels.X <= 0 || pixels.Y <= 0 || crop.Empty() {
 		return image.Rectangle{}
 	}
@@ -71,10 +94,10 @@ func rasterCellSource(p, cells, pixels image.Point, crop image.Rectangle) image.
 		iw = max(1, int(int64(sw)*int64(th)/int64(sh)))
 	}
 	ox, oy := (tw-iw)/2, (th-ih)/2
-	left := max(float64(ox), float64(p.X)*float64(tw)/float64(cells.X))
-	top := max(float64(oy), float64(p.Y)*float64(th)/float64(cells.Y))
-	right := min(float64(ox+iw), float64(p.X+1)*float64(tw)/float64(cells.X))
-	bottom := min(float64(oy+ih), float64(p.Y+1)*float64(th)/float64(cells.Y))
+	left := max(float64(ox), float64(area.Min.X)*float64(tw)/float64(cells.X))
+	top := max(float64(oy), float64(area.Min.Y)*float64(th)/float64(cells.Y))
+	right := min(float64(ox+iw), float64(area.Max.X)*float64(tw)/float64(cells.X))
+	bottom := min(float64(oy+ih), float64(area.Max.Y)*float64(th)/float64(cells.Y))
 	if right <= left || bottom <= top {
 		return image.Rectangle{}
 	}

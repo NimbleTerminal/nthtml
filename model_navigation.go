@@ -166,8 +166,8 @@ func (m *Model) ActiveSourceID() (string, bool) {
 		return m.ttyResult.SourceAt(image.Pt(0, m.ttyTop))
 	}
 	if m.result != nil {
-		crop := m.cropRect()
-		if !crop.Empty() {
+		crop, visible := m.DocumentViewport()
+		if visible {
 			if id, ok := m.result.SourceAt(crop.Min); ok {
 				return id, true
 			}
@@ -215,6 +215,9 @@ func (m *Model) resetTextLayout() {
 	}
 }
 func (m *Model) cellArea(p image.Point) image.Rectangle {
+	if m == nil {
+		return image.Rectangle{}
+	}
 	p = p.Sub(m.origin)
 	if p.X < 0 || p.Y < 0 || p.X >= m.cols || p.Y >= m.rows {
 		return image.Rectangle{}
@@ -222,20 +225,46 @@ func (m *Model) cellArea(p image.Point) image.Rectangle {
 	if m.mode == LayoutTTY {
 		return image.Rect(p.X, p.Y+m.ttyTop, p.X+1, p.Y+m.ttyTop+1)
 	}
-	if vp, ok := m.pic.Viewport(); ok {
-		geom := m.pic.RasterGeometry()
-		crop := m.pic.Crop()
-		if crop.Empty() && m.source != nil {
-			crop = m.source.Bounds()
-		}
-		cell := image.Pt(p.X+vp.X, p.Y+vp.Y)
-		if cell.X < 0 || cell.Y < 0 || cell.X >= geom.Cells.X || cell.Y >= geom.Cells.Y {
-			return image.Rectangle{}
-		}
-		return rasterCellSource(cell, geom.Cells, geom.Pixels, crop)
+	cells, pixels, crop, view := m.rasterMapping()
+	if !p.In(image.Rectangle{Max: view.Size()}) {
+		return image.Rectangle{}
 	}
-	return rasterCellSource(p, image.Pt(m.cols, m.rows), m.pic.RasterGeometry().Pixels, m.cropRect())
+	return rasterCellSource(p.Add(view.Min), cells, pixels, crop)
 }
+
+// rasterMapping describes the source actually submitted to Picture, together
+// with the displayed portion of its full cell grid. Crop coordinates remain in
+// document space even when Picture owns only a band of that document.
+func (m *Model) rasterMapping() (cells, pixels image.Point, crop, view image.Rectangle) {
+	if m == nil || m.pic == nil || m.source == nil || m.mode != LayoutTypeset {
+		return
+	}
+	geom := m.pic.RasterGeometry()
+	cells, pixels = geom.Cells, geom.Pixels
+	crop = m.pic.Crop()
+	if m.kittyBandActive {
+		// Band uploads intentionally have an empty Picture.Crop: the source image
+		// is already sliced. Full-document bounds would stretch the hit mapping.
+		crop = m.bandCrop
+	} else if crop.Empty() {
+		crop = m.source.Bounds()
+	}
+	crop = crop.Intersect(m.source.Bounds())
+	view = image.Rectangle{Max: cells}
+	if vp, ok := m.pic.Viewport(); ok {
+		if vp.Width <= 0 || vp.Height <= 0 {
+			view = image.Rectangle{}
+			return
+		}
+		view = image.Rect(vp.X, vp.Y, vp.X+vp.Width, vp.Y+vp.Height).Intersect(view)
+	}
+	if view.Empty() {
+		return
+	}
+	view.Max = view.Min.Add(image.Pt(min(view.Dx(), m.cols), min(view.Dy(), m.rows)))
+	return
+}
+
 func (m *Model) selectMotion(p image.Point) tea.Cmd {
 	if !m.mouseDown || p == m.pressCell {
 		return nil

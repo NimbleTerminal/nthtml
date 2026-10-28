@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Fix Kitty band coordinates for `CellToDocument`, link hit-testing, source lookup, and mouse selection across band transitions, zoom, and letterboxing. Add `Model.DocumentViewport()` for the visible document-pixel bounds. Clarify that `SetResultKeepView` clears selection and active mouse drags while preserving scroll, zoom, search, and link focus.
+
  * Add opt-in SVG raster images through `Options.SVGImages` (or `DefaultDiagramRenderer.Images`), with explicit decoded-resource allowlists, bounded dimensions, transforms, opacity, aspect-ratio fitting/cropping, and `svg-image` source discovery. No implicit resource loading.
 
  * Render supported inline SVG content while skipping unsupported subtrees, with per-element warnings and unchanged safety limits.
@@ -12,7 +14,7 @@
    * Size Kitty virtual placements to the typeset page height in cells (in bands of up to 283 rows with half-viewport hysteresis) and scroll within a band via `Picture.SetViewport` (`0` bytes of Kitty APC traffic per keypress).
    * Slice page bands via zero-copy `SubImage` views so `ntpicture` `v0.1.2` `FrameEdits` dirty-rectangle updates (`a=f,r=1,X=1`) apply to in-place band updates (`SetResultKeepView`, search highlights, and selection) and unchanged updates emit `0` bytes.
    * Render the active link focus ring in a separate transparent `1×2` cell `ntpicture.Picture` (`z=1`) spliced over `Picture.View()` so `Tab` / `Shift+Tab` link cycling updates without re-encoding or re-uploading the page band.
-   * Add `Model.SetResultKeepView` (preserving scroll, pan, zoom, focused link, and selection across re-renders) and `Model.CellToDocument` (viewport-aware terminal cell to document CSS pixel mapping).
+   * Add `Model.SetResultKeepView` (preserving scroll, pan, zoom, search state, and focused link across re-renders; selection is cleared) and `Model.CellToDocument` (viewport-aware terminal cell to document CSS pixel mapping).
  * **Dependency upgrades**:
    * Upgrade `nimbleterminal.dev/ntpicture` to `v0.1.2`, `nimbleterminal.dev/nttypeset` to `v0.1.6`, `nimbleterminal.dev/ntsvg` to `v0.5.3`, `charm.land/bubbletea/v2` to `v2.1.1` (and matching WASM Bubble Tea pin), `github.com/NimbleMarkets/oksvg` to `v0.1.3`, and pin `github.com/srwiley/rasterx` to `github.com/neomantra/rasterx v0.1.0`.
  * **Link anchor element tracking (`Link.Anchor`)**:

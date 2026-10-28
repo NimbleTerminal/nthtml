@@ -183,7 +183,17 @@ navigation. The terminal demo opens absolute HTTP(S)/mailto destinations using
 `open` on macOS or `xdg-open` on Linux; other targets report the URL. Mouse hit testing accounts for the widget origin, TTY scroll offset, raster
 zoom/pan, and Kitty/glyph letterboxing. Use `Model.LinkAtCell(image.Point)` for
 screen-cell link hit testing and `Model.CellToDocument(image.Point)` for mapping
-a screen cell to its document-pixel rectangle in Typeset mode. A press/release must stay on the same link and cell;
+a screen cell to its document-pixel rectangle in Typeset mode.
+`Model.DocumentViewport()` returns `(image.Rectangle, bool)` for the visible
+Typeset document-pixel bounds, excluding letterboxing. Its `Min` is the actual
+displayed scroll origin (including Kitty's cell-row snapping), and its `Size()`
+is the visible extent. It accounts for band offsets, zoom, and raster scaling,
+rounding fractional pixel edges outward once for the whole viewport. It returns
+false in TTY mode or when no document pixels are visible. Both accessors report
+current target geometry, which may still be pending presentation; querying them
+does not change scroll or selection. Use this accessor rather than
+`Picture.Crop()`, which describes the uploaded picture's transport geometry.
+A press/release must stay on the same link and cell;
 dragging cancels activation. Clicks are ignored while a replacement raster is
 pending so they cannot activate a target from an undisplayed layout.
 
@@ -588,9 +598,10 @@ UTF-8 text offsets and rectangles, with `Search`, `Regions`, `Hit`, `SourceAt`,
 `HitSource`, and `Selected` helpers. Offsets must not be reused after reflow.
 Widget hosts can call `SetResult` (resets scroll, zoom, search, and focus for a
 new page), `SetResultKeepView` (replaces the `Result` while preserving scroll
-offset, zoom, search state, and the focused link by `Link.ID`),
+offset, zoom, search state, and the focused link by `Link.ID`; selection and
+in-progress mouse drags are cleared because text offsets may change),
 `NavigateFragment`, `NavigateSource`, `ActiveSourceID`,
-`SelectedSourceID`, `SourceAtCell`, `CellToDocument`, `Search`, `NextMatch`, `SearchStatus`,
+`SelectedSourceID`, `SourceAtCell`, `CellToDocument`, `DocumentViewport`, `Search`, `NextMatch`, `SearchStatus`,
 `SelectRange`, `SelectedText`, and `CopySelection`. Hosts that reserve quit keys
 must let the widget consume keys while `SearchInputActive()` is true.
 
