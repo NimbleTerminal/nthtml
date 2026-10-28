@@ -63,6 +63,9 @@ func firstSummary(n *node) *node {
 }
 
 func displayedChildren(n *node) []*node {
+	if placeholderSizeKnown(n) {
+		return nil
+	}
 	if n.tag == "progress" || n.tag == "meter" {
 		return nil
 	}
@@ -75,8 +78,9 @@ func displayedChildren(n *node) []*node {
 		return nil
 	}
 	if n.tag == "details" && !hasAttr(n, "open") {
+		summary := firstSummary(n)
 		for i, c := range n.children {
-			if c.tag == "summary" || c.pseudo == "before" {
+			if c == summary || summary == nil && c.pseudo == "before" {
 				return n.children[i : i+1]
 			}
 		}

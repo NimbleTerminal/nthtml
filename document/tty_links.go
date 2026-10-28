@@ -62,7 +62,7 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 		if name := anchorName(n); name != "" {
 			names[n.id] = name
 		}
-		for _, c := range n.children {
+		for _, c := range displayedChildren(n) {
 			collect(c)
 		}
 	}

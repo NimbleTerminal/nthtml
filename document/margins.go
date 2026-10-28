@@ -240,7 +240,7 @@ func (l *layout) inlineLine(nodes []*node, parent style) bool {
 		if kind, _ := diagramSource(n); kind != "" {
 			return true
 		}
-		if l.inlineLine(n.children, s) {
+		if l.inlineLine(displayedChildren(n), s) {
 			return true
 		}
 	}

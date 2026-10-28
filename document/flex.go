@@ -38,7 +38,7 @@ func (l *layout) flex(n *node, cx, cy, cw, height int, s style) int {
 		return cy
 	}
 	var items []*flexItem
-	for _, c := range n.children {
+	for _, c := range displayedChildren(n) {
 		if !l.flexStep() {
 			return cy
 		}

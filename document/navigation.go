@@ -68,8 +68,10 @@ func normalizeAnchorID(idOrHref string) (string, bool) {
 	return idOrHref, idOrHref != ""
 }
 
-// Sources returns visible identified HTML elements (id or <a name>) in document
-// order with their enclosing identified ParentID, honoring display:none.
+// Sources returns visible identified HTML elements (id or <a name>) and form
+// controls in document order. Controls without an id use nthtml-control-N, where
+// N is the parsed element sequence number. These IDs also appear in Result.Boxes.
+// Each entry includes its enclosing identified ParentID, honoring display:none.
 func (d *Document) Sources(ctx context.Context) ([]SourceScope, error) {
 	if d == nil || d.root == nil {
 		return nil, nil

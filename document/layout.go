@@ -340,6 +340,17 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	extra := padding[1] + padding[3] + s.borderH()
 	x += margin[3]
 	y += margin[0]
+	if n.tag == "fieldset" {
+		for _, c := range n.children {
+			if c.tag == "legend" {
+				ls := l.d.styled(c, s)
+				if ls.display != "none" {
+					y += ls.line / 2
+					break
+				}
+			}
+		}
+	}
 	w = target
 	height := -1
 	if s.height.definite(parentHeight) {
@@ -731,7 +742,16 @@ func (l *layout) resolveInlineBlock(n *node, ib style, baseW int) (style, int) {
 		}
 		ib.width = px(size)
 	}
-	m, _, target := boxWidth(ib, baseW)
+	widthBasis := baseW
+	if (isControl(n) || placeholderSizeKnown(n)) && ib.width.definite(baseW) {
+		m, p := resolveEdges(ib.margin, baseW), resolveEdges(ib.padding, baseW)
+		outer := ib.width.resolve(baseW, 16384)
+		if !ib.borderBox {
+			outer += p[1] + p[3] + ib.borderH()
+		}
+		widthBasis = max(baseW, outer+m[1]+m[3])
+	}
+	m, _, target := boxWidth(ib, widthBasis)
 	return ib, target + m[1] + m[3]
 }
 

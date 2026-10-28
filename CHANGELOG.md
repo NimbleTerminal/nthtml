@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Preserve embedded-element geometry with bordered inline placeholders for sized iframe/video/canvas/object/embed elements and audio controls. Hide unsized audio without controls, suppress sized fallback content, and never load embedded resources.
+
  * Draw attribute-driven inputs, password masks, checkbox/radio states, buttons, selected options, clipped textareas, fieldset frames/legends, and progress/meter bars. Author CSS overrides the defaults. Controls expose whole-control bounds in existing Result.Boxes with Tag and SourceID (no dedicated Controls slice); Document.Sources includes generated nthtml-control-N IDs for controls without an HTML id. No editing state or resource fetching is added.
 
  * Render closed details with only the first summary, disclosure markers and a default summary; hide closed dialogs and give open dialogs a padded border.

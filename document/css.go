@@ -1766,6 +1766,7 @@ func (d *Document) styled(n *node, parent style) style {
 			s.borderStyle = [4]string{"solid", "solid", "solid", "solid"}
 		}
 	}
+	replacedDefaults(n, &s, &rawBW)
 	controlDefaults(n, &s, &rawBW)
 	if value, ok := n.attrs["hidden"]; ok && !strings.EqualFold(value, "until-found") {
 		s.display = "none"
@@ -2676,6 +2677,9 @@ func (d *Document) cascadePseudo(n *node, pseudo string) map[string]string {
 	values := map[string]string{}
 	if content := defaultPseudo(n, pseudo); content != "" {
 		values["content"] = "\x01" + content
+		if n.tag == "details" && pseudo == "before" {
+			values["display"] = "block"
+		}
 	}
 	scores := map[string]int{}
 	w := d.cascadedWidth
