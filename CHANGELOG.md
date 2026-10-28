@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## v0.1.2 (2026-10-28)
 
  * **Banded Kitty virtual-placement scrolling & focus-ring overlay (`Model`)**:
    * Size Kitty virtual placements to the typeset page height in cells (in bands of up to 283 rows with half-viewport hysteresis) and scroll within a band via `Picture.SetViewport` (`0` bytes of Kitty APC traffic per keypress).
