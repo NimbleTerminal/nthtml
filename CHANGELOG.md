@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Honor the hidden attribute at UA priority, except hidden=until-found; author display overrides it.
+
  * Default unknown and phrasing elements to inline, with explicit HTML block and non-rendering defaults; author display declarations still win.
 
  * Upgrade `ntsvg` to `v0.5.4`, `ntpicture` to `v0.1.3`, and `oksvg` to `v0.1.4` for SVG image support.

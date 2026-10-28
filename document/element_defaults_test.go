@@ -31,3 +31,15 @@ func TestElementDisplayDefaults(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestHiddenDefault(t *testing.T) {
+	for _, tc := range []struct{ html, want string }{
+		{"A<span hidden>HIDDEN</span>B", "AB"},
+		{"A<span hidden style='display:inline'>H</span>B", "AHB"},
+		{"A<span hidden='UNTIL-FOUND'>H</span>B", "AHB"},
+	} {
+		if got := defaultTTY(t, tc.html); got != tc.want {
+			t.Errorf("%q != %q", got, tc.want)
+		}
+	}
+}

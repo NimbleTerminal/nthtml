@@ -1766,6 +1766,9 @@ func (d *Document) styled(n *node, parent style) style {
 			s.borderStyle = [4]string{"solid", "solid", "solid", "solid"}
 		}
 	}
+	if value, ok := n.attrs["hidden"]; ok && !strings.EqualFold(value, "until-found") {
+		s.display = "none"
+	}
 	if parent.centerBlock && s.display == "block" {
 		s.margin[1] = cssLength{unit: lengthAuto}
 		s.margin[3] = cssLength{unit: lengthAuto}
