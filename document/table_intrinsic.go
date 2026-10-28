@@ -8,6 +8,7 @@ import (
 // explicit line, rather than summing unrelated paragraphs. Both are capped
 // at the renderer's maximum width; traversal shares the table work budget.
 func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
+	s = l.controlSize(n, s)
 	line, word, minimum, preferred := 0, 0, 0, 0
 	pending, hasContent := false, false
 	flushWord := func() { minimum = max(minimum, word); word = 0 }

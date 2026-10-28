@@ -7,6 +7,7 @@ import (
 	"golang.org/x/image/font/opentype"
 	"image"
 	"net/url"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -45,6 +46,9 @@ func anchorName(n *node) string {
 	}
 	if n.tag == "a" {
 		return n.attrs["name"]
+	}
+	if isControl(n) {
+		return "nthtml-control-" + strconv.Itoa(n.id)
 	}
 	return ""
 }
@@ -90,7 +94,7 @@ func (d *Document) Sources(ctx context.Context) ([]SourceScope, error) {
 			out = append(out, SourceScope{ID: id, ParentID: parentID, Tag: n.tag})
 			curParent = id
 		}
-		for _, c := range n.children {
+		for _, c := range displayedChildren(n) {
 			if err := walk(c, s, curParent); err != nil {
 				return err
 			}

@@ -1766,6 +1766,7 @@ func (d *Document) styled(n *node, parent style) style {
 			s.borderStyle = [4]string{"solid", "solid", "solid", "solid"}
 		}
 	}
+	controlDefaults(n, &s, &rawBW)
 	if value, ok := n.attrs["hidden"]; ok && !strings.EqualFold(value, "until-found") {
 		s.display = "none"
 	}

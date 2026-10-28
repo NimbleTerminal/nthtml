@@ -472,6 +472,15 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 				}
 			}
 		}
+		if text, ok := controlText(n); ok {
+			count++
+			if count > l.Nodes {
+				return limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
+			}
+			child := &node{parent: n, id: count, tag: "span", pseudo: "control", children: []*node{{text: text}}}
+			child.children[0].parent = child
+			n.children = append(n.children, child)
+		}
 		return nil
 	}
 	hasHTML := false

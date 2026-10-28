@@ -303,6 +303,7 @@ func (l *layout) block(n *node, x, y, w, parentHeight int, parent style) int {
 }
 
 func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
+	s = l.controlSize(n, s)
 	if l.err != nil {
 		return y
 	}
@@ -398,6 +399,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	}
 	cx, cy, cw := x+padding[3]+s.bw[3], y+padding[0]+s.bw[0], max(1, w-extra)
 	contentY := cy
+	var legendBounds image.Rectangle
 	if kind, source := diagramSource(n); kind != "" {
 		cy = l.diagram(n, kind, source, cx, cy, cw, height, s)
 	} else if n.tag == "table" {
@@ -513,6 +515,22 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			if cs.display == "none" {
 				continue
 			}
+			if n.tag == "fieldset" && c.tag == "legend" && legendBounds.Empty() {
+				flush()
+				ls, lw := l.resolveInlineBlock(c, cs, cw)
+				first := len(l.ops)
+				bottom := l.blockStyled(c, cx, cy, lw, height, ls)
+				h := bottom - cy
+				delta := image.Pt(0, start-h/2-cy)
+				for i := first; i < len(l.ops); i++ {
+					l.ops[i].box.translate(delta)
+				}
+				if first < len(l.ops) {
+					legendBounds = l.ops[first].box.Bounds
+				}
+				cy += h / 2
+				continue
+			}
 			if cs.position == "absolute" {
 				flush()
 				l.queueAbsolute(c, cs, cx, cy)
@@ -608,8 +626,20 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			}
 		}
 	}
+	l.paintControl(n, image.Rect(cx, contentY, cx+cw, cy-padding[2]-s.bw[2]), s)
 	if !s.hidden {
-		l.paintBorders(image.Rect(x, start, x+w, cy), s)
+		if n.tag == "input" && inputType(n) == "radio" {
+			l.paintRadio(image.Rect(x, start, x+w, cy), n, s)
+		} else if !legendBounds.Empty() {
+			top := s
+			s.bw[0] = 0
+			l.paintBorders(image.Rect(x, start, x+w, cy), s)
+			top.bw[1], top.bw[2], top.bw[3] = 0, 0, 0
+			l.paintBorders(image.Rect(x, start, max(x, legendBounds.Min.X-2), cy), top)
+			l.paintBorders(image.Rect(min(x+w, legendBounds.Max.X+2), start, x+w, cy), top)
+		} else {
+			l.paintBorders(image.Rect(x, start, x+w, cy), s)
+		}
 	}
 	if cy+margin[2] > l.pageHeightLimit() {
 		l.err = limitError("height")
@@ -674,6 +704,7 @@ func (l *layout) paintBorders(r image.Rectangle, s style) {
 }
 
 func (l *layout) resolveInlineBlock(n *node, ib style, baseW int) (style, int) {
+	ib = l.controlSize(n, ib)
 	for i := range ib.margin {
 		if ib.margin[i].unit == lengthPercent {
 			ib.margin[i] = px(ib.margin[i].resolveSigned(baseW, 256))

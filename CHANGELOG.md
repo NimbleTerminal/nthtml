@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Draw attribute-driven inputs, password masks, checkbox/radio states, buttons, selected options, clipped textareas, fieldset frames/legends, and progress/meter bars. Author CSS overrides the defaults. Controls expose whole-control bounds in existing Result.Boxes with Tag and SourceID (no dedicated Controls slice); Document.Sources includes generated nthtml-control-N IDs for controls without an HTML id. No editing state or resource fetching is added.
+
  * Render closed details with only the first summary, disclosure markers and a default summary; hide closed dialogs and give open dialogs a padded border.
 
  * Add phrasing font and decoration defaults, nested curly quotes through generated content, and inline parenthesized ruby annotations (with rp hidden). Abbreviations use a plain underline.

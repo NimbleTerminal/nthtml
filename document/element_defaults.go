@@ -63,6 +63,17 @@ func firstSummary(n *node) *node {
 }
 
 func displayedChildren(n *node) []*node {
+	if n.tag == "progress" || n.tag == "meter" {
+		return nil
+	}
+	if n.tag == "input" || n.tag == "select" {
+		for i, c := range n.children {
+			if c.pseudo == "control" {
+				return n.children[i : i+1]
+			}
+		}
+		return nil
+	}
 	if n.tag == "details" && !hasAttr(n, "open") {
 		for i, c := range n.children {
 			if c.tag == "summary" || c.pseudo == "before" {
