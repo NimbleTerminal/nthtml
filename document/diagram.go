@@ -27,9 +27,17 @@ type DiagramRenderer interface {
 
 // DefaultDiagramRenderer uses go-mermaid for source-to-SVG and ntsvg for pixels.
 // It uses no browser, JavaScript runtime, filesystem, or network resources.
-type DefaultDiagramRenderer struct{}
+type DefaultDiagramRenderer struct {
+	// Images optionally permits SVG image elements referencing these decoded images.
+	// Keys match href (including xlink:href) or legacy src exactly. No I/O occurs.
+	Images map[string]image.Image
+}
 
-func (DefaultDiagramRenderer) RenderDiagram(ctx context.Context, kind, source string, w, h int) (img image.Image, err error) {
+func (r DefaultDiagramRenderer) RenderDiagram(ctx context.Context, kind, source string, w, h int) (image.Image, error) {
+	return r.renderDiagram(ctx, kind, source, w, h, nil)
+}
+
+func (r DefaultDiagramRenderer) renderDiagram(ctx context.Context, kind, source string, w, h int, warnings *[]string) (img image.Image, err error) {
 	defer func() {
 		if v := recover(); v != nil {
 			img = nil
@@ -64,10 +72,16 @@ func (DefaultDiagramRenderer) RenderDiagram(ctx context.Context, kind, source st
 	} else if kind != "svg" {
 		return nil, fmt.Errorf("unknown diagram kind")
 	}
-	if err = validateSVG(ctx, source); err != nil {
+	var skipped []string
+	if source, skipped, err = rewriteSVGWithImages(ctx, source, r.Images); err != nil {
 		return nil, err
 	}
-	factory := ntsvg.DefaultRendererFactoryWithLimits(ntsvg.Limits{MaxRenderPixels: 1 << 20, MaxRenderEdge: 4096})
+	if warnings != nil {
+		for _, name := range skipped {
+			*warnings = append(*warnings, "svg: skipped unsupported element "+name)
+		}
+	}
+	factory := ntsvg.DefaultRendererFactoryWithImages(ntsvg.Limits{MaxRenderPixels: 1 << 20, MaxRenderEdge: 4096}, r.Images)
 	renderer, e := factory("embedded", []byte(source))
 	if renderer != nil {
 		defer renderer.Close()
@@ -172,10 +186,18 @@ func (l *layout) diagram(n *node, kind, source string, x, y, w, height int, s st
 		return y
 	}
 	renderer := l.opts.Diagrams
-	if renderer == nil {
-		renderer = DefaultDiagramRenderer{}
+	var img image.Image
+	var err error
+	switch r := renderer.(type) {
+	case nil:
+		img, err = (DefaultDiagramRenderer{Images: l.opts.SVGImages}).renderDiagram(l.ctx, kind, source, w, maxH, &l.warnings)
+	case DefaultDiagramRenderer:
+		img, err = r.renderDiagram(l.ctx, kind, source, w, maxH, &l.warnings)
+	case *DefaultDiagramRenderer:
+		img, err = r.renderDiagram(l.ctx, kind, source, w, maxH, &l.warnings)
+	default:
+		img, err = renderer.RenderDiagram(l.ctx, kind, source, w, maxH)
 	}
-	img, err := renderer.RenderDiagram(l.ctx, kind, source, w, maxH)
 	if err != nil {
 		if errors.Is(err, ErrLimit) || l.ctx.Err() != nil {
 			l.err = err
@@ -206,40 +228,76 @@ var mermaidWords = regexp.MustCompile(`[\p{L}\p{N}_]+`)
 var svgLocalURL = regexp.MustCompile(`url\(#[a-zA-Z0-9_-]+\)`)
 var svgNumber = regexp.MustCompile(`[-+]?(?:[0-9]*\.[0-9]+|[0-9]+\.?[0-9]*)(?:[eE][-+]?[0-9]+)?`)
 
-func validateSVG(ctx context.Context, source string) error {
+// rewriteSVG checks the entire input before returning a source with unsupported
+// subtrees removed. Copying original byte ranges preserves attributes verbatim.
+func rewriteSVG(ctx context.Context, source string) (string, []string, error) {
+	return rewriteSVGWithImages(ctx, source, nil)
+}
+
+func rewriteSVGWithImages(ctx context.Context, source string, images map[string]image.Image) (string, []string, error) {
 	if len(source) > maxSVGBytes {
-		return limitError("SVG bytes")
+		return "", nil, limitError("SVG bytes")
 	}
 	dec := xml.NewDecoder(strings.NewReader(source))
 	depth, elements, numbers := 0, 0, 0
 	definitions := 0
+	var out strings.Builder
+	var skipped []string
+	seen := make(map[string]bool)
+	dropDepth, keepFrom := 0, 0
 	for {
 		if err := ctx.Err(); err != nil {
-			return err
+			return "", nil, err
 		}
+		start := int(dec.InputOffset())
 		token, err := dec.Token()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return err
+			return "", nil, err
 		}
 		switch t := token.(type) {
 		case xml.Directive, xml.ProcInst:
-			return fmt.Errorf("SVG directives are unsupported")
+			return "", nil, fmt.Errorf("SVG directives are unsupported")
 		case xml.StartElement:
 			depth++
 			elements++
 			if depth > 32 || elements > 2048 {
-				return limitError("SVG complexity")
+				return "", nil, limitError("SVG complexity")
 			}
 			if elements == 1 && t.Name.Local != "svg" {
-				return fmt.Errorf("SVG root required")
+				return "", nil, fmt.Errorf("SVG root required")
+			}
+			allowImage := t.Name.Local == "image" && images != nil && dropDepth == 0 && definitions == 0
+			if allowImage {
+				for _, a := range t.Attr {
+					if strings.EqualFold(a.Name.Local, "href") || strings.EqualFold(a.Name.Local, "src") {
+						img := images[a.Value]
+						if img == nil {
+							return "", nil, fmt.Errorf("SVG image reference is not allowlisted")
+						}
+						b := img.Bounds()
+						if b.Dx() <= 0 || b.Dy() <= 0 || b.Dx() > 4096 || b.Dy() > 4096 || b.Dx() > (4<<20)/b.Dy() {
+							return "", nil, limitError("SVG image dimensions")
+						}
+					}
+				}
 			}
 			switch t.Name.Local {
 			case "svg", "g", "path", "rect", "circle", "ellipse", "line", "polygon", "polyline", "text", "tspan", "defs", "marker", "linearGradient", "radialGradient", "stop", "title", "desc":
 			default:
-				return fmt.Errorf("unsupported SVG element %s", t.Name.Local)
+				if allowImage {
+					break
+				}
+				if !seen[t.Name.Local] {
+					seen[t.Name.Local] = true
+					skipped = append(skipped, t.Name.Local)
+				}
+				if dropDepth == 0 {
+					out.WriteString(source[keepFrom:start])
+					dropDepth = depth
+				}
 			}
 			if t.Name.Local == "defs" || t.Name.Local == "marker" {
 				definitions++
@@ -247,18 +305,18 @@ func validateSVG(ctx context.Context, source string) error {
 			for _, a := range t.Attr {
 				key := strings.ToLower(a.Name.Local)
 				v := strings.ToLower(a.Value)
-				if strings.HasPrefix(key, "on") || key == "href" || strings.Contains(svgLocalURL.ReplaceAllString(v, ""), "url(") {
-					return fmt.Errorf("SVG external/active references are unsupported")
+				if strings.HasPrefix(key, "on") || (key == "href" && !allowImage) || strings.Contains(svgLocalURL.ReplaceAllString(v, ""), "url(") {
+					return "", nil, fmt.Errorf("SVG external/active references are unsupported")
 				}
 				if definitions > 0 && (key == "marker" || key == "marker-start" || key == "marker-mid" || key == "marker-end" || strings.Contains(v, "url(")) {
-					return fmt.Errorf("SVG references inside definitions are unsupported")
+					return "", nil, fmt.Errorf("SVG references inside definitions are unsupported")
 				}
 				properties := map[string]string{key: v}
 				if key == "style" {
 					properties = map[string]string{}
 					parts := strings.Split(v, ";")
 					if len(parts) > 128 {
-						return limitError("SVG style declarations")
+						return "", nil, limitError("SVG style declarations")
 					}
 					for _, part := range parts {
 						if k, value, ok := strings.Cut(part, ":"); ok {
@@ -270,25 +328,29 @@ func validateSVG(ctx context.Context, source string) error {
 					switch property {
 					case "d", "points", "viewbox", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "width", "height", "transform", "gradienttransform", "stroke-width", "stroke-dasharray", "stroke-dashoffset", "font-size", "dx", "dy", "markerwidth", "markerheight", "refx", "refy":
 						if strings.Contains(value, "nan") || strings.Contains(value, "inf") {
-							return fmt.Errorf("non-finite SVG coordinate")
+							return "", nil, fmt.Errorf("non-finite SVG coordinate")
 						}
 						for _, number := range svgNumber.FindAllString(value, -1) {
 							numbers++
 							if numbers > 16384 {
-								return limitError("SVG coordinates")
+								return "", nil, limitError("SVG coordinates")
 							}
 							f, e := strconv.ParseFloat(number, 64)
 							if e != nil || math.IsNaN(f) || math.IsInf(f, 0) || math.Abs(f) > 32768 {
-								return limitError("SVG coordinate range")
+								return "", nil, limitError("SVG coordinate range")
 							}
 							if (property == "stroke-dasharray" || property == "stroke-width") && f != 0 && math.Abs(f) < 0.1 {
-								return fmt.Errorf("SVG stroke values below 0.1 are unsupported")
+								return "", nil, fmt.Errorf("SVG stroke values below 0.1 are unsupported")
 							}
 						}
 					}
 				}
 			}
 		case xml.EndElement:
+			if depth == dropDepth {
+				keepFrom = int(dec.InputOffset())
+				dropDepth = 0
+			}
 			depth--
 			if t.Name.Local == "defs" || t.Name.Local == "marker" {
 				definitions--
@@ -296,7 +358,8 @@ func validateSVG(ctx context.Context, source string) error {
 		}
 	}
 	if depth != 0 || elements == 0 {
-		return fmt.Errorf("incomplete SVG")
+		return "", nil, fmt.Errorf("incomplete SVG")
 	}
-	return nil
+	out.WriteString(source[keepFrom:])
+	return out.String(), skipped, nil
 }

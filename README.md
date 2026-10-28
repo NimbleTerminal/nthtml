@@ -244,7 +244,7 @@ specific subset below works; it does not imply browser-compatible behavior.
 | Colors | Partial | CSS named colors (including `rebeccapurple`), `transparent`, `currentColor`, 3/4/6/8-digit hex, `rgb()` / `rgba()` and `hsl()` / `hsla()` with legacy comma or modern space/slash syntax. Alpha compositing and channel clamping. No system colors, relative colors, `color()`, `color-mix()`, Lab/OKLab, or wide-gamut color spaces. |
 | Tables | Partial | Shared content-aware Typeset column widths across explicit rows, row groups (`thead`, `tbody`, `tfoot`), and `<colgroup>`/`<col>` width/background specs with shrink-to-fit auto table width; `caption-side: top \| bottom` captions, nested tables, bold headers, row/group/column backgrounds, uniform row heights, and cell `text-align` / `vertical-align: top\|middle\|bottom`. TTY uses content-based column widths and wrapping. Solid `border-collapse: collapse` / `separate`, with shared-edge conflict resolution. `colspan` / `rowspan` share a bounded grid in both layouts; `rowspan="0"` reaches the end of its row group. Typeset supports one/two supported non-percentage lengths for `border-spacing` (2px by default, HTML `cellspacing` attribute supported, capped at 256px; ignored when collapsed). TTY keeps compact Unicode borders without pixel gutters. |
 | Images | Partial | Explicit `Options.Images[src]` and `Options.BackgroundImages[url]` allowlists; `Document.ImageSources`, `Document.BackgroundImageSources`, and `Document.ImageSourceList` list referenced URLs; `DecodeImage` and `DecodeDataURL` decode bounded PNG/JPEG/GIF and SVG images. Images flow inline by default (or as blocks with `display: block`), take their own pixel size, the `width`/`height` attributes, or a CSS width/height, keep their aspect ratio when one side is given (or follow CSS `aspect-ratio`), apply `object-fit` (`fill`, `contain`, `cover`, `none`, `scale-down`), and never exceed the containing box. Missing images with non-empty `alt` show `[image: alt]`; empty or absent `alt` renders no text and reserves an empty `width`×`height` box when both dimensions are known (so spacer images work in layout), or takes no space otherwise. No automatic file/URL loading or animated playback. |
-| Embedded SVG | Partial | Inline `<svg>` fragments rasterize through ntsvg; shapes, paths, text, basic gradients, and markers in a bounded SVG subset. Aspect ratio is preserved; width/height attributes and CSS sizing are supported. TTY uses aria-label/title/desc. No external resources, use/references inside definitions, SVG stylesheets, scripts, foreignObject, or SVG-internal link navigation. |
+| Embedded SVG | Partial | Inline `<svg>` fragments rasterize through ntsvg; shapes, paths, text, basic gradients, and markers in a bounded SVG subset. Aspect ratio is preserved; width/height attributes and CSS sizing are supported. TTY uses aria-label/title/desc. Optional host-supplied raster images via `Options.SVGImages`; no automatic resource loading, use/references inside definitions, SVG stylesheets, scripts, foreignObject, or SVG-internal link navigation. |
 | Mermaid | Partial | `pre.mermaid`, `div.mermaid`, or `pre > code.language-mermaid`; flowchart/graph, sequenceDiagram, stateDiagram-v2, classDiagram, and pie via pure-Go go-mermaid → ntsvg. TTY retains source. Not full Mermaid compatibility; directives and other diagram families are unsupported. |
 | Other embedded media | Not supported | No video/audio playback, embedded browser frames, or canvas execution in the document engine. |
 | Hyperlinks | Partial | Safe destinations, raster hit regions, TTY spans/OSC 8, Tab/Enter widget navigation, and browser anchors. Hosts own external activation; local fragments navigate within the document. Terminal mouse clicks account for crop, zoom, and cell geometry. |
@@ -498,8 +498,31 @@ it through `Options.Diagrams` (the `DiagramRenderer` interface), or set
 Custom adapters must enforce their own work limits and obey the supplied
 context and image bounds.
 
-Malformed or unsupported diagram content falls back to a label/source and
-adds an entry to `Result.Warnings`; the CLI and demos surface those warnings.
+SVG `<image>` support is opt-in through a separate allowlist of decoded images:
+
+```go
+opts := document.Options{
+    Width: 800,
+    SVGImages: map[string]image.Image{
+        "logo.png": decodedLogo,
+    },
+}
+```
+
+Keys match `href`, `xlink:href`, or legacy `src` exactly. Use
+`Document.ImageSourceList()` entries with `Kind == "svg-image"` to discover
+references, then load only resources your host permits. nthtml never fetches a
+URL, reads a file, or decodes a data URL implicitly. `nil` preserves the default
+policy; an enabled allowlist rejects image references absent from the map.
+Images may be at most 4096×4096 and 4 Mi pixels. Position, size, group transforms,
+opacity, visibility, and `preserveAspectRatio` (`none`, `meet`, `slice`) are
+supported. Supplying `Options.Images` alone does not enable SVG images. Hosts
+using `DefaultDiagramRenderer` directly can set its `Images` field; custom
+`Options.Diagrams` implementations continue to own their resource policy.
+
+Unsupported SVG elements and their subtrees are skipped, with one warning per
+element name in `Result.Warnings`. Malformed or unsafe diagram content falls back
+to a label/source; the CLI and demos surface those warnings.
 Unclosed SVG markup is a parse error. Resource-budget violations return
 `document.ErrLimit` instead of silently dropping content.
 

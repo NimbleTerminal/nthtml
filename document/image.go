@@ -22,7 +22,7 @@ import (
 
 // ImageSource identifies an image URL referenced by a Document and whether it
 // came from an <img src> attribute ("img") or a CSS background-image url(...)
-// declaration ("background").
+// declaration ("background"), or SVG <image> ("svg-image").
 type ImageSource struct {
 	Src  string
 	Kind string
@@ -141,7 +141,7 @@ func DecodeDataURL(src string) (image.Image, error) {
 }
 
 // ImageSourceList lists distinct <img src> ("img") and CSS background-image
-// url(...) ("background") sources in document order.
+// url(...) ("background") and SVG image ("svg-image") sources in document order.
 func (d *Document) ImageSourceList() []ImageSource {
 	if d == nil || d.root == nil {
 		return nil
@@ -165,6 +165,22 @@ func (d *Document) ImageSourceList() []ImageSource {
 		}
 		if n.tag == "img" {
 			add(n.attrs["src"], "img")
+		}
+		if n.svg != "" {
+			dec := xml.NewDecoder(strings.NewReader(n.svg))
+			for {
+				tok, err := dec.Token()
+				if err != nil {
+					break
+				}
+				if start, ok := tok.(xml.StartElement); ok && start.Name.Local == "image" {
+					for _, a := range start.Attr {
+						if a.Name.Local == "href" || a.Name.Local == "src" {
+							add(a.Value, "svg-image")
+						}
+					}
+				}
+			}
 		}
 		if bg := n.decl["background-image"]; bg != "" {
 			for _, u := range extractBackgroundURLs(bg) {
@@ -207,7 +223,7 @@ func (d *Document) BackgroundImageSources() []string {
 	return out
 }
 
-// ImageSources lists the distinct img src and CSS background-image url(...)
+// ImageSources lists the distinct img src, SVG image, and CSS background-image url(...)
 // values in document order, so a host can decode exactly the resources it
 // chooses to allow before Render. Hidden images are included; the list never
 // exceeds the parsed node and rule budgets.

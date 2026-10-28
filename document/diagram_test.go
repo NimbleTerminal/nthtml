@@ -60,7 +60,7 @@ func TestMermaidBlocks(t *testing.T) {
 }
 func TestSVGIsolationAndFallback(t *testing.T) {
 	r := renderCSS(t, `<svg><style>p{display:none}</style><script>bad()</script></svg><p>Visible</p>`)
-	if len(r.Warnings) != 1 {
+	if len(r.Warnings) != 2 {
 		t.Fatal(r.Warnings)
 	}
 	seen := false
@@ -163,6 +163,135 @@ func TestSVGParseBudgets(t *testing.T) {
 		_, e := Parse(context.Background(), strings.NewReader(src), Limits{})
 		if !errors.Is(e, ErrLimit) {
 			t.Fatal(e)
+		}
+	}
+}
+
+func TestSVGUnsupportedSubtrees(t *testing.T) {
+	for _, tc := range []struct {
+		name, content string
+		red, blue     uint8
+		warnings      string
+	}{
+		{"foreignObject", `<foreignObject><div>x</div><rect width="10" height="10" fill="green"/></foreignObject><rect width="10" height="10" fill="red"/>`, 255, 0, "foreignObject,div"},
+		{"use", `<use/><rect width="10" height="10" fill="blue"/>`, 0, 255, "use"},
+		{"metadata", `<metadata>m</metadata>`, 255, 255, "metadata"},
+		{"repeated", `<image/><image/><rect width="10" height="10" fill="red"/>`, 255, 0, "image"},
+		{"nested drawable", `<foreignObject><rect width="10" height="10" fill="red"/></foreignObject>`, 255, 255, "foreignObject"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := renderCSS(t, `<svg width="10" height="10">`+tc.content+`</svg>`)
+			boxes := boxesWithTag(r, "svg")
+			if len(boxes) == 0 || boxes[0].Bounds.Size() != image.Pt(10, 10) {
+				t.Fatalf("expected 10×10 SVG box: %v; warnings: %v", boxes, r.Warnings)
+			}
+			b := boxes[len(boxes)-1].Bounds
+			if c := r.Image.RGBAAt(b.Min.X+5, b.Min.Y+5); c.R != tc.red || c.B != tc.blue {
+				t.Fatalf("unexpected pixel: %v", c)
+			}
+			for _, box := range r.Boxes {
+				if box.Text != "" {
+					t.Fatalf("SVG text leaked or fell back: %q", box.Text)
+				}
+			}
+			names := strings.Split(tc.warnings, ",")
+			if len(r.Warnings) != len(names) {
+				t.Fatal(r.Warnings)
+			}
+			for i, name := range names {
+				if r.Warnings[i] != "svg: skipped unsupported element "+name {
+					t.Fatal(r.Warnings)
+				}
+			}
+		})
+	}
+}
+
+func TestSVGGoogleAppsIcon(t *testing.T) {
+	r := renderCSS(t, `<svg class="gb_H" aria-hidden="true" focusable="false" viewbox="0 0 24 24"><path d="M6,8c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM12,20c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM6,20c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM6,14c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM12,14c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM16,6c0,1.1 0.9,2 2,2s2,-0.9 2,-2 -0.9,-2 -2,-2 -2,0.9 -2,2zM12,8c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM18,14c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM18,20c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2z"></path><image src="https://ssl.gstatic.com/gb/images/bar/al-icon.png" alt="" height="24" width="24" style="border:none;display:none \9"></image></svg>`)
+	boxes := boxesWithTag(r, "svg")
+	if len(boxes) == 0 {
+		t.Fatalf("missing SVG: %v", r.Warnings)
+	}
+	if len(r.Warnings) != 1 || r.Warnings[0] != "svg: skipped unsupported element image" {
+		t.Fatal(r.Warnings)
+	}
+	b := boxes[len(boxes)-1].Bounds
+	// Locate the ink independently of the renderer's intrinsic sizing fallback
+	// for the lowercase viewbox attribute in the original Google markup.
+	var ink image.Rectangle
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c := r.Image.RGBAAt(x, y)
+			if c.R != 255 || c.G != 255 || c.B != 255 {
+				ink = ink.Union(image.Rect(x, y, x+1, y+1))
+			}
+		}
+	}
+	if ink.Empty() {
+		t.Fatal("SVG has no visible dots")
+	}
+	for y := 2; y <= 14; y += 3 {
+		for x := 2; x <= 14; x += 3 {
+			c := r.Image.RGBAAt(ink.Min.X+x*ink.Dx()/16, ink.Min.Y+y*ink.Dy()/16)
+			white := c.R == 255 && c.G == 255 && c.B == 255
+			dot := x%6 == 2 && y%6 == 2
+			if white == dot {
+				t.Fatalf("grid point (%d,%d): %v, want dot=%v", x, y, c, dot)
+			}
+		}
+	}
+	for _, box := range r.Boxes {
+		if strings.Contains(box.Text, "SVG:") {
+			t.Fatal(box.Text)
+		}
+	}
+}
+
+func TestSVGSkippedElementsSafety(t *testing.T) {
+	for _, content := range []string{
+		`<image href="https://example.test/a.png"/>`,
+		`<use href="#a"/><rect width="10" height="10" fill="blue"/>`,
+		`<unknown><image xlink:href="#a"/></unknown>`,
+		`<unknown onclick="bad()"/>`,
+		`<unknown fill="url(https://example.test/a)"/>`,
+		`<unknown><defs><rect fill="url(#a)"/></defs></unknown>`,
+	} {
+		r := renderCSS(t, `<svg width="10" height="10">`+content+`</svg>`)
+		var text strings.Builder
+		for _, box := range r.Boxes {
+			text.WriteString(box.Text)
+		}
+		if !strings.Contains(text.String(), "SVG:") || len(r.Warnings) != 1 || !strings.Contains(r.Warnings[0], "references are unsupported") && !strings.Contains(r.Warnings[0], "references inside definitions") {
+			t.Fatalf("unsafe SVG accepted: %s; warnings %v", content, r.Warnings)
+		}
+	}
+	for _, content := range []string{
+		strings.Repeat(`<unknown/>`, 3000),
+		strings.Repeat(`<unknown>`, 33) + strings.Repeat(`</unknown>`, 33),
+	} {
+		_, err := Render(context.Background(), strings.NewReader(`<svg>`+content+`</svg>`), Options{Width: 400})
+		if !errors.Is(err, ErrLimit) || !strings.Contains(err.Error(), "SVG complexity") {
+			t.Fatalf("expected SVG complexity limit, got %v", err)
+		}
+	}
+}
+
+func TestSVGRewritePreservesSource(t *testing.T) {
+	const start = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:custom="urn:test" custom:attr="a &amp; b">`
+	const kept = `<g mystery='value'><rect width="10" height="10" custom:flag="yes"/></g>`
+	got, skipped, err := rewriteSVG(context.Background(), start+`<unknown><rect/></unknown>`+kept+`<unknown/>`+`</svg>`)
+	if err != nil || got != start+kept+`</svg>` || len(skipped) != 1 || skipped[0] != "unknown" {
+		t.Fatalf("rewrite: %q, %v, %v", got, skipped, err)
+	}
+	for _, source := range []string{
+		`<g><rect/></g>`,
+		`<!DOCTYPE svg><svg/>`,
+		`<svg><unknown><?test value?></unknown></svg>`,
+		`<svg><unknown></svg>`,
+	} {
+		if _, _, err := rewriteSVG(context.Background(), source); err == nil {
+			t.Fatalf("accepted invalid SVG: %s", source)
 		}
 	}
 }

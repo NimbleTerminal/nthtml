@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased
+
+ * Add opt-in SVG raster images through `Options.SVGImages` (or `DefaultDiagramRenderer.Images`), with explicit decoded-resource allowlists, bounded dimensions, transforms, opacity, aspect-ratio fitting/cropping, and `svg-image` source discovery. No implicit resource loading.
+
+ * Render supported inline SVG content while skipping unsupported subtrees, with per-element warnings and unchanged safety limits.
+
 ## v0.1.2 (2026-10-28)
 
  * **Banded Kitty virtual-placement scrolling & focus-ring overlay (`Model`)**:

@@ -91,6 +91,13 @@ type Options struct {
 	// Images is an explicit allowlist of already decoded images, keyed by src.
 	// The caller owns decoding and must keep these images immutable during Render.
 	Images map[string]image.Image
+	// SVGImages is an optional, separate allowlist of decoded SVG <image>
+	// resources, keyed by href/xlink:href (or legacy src). Nil disables support.
+	// Missing references reject the SVG. No network, file, or data URL loading
+	// occurs. The default diagram renderer supports positioning, transforms,
+	// opacity, and preserveAspectRatio (none, meet, and slice).
+	// Custom Diagrams implementations own their resource policy instead.
+	SVGImages map[string]image.Image
 	// BackgroundImages is an optional allowlist of already decoded CSS
 	// background-image url(...) resources, keyed by URL. Lookup falls back
 	// to Images when an entry is absent here.

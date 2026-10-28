@@ -5,3 +5,7 @@
 /.task/
 /web/licenses/
 /artifacts/
+
+# Local multi-repository development workspace
+/go.work
+/go.work.sum

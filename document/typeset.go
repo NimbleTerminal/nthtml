@@ -44,6 +44,12 @@ func (r *Result) Options() Options {
 			o.Images[k] = v
 		}
 	}
+	if r.opts.SVGImages != nil {
+		o.SVGImages = make(map[string]image.Image, len(r.opts.SVGImages))
+		for k, v := range r.opts.SVGImages {
+			o.SVGImages[k] = v
+		}
+	}
 	return o
 }
 
