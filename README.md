@@ -429,14 +429,21 @@ Explicit font families come from ntfonts: Literata, Newsreader, IBM Plex Sans,
 Source Serif 4, Iosevka, IBM Plex Mono, and JetBrains Mono. Generic `serif`,
 `sans-serif`, and `monospace` select Literata, IBM Plex Sans, and IBM Plex Mono.
 Unknown families fall through the comma-separated list and finally to Go.
-This is family fallback, not per-glyph fallback. TTY mode uses the terminal's
-font and emits supported CSS colors/emphasis as ANSI styling.
+Missing glyphs then try the remaining CSS families, host `Options.FallbackFaces`,
+`ntfonts.Fallbacks()`, bundled text families, and finally Go/Go Mono. Monospace
+runs try the configured monospace family (default IBM Plex Mono), then Iosevka.
+Other runs try the configured serif and sans-serif families (default Literata
+and IBM Plex Sans), serif first for a serif primary and sans first otherwise.
+Fallback retains the run's weight and slant, and does not replace a primary
+face that already covers the character. TTY mode uses the terminal's font and
+emits supported CSS colors/emphasis as ANSI styling.
 
 Hosts can supply `document.Options{Fonts: source}`, where source implements
 `Face(family, variant string) ([]byte, error)`. Variants are Regular, Bold,
 Italic, and BoldItalic. Sources must bound their own work. Each render allows
 64 family/variant lookups, 128 sized faces, 4 MiB per font, and 16 MiB total font
-bytes; exceeding these ceilings returns `document.ErrLimit`.
+bytes. Primary font loads exceeding these ceilings return `document.ErrLimit`;
+fallback loads share the budgets and degrade to missing glyphs on exhaustion.
 
 The embedded ntfonts faces use the SIL Open Font License; see
 [font notices](licenses/fonts/THIRD_PARTY_NOTICES.md) and the accompanying license

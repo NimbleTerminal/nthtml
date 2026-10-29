@@ -6,7 +6,7 @@
 
  * Add CSS foreground/background colors and bold/italic/underline/strikethrough to TTY ANSI output, with plain-text style spans, inherited backgrounds, safe OSC 8/highlight composition, explicit color profiles, and a side-by-side Typeset/TTY demo. Plain text, source mappings, and search/selection coordinates remain escape-free. See docs/tty-styling.md.
 
- * Try compatible bundled text fonts after symbol fallback and before Go fonts, honoring configured serif/sans-serif/monospace mappings and the run variant. Default-font pages now render Vietnamese and currency characters such as ₹ while retaining their existing primary face.
+ * Use one cached, source-aware fallback path without redundant bundled lookups. Try configured bundled text families after symbol fallback and before Go/Go Mono, preserving primary faces and run variants. Serif/sans order follows the primary face; monospace runs try the configured monospace face then Iosevka. Default Vietnamese, currency, and monospace box drawing now use the widened ntfonts coverage within existing font budgets.
 
  * Pin ntfonts to v0.1.1-0.20261029000300-c0ab5130e225 for expanded text coverage and bundled Noto symbol fallback. Hosts can continue to opt into the separate CJK module through Options.FallbackFaces.
 

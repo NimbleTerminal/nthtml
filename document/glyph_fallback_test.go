@@ -479,3 +479,38 @@ func TestBundledTextFallbackUsesActualPrimary(t *testing.T) {
 		t.Fatal(r.MissingGlyphs)
 	}
 }
+
+func TestCustomTextFallbackSourceAndLookupCache(t *testing.T) {
+	data := coverageFont(t, 'a')
+	calls := map[string]int{}
+	source := fontSource(func(family, variant string) ([]byte, error) {
+		calls[family+"/"+variant]++
+		return data, nil
+	})
+	// Both configured families lack the probe so every candidate is visited.
+	opts := Options{Fonts: source, FontFamilies: FontFamilies{SansSerif: "CustomSans", Serif: "CustomSerif"}}
+	fallbackRender(t, "<p>₹</p>", opts)
+	for key, n := range calls {
+		if n != 1 {
+			t.Fatalf("page source %s called %d times", key, n)
+		}
+	}
+	if calls["CustomSans/Regular"] != 1 {
+		t.Fatal("configured sans was not requested")
+	}
+	// ntfonts.Embedded is a concrete Source, not replaceable by a counting
+	// wrapper. Its attempted lookups (including misses) are recorded in fonts.
+	// An uncovered cluster forces the entire chain, exposing redundant lookups.
+	l := &layout{opts: opts}
+	defer func() {
+		for _, f := range l.faces {
+			f.Close()
+		}
+	}()
+	l.clusterFace(style{size: 16}, "₹")
+	for _, family := range []string{"CustomSans", "CustomSerif"} {
+		if _, found := l.fonts["-2/"+family+"/Regular"]; found {
+			t.Fatalf("custom family %s requested from Embedded", family)
+		}
+	}
+}
