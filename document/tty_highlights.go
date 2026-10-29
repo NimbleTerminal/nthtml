@@ -1,6 +1,7 @@
 package document
 
 import (
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"sort"
 	"strconv"
@@ -10,11 +11,15 @@ import (
 // ANSIHighlights preserves hyperlinks and adds inverse-video byte ranges.
 // Each segment resets its state, including at physical line boundaries.
 func (r *TTYResult) ANSIHighlights(ranges []Match) string {
+	return r.ansiStyled(ranges, colorprofile.TrueColor)
+}
+
+func (r *TTYResult) ansiStyled(ranges []Match, profile colorprofile.Profile) string {
 	if r == nil {
 		return ""
 	}
-	if len(ranges) == 0 {
-		return r.ANSI()
+	if profile <= colorprofile.NoTTY {
+		return r.Text
 	}
 	if len(ranges) > 1001 {
 		ranges = ranges[:1001]
@@ -22,7 +27,10 @@ func (r *TTYResult) ANSIHighlights(ranges []Match) string {
 	events := map[int]int{}
 	points := []int{0, len(r.Text)}
 	add := func(p int) { points = append(points, p) }
-	index := r.TextIndex()
+	var index *TextIndex
+	if len(ranges) > 0 {
+		index = r.TextIndex()
+	}
 	for _, v := range ranges {
 		a, b := index.Range(v.Start, v.End)
 		if a == b {
@@ -34,6 +42,10 @@ func (r *TTYResult) ANSIHighlights(ranges []Match) string {
 		add(b)
 	}
 	for _, s := range r.Spans {
+		add(s.Start)
+		add(s.End)
+	}
+	for _, s := range r.Styles {
 		add(s.Start)
 		add(s.End)
 	}
@@ -50,6 +62,7 @@ func (r *TTYResult) ANSIHighlights(ranges []Match) string {
 	}
 	var out strings.Builder
 	active, link, pos := 0, 0, 0
+	stylePos := 0
 	for i := 0; i < len(points)-1; i++ {
 		a, b := points[i], points[i+1]
 		if a == b {
@@ -75,11 +88,17 @@ func (r *TTYResult) ANSIHighlights(ranges []Match) string {
 		if href != "" {
 			out.WriteString(ansi.SetHyperlink(href, "id=nthtml-"+strconv.Itoa(link)))
 		}
-		if active > 0 {
-			out.WriteString("\x1b[7m")
+		for stylePos < len(r.Styles) && r.Styles[stylePos].End <= a {
+			stylePos++
 		}
+		st := TTYStyle{}
+		if stylePos < len(r.Styles) && r.Styles[stylePos].Start <= a && r.Styles[stylePos].End >= b {
+			st = r.Styles[stylePos].Style
+		}
+		sgr := st.sgr(profile, active > 0)
+		out.WriteString(sgr)
 		out.WriteString(part)
-		if active > 0 {
+		if sgr != "" {
 			out.WriteString("\x1b[0m")
 		}
 		if href != "" {

@@ -32,13 +32,23 @@ func (b *ttyBuilder) Reset() { b.Builder.Reset(); b.runs = nil; b.special = fals
 
 // Styled TTY runs keep inline whitespace overrides scoped to their own text.
 // ANSI link/anchor markers occupy zero cells and survive all line breaks.
-func wrapTTYRuns(runs []ttyRun, width int) string {
+func wrapTTYRuns(runs []ttyRun, width int, styles *ttyStyles) string {
 	type unit struct {
 		text            string
 		width           int
+		styleID         int
 		breakable, wrap bool
 	}
 	var out strings.Builder
+	activeStyle := 0
+	emit := func(text string, id int) {
+		if !strings.HasPrefix(text, "\x1b") && id != activeStyle {
+			out.WriteString(ttyStyleMarker(id))
+			activeStyle = id
+		}
+		out.WriteString(text)
+	}
+	pendingStyle := 0
 	var word []unit
 	wordWidth, lineWidth, structural := 0, 0, 0
 	pendingSpace := false
@@ -57,6 +67,7 @@ func wrapTTYRuns(runs []ttyRun, width int) string {
 		}
 		trailing := false
 		for len(word) > 0 && word[len(word)-1].text == " " {
+			pendingStyle = word[len(word)-1].styleID
 			word = word[:len(word)-1]
 			wordWidth--
 			trailing = true
@@ -75,14 +86,14 @@ func wrapTTYRuns(runs []ttyRun, width int) string {
 			space = 0
 		}
 		if space > 0 {
-			out.WriteByte(' ')
+			emit(" ", pendingStyle)
 			lineWidth++
 		}
 		for _, u := range word {
 			if u.breakable && lineWidth > 0 && lineWidth+u.width > width {
 				newline()
 			}
-			out.WriteString(u.text)
+			emit(u.text, u.styleID)
 			lineWidth += u.width
 		}
 		pendingSpace = trailing
@@ -91,6 +102,7 @@ func wrapTTYRuns(runs []ttyRun, width int) string {
 	}
 	for _, run := range runs {
 		s := run.policy
+		styleID := styles.id(s)
 		noWrap := s.whiteSpace == "nowrap" || s.whiteSpace == "pre"
 		for text := run.text; len(text) > 0; {
 			seq, w, n, _ := ansi.DecodeSequence(text, 0, nil)
@@ -114,11 +126,12 @@ func wrapTTYRuns(runs []ttyRun, width int) string {
 				if noWrap {
 					// A collapsed space inside nowrap is part of its unbreakable run.
 					if len(word) > 0 && word[len(word)-1].text != " " {
-						word = append(word, unit{" ", 1, false, false})
+						word = append(word, unit{" ", 1, styleID, false, false})
 						wordWidth++
 					}
 				} else {
 					flushWord()
+					pendingStyle = styleID
 					pendingSpace = true
 				}
 				continue
@@ -130,17 +143,20 @@ func wrapTTYRuns(runs []ttyRun, width int) string {
 				if !noWrap && lineWidth >= width {
 					newline()
 				}
-				out.WriteString(seq)
+				emit(seq, styleID)
 				lineWidth += w
 				continue
 			}
 			// normal overflow-wrap wraps words, but not their interior. Preserve that
 			// distinction by flushing the word at whitespace and handling it below.
 			canBreak := !noWrap && s.overflowWrap != "normal"
-			word = append(word, unit{seq, w, canBreak, !noWrap})
+			word = append(word, unit{seq, w, styleID, canBreak, !noWrap})
 			wordWidth += w
 		}
 	}
 	flushWord()
+	if activeStyle != 0 {
+		out.WriteString(ttyStyleEnd)
+	}
 	return out.String()
 }

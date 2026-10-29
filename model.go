@@ -43,7 +43,7 @@ type focusOverlayKey struct {
 	match, selStart, selEnd int
 }
 
-// LayoutMode selects styled pixels or plain terminal-cell text.
+// LayoutMode selects styled pixels or CSS-styled terminal-cell text.
 // LayoutTypeset uses nthtml's rasterizer, not the separate nttypeset engine.
 type LayoutMode int
 

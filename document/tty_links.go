@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -29,11 +30,12 @@ type TTYResult struct {
 	Text        string
 	Links       []Link
 	Spans       []TextSpan
+	Styles      []TTYStyleSpan
 	lineSources []string
 	width       int
 }
 
-// TTYLayout returns plain text plus link spans, without terminal escape codes.
+// TTYLayout returns plain text plus link and CSS style spans, without escape codes.
 // @media width queries are evaluated at columns * 10 CSS pixels (80 cols = 800 px).
 func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error) {
 	clampedW := max(2, min(1000, width))
@@ -44,7 +46,8 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 			return nil, err
 		}
 	}
-	raw, e := d.tty(ctx, clampedW)
+	styles := &ttyStyles{}
+	raw, e := d.tty(ctx, clampedW, styles)
 	if e != nil {
 		return nil, e
 	}
@@ -66,7 +69,9 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 			collect(c)
 		}
 	}
-	collect(d.root)
+	if d != nil && d.root != nil {
+		collect(d.root)
+	}
 	result := &TTYResult{
 		Anchors:     map[string]image.Point{},
 		AnchorRects: map[string]image.Rectangle{},
@@ -78,9 +83,23 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 	pendingStart := map[string]bool{}
 	curLineSource := ""
 	x, y, current := 0, 0, 0
+	currentStyle := TTYStyle{}
 	for len(raw) > 0 {
 		if e := ctx.Err(); e != nil {
 			return nil, e
+		}
+		if strings.HasPrefix(raw, ttyStylePrefix) {
+			end := strings.IndexByte(raw, '\x07')
+			if end < 0 {
+				break
+			}
+			id, _ := strconv.Atoi(strings.TrimPrefix(raw[:end], ttyStylePrefix))
+			currentStyle = TTYStyle{}
+			if id > 0 && id < len(styles.values) {
+				currentStyle = styles.values[id]
+			}
+			raw = raw[end+1:]
+			continue
 		}
 		if strings.HasPrefix(raw, "\x1b]1337;nthtml-anchor-end=") {
 			end := strings.IndexByte(raw, '\x07')
@@ -173,13 +192,32 @@ func (d *Document) TTYLayout(ctx context.Context, width int) (*TTYResult, error)
 		start := text.Len()
 		text.WriteString(chunk)
 		w := ansi.StringWidth(chunk)
+		if currentStyle != (TTYStyle{}) {
+			span := TTYStyleSpan{Start: start, End: text.Len(), Bounds: image.Rect(x, y, x+w, y+1), Style: currentStyle}
+			last := len(result.Styles) - 1
+			if last >= 0 && result.Styles[last].End == start && result.Styles[last].Style == currentStyle && result.Styles[last].Bounds.Min.Y == y {
+				result.Styles[last].End = span.End
+				result.Styles[last].Bounds.Max.X = span.Bounds.Max.X
+			} else {
+				if len(result.Styles) >= 100000 {
+					return nil, limitError("TTY style spans")
+				}
+				result.Styles = append(result.Styles, span)
+			}
+		}
 		if i, ok := byID[current]; ok && w > 0 {
 			b := image.Rect(x, y, x+w, y+1)
 			if len(result.Spans) >= 100000 {
 				return nil, limitError("TTY link spans")
 			}
-			result.Spans = append(result.Spans, TextSpan{start, text.Len(), current, b})
-			links[i].Regions = append(links[i].Regions, b)
+			last := len(result.Spans) - 1
+			if last >= 0 && result.Spans[last].End == start && result.Spans[last].LinkID == current && result.Spans[last].Bounds.Min.Y == y {
+				result.Spans[last].End = text.Len()
+				result.Spans[last].Bounds.Max.X = b.Max.X
+			} else {
+				result.Spans = append(result.Spans, TextSpan{start, text.Len(), current, b})
+			}
+			appendLinkRegion(&links[i], b)
 		}
 		x += w
 		raw = raw[end:]
@@ -205,41 +243,10 @@ func (r *Result) TTYLayout(ctx context.Context, width int) (*TTYResult, error) {
 	return r.document.TTYLayout(ctx, width)
 }
 
-// ANSI adds OSC 8 hyperlinks. Plain TTY output never contains escape codes.
-// Each line independently closes its links, so a viewport can safely crop lines.
+// ANSI emits CSS colors/emphasis and OSC 8 links using truecolor.
+// Every physical line closes its state and can be displayed independently.
 func (r *TTYResult) ANSI() string {
-	if r == nil {
-		return ""
-	}
-	hrefs := map[int]string{}
-	for _, l := range r.Links {
-		hrefs[l.ID] = SafeURL(l.Href)
-	}
-	var out strings.Builder
-	pos := 0
-	for _, s := range r.Spans {
-		if s.Start < pos || s.End > len(r.Text) || s.End < s.Start {
-			continue
-		}
-		out.WriteString(r.Text[pos:s.Start])
-		href := hrefs[s.LinkID]
-		if out.Len()+(s.End-s.Start)+len(href)+64 > maxTTYBytes {
-			return r.Text
-		}
-		if href != "" {
-			out.WriteString(ansi.SetHyperlink(href, "id=nthtml-"+strconv.Itoa(s.LinkID)))
-		}
-		out.WriteString(r.Text[s.Start:s.End])
-		if href != "" {
-			out.WriteString(ansi.ResetHyperlink())
-		}
-		pos = s.End
-	}
-	if out.Len()+len(r.Text)-pos > maxTTYBytes {
-		return r.Text
-	}
-	out.WriteString(r.Text[pos:])
-	return out.String()
+	return r.ansiStyled(nil, colorprofile.TrueColor)
 }
 
 // Close/reopen internal markers at every physical line boundary, before table
@@ -248,7 +255,22 @@ func linkedLines(text string) []string {
 	var lines []string
 	var line strings.Builder
 	active := ""
+	activeStyle := ""
 	for len(text) > 0 {
+		if strings.HasPrefix(text, ttyStylePrefix) {
+			end := strings.IndexByte(text, '\x07')
+			if end < 0 {
+				break
+			}
+			seq := text[:end+1]
+			activeStyle = seq
+			if seq == ttyStyleEnd {
+				activeStyle = ""
+			}
+			line.WriteString(seq)
+			text = text[end+1:]
+			continue
+		}
 		if strings.HasPrefix(text, "\x1b]8;;") {
 			end := strings.IndexByte(text, '\x07')
 			if end < 0 {
@@ -277,9 +299,13 @@ func linkedLines(text string) []string {
 			if active != "" {
 				line.WriteString(linkEnd)
 			}
+			if activeStyle != "" {
+				line.WriteString(ttyStyleEnd)
+			}
 			lines = append(lines, line.String())
 			line.Reset()
 			line.WriteString(active)
+			line.WriteString(activeStyle)
 			text = text[1:]
 			continue
 		}
@@ -296,6 +322,9 @@ func linkedLines(text string) []string {
 	}
 	if active != "" {
 		line.WriteString(linkEnd)
+	}
+	if activeStyle != "" {
+		line.WriteString(ttyStyleEnd)
 	}
 	lines = append(lines, line.String())
 	return lines

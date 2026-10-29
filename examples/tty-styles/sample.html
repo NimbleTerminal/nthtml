@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shared conversation styles</title>
+<style>
+body { color: #dce7f3; background: #162031; font-family: sans-serif; margin: 16px; }
+h1 { color: #79d8ff; font-size: 25px; }
+h2 { color: #9fe3c2; font-size: 18px; }
+.user { background: #263c56; padding: 10px; }
+.assistant { background: #223c35; padding: 10px; }
+a { color: #89bfff; }
+code, pre { color: #ffe1a1; background: #292535; }
+pre { padding: 10px; white-space: pre-wrap; }
+.notice { color: #ffb497; }
+table { border-collapse: collapse; }
+th { color: #79d8ff; }
+td, th { padding: 6px; border: 1px solid #65788a; }
+.quiet { color: #a5b4c7; font-weight: normal; }
+</style>
+</head>
+<body>
+<h1>One conversation, two views</h1>
+<section class="user" id="question">
+<h2>User</h2>
+<p>Can we keep <strong>emphasis</strong>, colors, and <code>inline code</code> in terminal text?</p>
+</section>
+<section class="assistant" id="answer">
+<h2>Assistant</h2>
+<p>Yes. <em>Nested emphasis</em> and <a href="https://example.com/docs">documentation links</a> share the same CSS.</p>
+<ul>
+<li><strong>Readable:</strong> Café, 世界, é, and wide characters.</li>
+<li><span class="notice">Updated:</span> <del>monochrome text</del> styled text.</li>
+<li class="quiet">Plain text and search offsets stay independent of ANSI.</li>
+</ul>
+<pre><code>response := "Café 世界"
+fmt.Println(response)</code></pre>
+<table>
+<tr><th>Feature</th><th>Status</th></tr>
+<tr><td>Colors</td><td><strong>Ready</strong></td></tr>
+<tr><td>Links</td><td><em>OSC 8</em></td></tr>
+</table>
+</section>
+<p class="quiet">Try /Café, then n to search or v to select the match.</p>
+</body>
+</html>

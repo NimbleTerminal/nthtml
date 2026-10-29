@@ -139,11 +139,11 @@ The component follows ntpicture's pointer-mutating convention:
 - On exit run `tea.Sequence(viewer.Close(), tea.Quit)`; also defer `viewer.Close()` for resource cleanup.
 
 Press **t** to toggle **Typeset** (the styled raster page) and **TTY** (readable
-plain text reflowed to terminal cells). The browser gallery has the same toggle
+styled text reflowed to terminal cells). The browser gallery has the same toggle
 as a button and keyboard shortcut. Its selectable TTY text reflows with the
 resizable container; comparison mode uses 80 columns with horizontal scrolling
 on narrower screens to preserve table alignment. Each mode retains its own scroll position. Switching back
-to Typeset restores the raster zoom and pan. TTY omits CSS decorations, respects
+to Typeset restores the raster zoom and pan. TTY carries CSS colors and emphasis, respects
 hidden content, represents images by alt text, and draws Unicode-bordered tables with header
 separators, wrapped cells, and left/center/right alignment from CSS. Columns fit
 the available terminal width; very narrow layouts switch to stacked records.
@@ -198,11 +198,15 @@ dragging cancels activation. Clicks are ignored while a replacement raster is
 pending so they cannot activate a target from an undisplayed layout.
 
 `Document.TTYLayout(ctx, columns)` (also available on `Result`) returns plain
-`Text`, cell-based `Links`, and UTF-8 byte-offset `Spans`. Use `.ANSI()` to opt into
-OSC 8 hyperlinks; the widget does this automatically. Every line closes its
-hyperlinks, so scrolling cannot leak them into neighboring rows. Unsupported
+`Text`, cell-based `Links`, UTF-8 byte-offset `Spans`, and CSS `Styles`. Use `.ANSI()`
+to emit truecolor SGR and OSC 8 hyperlinks; the widget does this automatically.
+Every line closes styling and links, so scrolling cannot leak terminal state. Unsupported
 terminals still show readable text. `TTY()` remains escape-free. ANSI generation
 falls back to plain text if escape expansion would exceed its 4 MiB budget.
+
+See [TTY styling](docs/tty-styling.md) for supported CSS, color profiles, and
+highlight composition. Run `go run ./examples/tty-styles` to compare styled TTY
+and Typeset side by side using the same HTML/CSS.
 
 The browser demo uses real, keyboard-focusable anchors over the canvas hit
 regions and around TTY spans. External links open a new tab; local fragment links
@@ -425,7 +429,7 @@ Source Serif 4, Iosevka, IBM Plex Mono, and JetBrains Mono. Generic `serif`,
 `sans-serif`, and `monospace` select Literata, IBM Plex Sans, and IBM Plex Mono.
 Unknown families fall through the comma-separated list and finally to Go.
 This is family fallback, not per-glyph fallback. TTY mode uses the terminal's
-font and omits these visual styles.
+font and emits supported CSS colors/emphasis as ANSI styling.
 
 Hosts can supply `document.Options{Fonts: source}`, where source implements
 `Face(family, variant string) ([]byte, error)`. Variants are Regular, Bold,

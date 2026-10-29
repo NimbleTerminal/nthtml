@@ -11,6 +11,7 @@ import (
 const maxTTYBytes = 4 << 20
 
 type ttyFlow struct {
+	styles       *ttyStyles
 	policy       style
 	pending      ttyBuilder
 	parts        []string
@@ -64,11 +65,15 @@ func (f *ttyFlow) joined() string {
 }
 func (f *ttyFlow) flush() error {
 	if f.pending.special {
-		text := wrapTTYRuns(f.pending.runs, f.width)
+		text := wrapTTYRuns(f.pending.runs, f.width, f.styles)
 		f.pending.Reset()
 		return f.append(text)
 	}
-	text := f.pending.String()
+	var styled strings.Builder
+	for _, run := range f.styledRuns() {
+		styled.WriteString(run.text)
+	}
+	text := styled.String()
 	if !f.policy.pre {
 		text = normalizeTTY(text)
 	}
@@ -94,11 +99,11 @@ func (d *Document) TTY(ctx context.Context, width int) (string, error) {
 	}
 	return result.Text, nil
 }
-func (d *Document) tty(ctx context.Context, width int) (string, error) {
+func (d *Document) tty(ctx context.Context, width int, styles *ttyStyles) (string, error) {
 	if d == nil || d.root == nil {
 		return "", nil
 	}
-	f := &ttyFlow{width: max(2, min(1000, width))}
+	f := &ttyFlow{width: max(2, min(1000, width)), styles: styles}
 	var walk func(*node, style, *ttyFlow, bool) error
 	walk = func(n *node, parent style, f *ttyFlow, inCell bool) error {
 		if err := ctx.Err(); err != nil {
@@ -125,7 +130,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			}
 			return nil
 		}
-		s := d.styled(n, parent)
+		s := d.ttyStyled(n, parent)
 		b.policy = s
 		if s.display == "none" {
 			return nil
@@ -143,7 +148,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			if err := f.flush(); err != nil {
 				return err
 			}
-			return f.append(marker + ansi.Hardwrap(cleanText(source), f.width, true) + endMarker)
+			return f.append(marker + styles.mark(ansi.Hardwrap(cleanText(source), f.width, true), s) + endMarker)
 		}
 		if n.tag == "a" && s.linkID != 0 {
 			b.WriteString(marker)
@@ -164,7 +169,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			if err := f.flush(); err != nil {
 				return err
 			}
-			code := &ttyFlow{width: f.width, policy: s}
+			code := &ttyFlow{width: f.width, policy: s, styles: styles}
 			code.pending.policy = s
 			code.pending.WriteString(marker)
 			for _, child := range displayedChildren(n) {
@@ -201,7 +206,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				if child.tag != "li" {
 					continue
 				}
-				cs := d.styled(child, s)
+				cs := d.ttyStyled(child, s)
 				if cs.display == "none" {
 					continue
 				}
@@ -216,7 +221,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				index += step
 				indent := ansi.StringWidth(liMarker)
 				innerWidth := max(2, f.width-indent)
-				item := &ttyFlow{width: innerWidth}
+				item := &ttyFlow{width: innerWidth, styles: styles}
 				if err := walk(child, s, item, inCell); err != nil {
 					return err
 				}
@@ -235,7 +240,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 					if i == 0 {
 						prefix = liMarker
 					}
-					formatted = append(formatted, prefix+line)
+					formatted = append(formatted, styles.mark(prefix, cs)+line)
 				}
 				itemText := strings.Join(formatted, "\n")
 				listBytes += len(itemText) + 1
@@ -250,7 +255,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 			if err := f.flush(); err != nil {
 				return err
 			}
-			return f.append(marker + strings.Repeat("─", f.width) + endMarker)
+			return f.append(marker + styles.mark(strings.Repeat("─", f.width), s) + endMarker)
 		}
 		if n.tag == "br" {
 			b.WriteString(marker + endMarker)
@@ -270,8 +275,8 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				return err
 			}
 			cellText := func(c *node, st style) (string, error) {
-				cell := &ttyFlow{width: f.width}
-				if err := walk(c, st, cell, true); err != nil {
+				cell := &ttyFlow{width: f.width, styles: styles}
+				if err := walk(c, d.ttyParentStyle(c), cell, true); err != nil {
 					return "", err
 				}
 				if err := cell.flush(); err != nil {
@@ -299,7 +304,7 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 				if !first {
 					b.WriteString(" | ")
 				}
-				cell := &ttyFlow{width: f.width}
+				cell := &ttyFlow{width: f.width, styles: styles}
 				if err := walk(c, s, cell, true); err != nil {
 					return err
 				}
@@ -334,6 +339,9 @@ func (d *Document) tty(ctx context.Context, width int) (string, error) {
 	}
 	if err := f.flush(); err != nil {
 		return "", err
+	}
+	if styles.err != nil {
+		return "", styles.err
 	}
 	return strings.Join(linkedLines(f.joined()), "\n"), ctx.Err()
 }
@@ -382,13 +390,21 @@ func collapseTTYSpaces(line string) string {
 		stateSpaceEmitted
 	)
 	state := stateStart
+	deferredStyleEnd := ""
 	for len(line) > 0 {
 		if strings.HasPrefix(line, "\x1b]") {
 			if end := strings.IndexByte(line, '\x07'); end >= 0 {
 				seq := line[:end+1]
-				isEnd := seq == linkEnd || strings.HasPrefix(seq, "\x1b]1337;nthtml-anchor-end=")
+				if seq == ttyStyleEnd && state == statePendingSpace {
+					deferredStyleEnd = seq
+					line = line[end+1:]
+					continue
+				}
+				isEnd := seq == linkEnd || seq == ttyStyleEnd || strings.HasPrefix(seq, "\x1b]1337;nthtml-anchor-end=")
 				if !isEnd && state == statePendingSpace {
 					out.WriteByte(' ')
+					out.WriteString(deferredStyleEnd)
+					deferredStyleEnd = ""
 					state = stateSpaceEmitted
 				}
 				out.WriteString(seq)
@@ -405,11 +421,14 @@ func collapseTTYSpaces(line string) string {
 		}
 		if state == statePendingSpace {
 			out.WriteByte(' ')
+			out.WriteString(deferredStyleEnd)
+			deferredStyleEnd = ""
 		}
 		state = stateWord
 		out.WriteByte(line[0])
 		line = line[1:]
 	}
+	out.WriteString(deferredStyleEnd)
 	return out.String()
 }
 func cleanText(s string) string {
