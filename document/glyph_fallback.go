@@ -27,6 +27,15 @@ type splitKey struct {
 	mono, small bool
 	text        string
 }
+
+// Options are fixed for a layout, so generic-family mappings need not be
+// repeated in this render-local cache key.
+type textFallbackKey struct {
+	face          faceKey
+	primaryFamily string
+	mono          bool
+}
+
 type glyphRun struct {
 	key     faceKey
 	text    string
@@ -128,6 +137,25 @@ func (l *layout) clusterFace(s style, text string) font.Face {
 			return f
 		}
 	}
+	// Keep bundled text coverage available even when a page source does not
+	// supply these families. Loads share the same budgets as every fallback.
+	for _, family := range l.bundledTextFamilies(s, l.faceInfo[primary].key.family) {
+		if l.fontStopped {
+			break
+		}
+		candidate := k
+		candidate.family = family
+		candidate.source = -2
+		for _, known := range ntfonts.Families() {
+			if strings.EqualFold(candidate.family, known) {
+				candidate.family = known
+				break
+			}
+		}
+		if f := choose(candidate); f != nil {
+			return f
+		}
+	}
 	names := []string{"Go", "Go Mono"}
 	if s.mono {
 		names[0], names[1] = names[1], names[0]
@@ -147,6 +175,10 @@ func (l *layout) clusterFace(s style, text string) font.Face {
 // choose compatible text fallbacks. Custom generic mappings participate too.
 func (l *layout) bundledTextFallbacks(s style, primary font.Face) []faceKey {
 	family := l.faceInfo[primary].key.family
+	cacheKey := textFallbackKey{face: l.fontKey(s), primaryFamily: family, mono: s.mono}
+	if candidates, ok := l.textFallbacks[cacheKey]; ok {
+		return candidates
+	}
 	matches := func(config string) bool {
 		if config == "" {
 			return false
@@ -202,7 +234,38 @@ func (l *layout) bundledTextFallbacks(s style, primary font.Face) []faceKey {
 			}
 		}
 	}
+	// Bound retained lists independently of how many styles the input requests.
+	// Cached slices are immutable; callers copy candidate keys before use.
+	if len(l.textFallbacks) < 128 {
+		if l.textFallbacks == nil {
+			l.textFallbacks = map[textFallbackKey][]faceKey{}
+		}
+		l.textFallbacks[cacheKey] = out
+	}
 	return out
+}
+
+// bundledTextFamilies follows the actual primary face, not the first CSS
+// family (which may have failed to load). Unknown faces use sans-first order.
+func (l *layout) bundledTextFamilies(s style, primary string) []string {
+	serif := cmp.Or(l.opts.FontFamilies.Serif, "Literata")
+	sans := cmp.Or(l.opts.FontFamilies.SansSerif, "IBM Plex Sans")
+	mono := cmp.Or(l.opts.FontFamilies.Monospace, "IBM Plex Mono")
+	switch strings.ToLower(primary) {
+	case "go mono", "ibm plex mono", "iosevka", "jetbrains mono":
+		return []string{mono, "Iosevka"}
+	}
+	if s.mono || strings.EqualFold(primary, mono) {
+		return []string{mono, "Iosevka"}
+	}
+	switch strings.ToLower(primary) {
+	case "literata", "newsreader", "source serif 4":
+		return []string{serif, sans}
+	}
+	if strings.EqualFold(primary, serif) {
+		return []string{serif, sans}
+	}
+	return []string{sans, serif}
 }
 
 // Combining marks form an indivisible unit with their preceding base.

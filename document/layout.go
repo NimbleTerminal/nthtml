@@ -72,6 +72,7 @@ type layout struct {
 	ops                         []operation
 	primary                     map[faceKey]font.Face
 	faceInfo                    map[font.Face]faceRecord
+	textFallbacks               map[textFallbackKey][]faceKey
 	coverage                    map[coverageKey]bool
 	splits                      map[splitKey][]glyphRun
 	splitBytes                  int

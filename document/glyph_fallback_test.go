@@ -343,3 +343,139 @@ func TestBundledTextFallbackOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestBundledTextFallbackCacheAllocations(t *testing.T) {
+	l := &layout{}
+	s := style{size: 16, family: "Go"}
+	primary := l.face(s)
+	defer func() {
+		for _, f := range l.faces {
+			f.Close()
+		}
+	}()
+	l.bundledTextFallbacks(s, primary)
+	if allocations := testing.AllocsPerRun(100, func() { l.bundledTextFallbacks(s, primary) }); allocations != 0 {
+		t.Fatalf("cached candidate lookup allocated %g times", allocations)
+	}
+	// Variant and monospace changes must not reuse incompatible candidates.
+	s.bold = true
+	if got := l.bundledTextFallbacks(s, primary); !got[0].bold {
+		t.Fatal("cached regular variant reused")
+	}
+	s.mono = true
+	if got := l.bundledTextFallbacks(s, primary); got[0].family != "IBM Plex Mono" {
+		t.Fatal("cached proportional family reused")
+	}
+	serif := l.face(style{size: 16, family: "Literata"})
+	s = style{size: 16, family: "Go"}
+	if got := l.bundledTextFallbacks(s, serif); got[0].family != "Literata" {
+		t.Fatal("cached sans order reused for serif primary")
+	}
+}
+
+func TestBundledTextFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name, html string
+		missing    int
+	}{
+		{"default", "<p>Tiếng Việt ₹</p>", 0},
+		{"unknown CSS", "<p style='font-family:Unavailable'>Tiếng Việt ₹</p>", 0},
+		{"monospace", "<p style='font-family:monospace'>Tiếng ┌─┐</p>", 0},
+		{"missing", "<p>ꯀ</p>", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := fallbackRender(t, tc.html, Options{Width: 300})
+			if r.MissingGlyphs != tc.missing {
+				t.Fatalf("missing=%d, want %d", r.MissingGlyphs, tc.missing)
+			}
+		})
+	}
+	for _, html := range []string{"<p>a</p>", "<p style='font-family:Go'>a</p>"} {
+		r := fallbackRender(t, html, Options{})
+		found := false
+		for _, op := range r.ops {
+			for _, run := range op.runs {
+				if run.text == "a" {
+					found = true
+					if run.key.family != "Go" || run.key.source != -1 {
+						t.Fatalf("primary changed: %+v", run)
+					}
+				}
+			}
+		}
+		if !found {
+			t.Fatal("missing primary run")
+		}
+	}
+}
+
+func TestBundledTextFallbackOrderAndVariants(t *testing.T) {
+	// The page's primary faces deliberately lack the probe. Bundled candidates
+	// must bypass that source and preserve the requested weight and slant.
+	primary := coverageFont(t, 'a')
+	source := fontSource(func(string, string) ([]byte, error) { return primary, nil })
+	for _, tc := range []struct {
+		family      string
+		mappings    FontFamilies
+		probe, want string
+	}{
+		{"Literata", FontFamilies{}, "ế", "Literata"},
+		{"IBM Plex Sans", FontFamilies{}, "ế", "IBM Plex Sans"},
+		{"Newsreader", FontFamilies{Serif: "Source Serif 4"}, "ế", "Source Serif 4"},
+		{"IBM Plex Sans", FontFamilies{SansSerif: "JetBrains Mono"}, "ế", "JetBrains Mono"},
+		{"Go Mono", FontFamilies{}, "ế", "IBM Plex Mono"},
+		{"Iosevka", FontFamilies{}, "ế", "IBM Plex Mono"},
+		{"JetBrains Mono", FontFamilies{Monospace: "Iosevka"}, "ế", "Iosevka"},
+		{"monospace", FontFamilies{Monospace: "Unavailable"}, "┌", "Iosevka"},
+	} {
+		for _, variant := range []struct {
+			css          string
+			bold, italic bool
+		}{
+			{"", false, false}, {"font-weight:bold", true, false}, {"font-style:italic", false, true}, {"font-weight:bold;font-style:italic", true, true},
+		} {
+			t.Run(tc.family+"/"+variant.css, func(t *testing.T) {
+				html := fmt.Sprintf("<p style='font-family:%s;%s'>%s</p>", tc.family, variant.css, tc.probe)
+				r := fallbackRender(t, html, Options{Fonts: source, FontFamilies: tc.mappings})
+				if r.MissingGlyphs != 0 {
+					t.Fatal("missing probe", r.MissingGlyphs)
+				}
+				found := false
+				for _, op := range r.ops {
+					for _, run := range op.runs {
+						if run.text == tc.probe {
+							found = true
+							if run.key.family != tc.want || run.key.source != -2 || run.key.bold != variant.bold || run.key.italic != variant.italic {
+								t.Fatalf("wrong fallback: %+v; want %s", run, tc.want)
+							}
+						}
+					}
+				}
+				if !found {
+					t.Fatal("probe not rendered")
+				}
+			})
+		}
+	}
+}
+
+func TestBundledTextFallbackUsesActualPrimary(t *testing.T) {
+	primary := coverageFont(t, 'a')
+	source := fontSource(func(family, variant string) ([]byte, error) {
+		if family == "Newsreader" {
+			return primary, nil
+		}
+		return nil, fmt.Errorf("absent")
+	})
+	r := fallbackRender(t, "<p style='font-family:Unavailable,Newsreader'>ế</p>", Options{Fonts: source})
+	for _, op := range r.ops {
+		for _, run := range op.runs {
+			if run.text == "ế" && (run.key.family != "Literata" || run.key.source != -2) {
+				t.Fatalf("not serif-first: %+v", run)
+			}
+		}
+	}
+	if r.MissingGlyphs != 0 {
+		t.Fatal(r.MissingGlyphs)
+	}
+}
