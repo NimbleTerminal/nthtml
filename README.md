@@ -443,7 +443,8 @@ Hosts can supply `document.Options{Fonts: source}`, where source implements
 Italic, and BoldItalic. Sources must bound their own work. Each render allows
 64 family/variant lookups, 128 sized faces, 4 MiB per font, and 16 MiB total font
 bytes. Primary font loads exceeding these ceilings return `document.ErrLimit`;
-fallback loads share the budgets and degrade to missing glyphs on exhaustion.
+fallback faces larger than 4 MiB are skipped and cached as misses. Fallback
+loads share the remaining budgets and degrade to missing glyphs on exhaustion.
 
 The embedded ntfonts faces use the SIL Open Font License; see
 [font notices](licenses/fonts/THIRD_PARTY_NOTICES.md) and the accompanying license

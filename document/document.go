@@ -72,6 +72,8 @@ type Options struct {
 	Fonts FaceSource
 	// FallbackFaces are tried in order after CSS families and before bundled
 	// fallback fonts. Sources may serve Regular when a requested variant is absent.
+	// Faces larger than 4 MiB are ignored and cached as misses for this render.
+	// The shared 16 MiB total font budget stops further font loads on exhaustion.
 	FallbackFaces []FallbackFace
 	// FontFamilies overrides the default body font and generic CSS font families
 	// (serif, sans-serif, monospace) where the page sets none or names generics.

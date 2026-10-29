@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Skip and cache oversized fallback faces (over 4 MiB) without stopping later candidates. The shared 16 MiB total, lookup, and face-count budgets still stop further loads; primary face limits still return ErrLimit.
+
  * Add Model.SetTypesetFit with width/scroll and whole-page contain modes, preserving text-index navigation, search, and selection. The TTY comparison demo toggles the Typeset fit with f and shows the active mode in its header.
 
  * Add CSS foreground/background colors and bold/italic/underline/strikethrough to TTY ANSI output, with plain-text style spans, inherited backgrounds, safe OSC 8/highlight composition, explicit color profiles, and a side-by-side Typeset/TTY demo. Plain text, source mappings, and search/selection coordinates remain escape-free. See docs/tty-styling.md.

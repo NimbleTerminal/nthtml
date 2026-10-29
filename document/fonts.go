@@ -199,7 +199,15 @@ func (l *layout) loadFace(k faceKey, fallback bool) font.Face {
 			l.fonts[key] = nil
 			return nil
 		}
-		if len(data) > 4<<20 || l.fontBytes+len(data) > 16<<20 {
+		if len(data) > 4<<20 {
+			l.fonts[key] = nil
+			if !fallback {
+				l.err = limitError("font bytes")
+				l.fontStopped = true
+			}
+			return nil
+		}
+		if l.fontBytes+len(data) > 16<<20 {
 			if !fallback {
 				l.err = limitError("font bytes")
 			}

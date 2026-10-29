@@ -3,6 +3,7 @@ package document
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"image"
 	"sort"
@@ -512,5 +513,49 @@ func TestCustomTextFallbackSourceAndLookupCache(t *testing.T) {
 		if _, found := l.fonts["-2/"+family+"/Regular"]; found {
 			t.Fatalf("custom family %s requested from Embedded", family)
 		}
+	}
+}
+
+func TestOversizedFallbackContinuesAndCachesMiss(t *testing.T) {
+	data := make([]byte, (4<<20)+1)
+	for _, text := range []string{"₹ ◦", strings.Repeat("₹ ◦ ế ", 20)} {
+		calls := 0
+		source := fontSource(func(string, string) ([]byte, error) { calls++; return data, nil })
+		r := fallbackRender(t, "<p>"+text+"</p>", Options{FallbackFaces: []FallbackFace{{Family: "Oversized", Source: source}}})
+		if r.MissingGlyphs != 0 || calls != 1 {
+			t.Fatalf("missing=%d calls=%d", r.MissingGlyphs, calls)
+		}
+	}
+}
+
+func TestFallbackTotalByteBudgetStillStops(t *testing.T) {
+	// Padding a valid font keeps parsing/coverage real while reaching the limit.
+	data := make([]byte, 4<<20)
+	copy(data, coverageFont(t, 'a'))
+	calls := []string{}
+	source := fontSource(func(family, variant string) ([]byte, error) { calls = append(calls, family); return data, nil })
+	var hosts []FallbackFace
+	for i := 0; i < 6; i++ {
+		hosts = append(hosts, FallbackFace{Family: fmt.Sprint(i), Source: source})
+	}
+	r := fallbackRender(t, "<p>₹₹</p>", Options{FallbackFaces: hosts})
+	// The Go primary consumes some bytes, so the fourth 4 MiB fallback
+	// exceeds the total; the fifth and sixth must never be requested.
+	if r.MissingGlyphs != 2 || len(calls) != 4 {
+		t.Fatalf("missing=%d calls=%v", r.MissingGlyphs, calls)
+	}
+	for i, call := range calls {
+		if call != fmt.Sprint(i) {
+			t.Fatalf("unexpected calls %v", calls)
+		}
+	}
+}
+
+func TestOversizedPrimaryStillReturnsLimit(t *testing.T) {
+	data := make([]byte, (4<<20)+1)
+	source := fontSource(func(string, string) ([]byte, error) { return data, nil })
+	_, err := Render(context.Background(), strings.NewReader("<p style='font-family:Large'>text</p>"), Options{Width: 300, Fonts: source})
+	if !errors.Is(err, ErrLimit) {
+		t.Fatalf("got %v, want ErrLimit", err)
 	}
 }
