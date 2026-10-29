@@ -115,8 +115,13 @@ terminal cell-size discovery and window resizing. The right pane uses styled TTY
 graphics on the left; other terminals use the existing picture fallback.
 Use a terminal at least 100 columns wide for a useful comparison.
 
-Press `/` to open the visible TTY search prompt, type a query, and press
+Press `F6` to switch the active pane (TTY initially). The active pane is marked
+in its header. Both Typeset and TTY support search and selection; each pane
+keeps its own query and matches. Typeset highlights use the rendered HTML's
+text index and pixel coordinates, without OCR.
+
+Press `/` to open the active pane's search prompt, type a query, and press
 `Enter` to search. The footer shows the current match count or “no matches.”
-The right pane also supports `n` next match, `v` select match, `Esc`
+The active pane also supports `n` next match, `v` select match, `Esc`
 clear, and arrow-key scrolling. Press `q` or `Ctrl+C` to exit. The demo never
 launches external links or modifies another application.

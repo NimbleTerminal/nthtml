@@ -104,3 +104,43 @@ func TestComparisonTypesetReflowsAndFooterFits(t *testing.T) {
 		t.Fatalf("footer wraps: %d > %d", width, m.cols)
 	}
 }
+
+func TestComparisonTypesetSearchAndPaneIsolation(t *testing.T) {
+	m := demoComparison(t)
+	send := func(msg tea.Msg) { next, _ := m.Update(msg); m = next.(comparison) }
+	send(tea.KeyPressMsg{Code: tea.KeyF6})
+	if !strings.Contains(m.status(), "Typeset:") || !strings.Contains(m.View().Content, "Typeset [active]") {
+		t.Fatal("typeset focus not visible")
+	}
+	send(tea.KeyPressMsg{Code: '/'})
+	send(tea.PasteMsg{Content: "Café"})
+	if m.left.SearchInput() != "Café" || m.right.SearchInput() != "" {
+		t.Fatal("paste reached wrong pane")
+	}
+	send(tea.KeyPressMsg{Code: tea.KeyEnter})
+	query, current, total := m.left.SearchStatus()
+	if query != "Café" || current != 1 || total == 0 {
+		t.Fatalf("typeset search failed: %q %d/%d", query, current, total)
+	}
+	if query, _, _ := m.right.SearchStatus(); query != "" {
+		t.Fatal("typeset search changed TTY search")
+	}
+	send(tea.KeyPressMsg{Code: 'v'})
+	if m.left.SelectedText() != "Café" {
+		t.Fatal("typeset match cannot be selected")
+	}
+	send(tea.KeyPressMsg{Code: tea.KeyF6})
+	if !strings.HasPrefix(m.status(), "TTY:") {
+		t.Fatal("TTY focus not restored")
+	}
+	send(tea.KeyPressMsg{Code: '/'})
+	send(tea.PasteMsg{Content: "terminal"})
+	send(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if query, _, _ := m.left.SearchStatus(); query != "Café" {
+		t.Fatal("TTY search changed typeset search")
+	}
+	send(tea.KeyPressMsg{Code: tea.KeyF6})
+	if !strings.Contains(m.status(), "Café") {
+		t.Fatal("typeset search state lost")
+	}
+}

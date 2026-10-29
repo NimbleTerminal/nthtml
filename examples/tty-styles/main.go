@@ -21,6 +21,7 @@ type comparison struct {
 	left, right  *nthtml.Model
 	cols, rows   int
 	cellW, cellH int
+	typesetFocus bool
 }
 
 func newComparison(result *document.Result) comparison {
@@ -33,21 +34,35 @@ func newComparison(result *document.Result) comparison {
 func (m comparison) Init() tea.Cmd {
 	return tea.Batch(m.left.Init(), m.right.Init(), m.right.SetLayoutMode(nthtml.LayoutTTY))
 }
+func (m comparison) focused() (*nthtml.Model, string) {
+	if m.typesetFocus {
+		return m.left, "Typeset"
+	}
+	return m.right, "TTY"
+}
+
 func (m comparison) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	focused, _ := m.focused()
 	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.cols, m.rows = v.Width, max(1, v.Height-2)
 		left := max(1, (v.Width-3)/2)
 		return m, tea.Batch(m.left.SetBounds(0, 1, left, m.rows), m.right.SetBounds(left+3, 1, max(1, v.Width-left-3), m.rows), m.left.Update(msg), m.right.Update(msg))
+	case tea.PasteMsg:
+		return m, focused.Update(msg)
 	case tea.KeyPressMsg:
-		if v.String() == "ctrl+c" || v.String() == "q" && !m.right.SearchInputActive() {
-			return m, tea.Sequence(tea.Batch(m.left.Close(), m.right.Close()), tea.Quit)
-		}
-		// Keep the panes in their named modes. Navigation/search affects TTY only.
-		if v.String() == "t" && !m.right.SearchInputActive() {
+		if v.String() == "f6" {
+			m.typesetFocus = !m.typesetFocus
 			return m, nil
 		}
-		return m, m.right.Update(msg)
+		if v.String() == "ctrl+c" || v.String() == "q" && !focused.SearchInputActive() {
+			return m, tea.Sequence(tea.Batch(m.left.Close(), m.right.Close()), tea.Quit)
+		}
+		// Keep the panes in their named modes; input goes to the focused pane.
+		if v.String() == "t" && !focused.SearchInputActive() {
+			return m, nil
+		}
+		return m, focused.Update(msg)
 	}
 	// Terminal discovery can change pixel geometry after WindowSizeMsg.
 	leftCmd, rightCmd := m.left.Update(msg), m.right.Update(msg)
@@ -64,7 +79,11 @@ func (m comparison) View() tea.View {
 	width := max(1, (m.cols-3)/2)
 	left, right := strings.Split(m.left.View(), "\n"), strings.Split(m.right.View(), "\n")
 	var out strings.Builder
-	out.WriteString(ansi.Truncate("Typeset"+strings.Repeat(" ", max(0, width-len("Typeset")))+" │ TTY (same HTML/CSS)", max(1, m.cols), "") + "\n")
+	leftTitle, rightTitle := "Typeset", "TTY [active]"
+	if m.typesetFocus {
+		leftTitle, rightTitle = "Typeset [active]", "TTY"
+	}
+	out.WriteString(ansi.Truncate(leftTitle+strings.Repeat(" ", max(0, width-len(leftTitle)))+" │ "+rightTitle, max(1, m.cols), "") + "\n")
 	for i := 0; i < m.rows; i++ {
 		a, b := "", ""
 		if i < len(left) {
@@ -81,16 +100,17 @@ func (m comparison) View() tea.View {
 	return view
 }
 func (m comparison) status() string {
-	if m.right.SearchInputActive() {
-		return "TTY /" + m.right.SearchInput() + "▏ · Enter search · Esc cancel"
+	focused, name := m.focused()
+	if focused.SearchInputActive() {
+		return name + " /" + focused.SearchInput() + "▏ · Enter search · Esc cancel · F6 pane"
 	}
-	if query, current, total := m.right.SearchStatus(); query != "" {
+	if query, current, total := focused.SearchStatus(); query != "" {
 		if total == 0 {
-			return fmt.Sprintf("TTY search %q · no matches · / edit · Esc clear", query)
+			return fmt.Sprintf("%s search %q · no matches · / edit · Esc clear · F6 pane", name, query)
 		}
-		return fmt.Sprintf("TTY search %q · %d/%d · n/N next/previous · v select · Esc clear", query, current, total)
+		return fmt.Sprintf("%s search %q · %d/%d · n/N next/previous · v select · F6 pane", name, query, current, total)
 	}
-	return "TTY: / search · n next · v select match · Esc clear · arrows scroll · q quit"
+	return name + ": F6 switch pane · / search · n next · v select · arrows scroll · q quit"
 }
 
 func main() {
