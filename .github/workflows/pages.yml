@@ -36,7 +36,7 @@ jobs:
         run: ./scripts/build-web.sh
       - name: Smoke-test WASM demos
         run: |
-          for demo in overview invoice field-notes status-report guide typography diagrams navigation reports positioning; do
+          for demo in overview invoice field-notes status-report guide typography diagrams navigation reports positioning tty-styles; do
             node scripts/wasm-smoke.cjs "$demo"
           done
       - uses: actions/configure-pages@v5

@@ -93,6 +93,7 @@ Ten embedded documents run through the same renderer on native Go and in the [li
 | Document navigation | Fragment `#id` links, text search (`/`), selection, and copy (`y`) | [navigation](https://nimbleterminal.github.io/nthtml/?demo=navigation) | [compare](https://nimbleterminal.github.io/nthtml/?demo=navigation&compare=1) | `task demo DEMO=navigation` |
 | Reports & merged tables | Compound selectors, `!important`, `colspan`/`rowspan`, `border-collapse` | [reports](https://nimbleterminal.github.io/nthtml/?demo=reports) | [compare](https://nimbleterminal.github.io/nthtml/?demo=reports&compare=1) | `task demo DEMO=reports` |
 | Positioned blocks | Relative/absolute positioning, `float` + `clear`, `box-sizing: border-box` | [positioning](https://nimbleterminal.github.io/nthtml/?demo=positioning) | [compare](https://nimbleterminal.github.io/nthtml/?demo=positioning&compare=1) | `task demo DEMO=positioning` |
+| Styled conversation | CSS colors and emphasis in Typeset and TTY, search, width/contain fit | [tty-styles](https://nimbleterminal.github.io/nthtml/?demo=tty-styles) | [compare](https://nimbleterminal.github.io/nthtml/?demo=tty-styles&compare=1) | `go run ./examples/tty-styles` |
 
 The browser gallery has a document picker and shareable URLs such as
 `https://nimbleterminal.github.io/nthtml/?demo=invoice` (or `http://localhost:8080/?demo=invoice` locally). **Show browser reference** opens a

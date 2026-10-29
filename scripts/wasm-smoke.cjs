@@ -47,12 +47,21 @@ globalThis.document = { getElementById(id) { return id === 'document' ? canvas :
   assert.ok(painted);
   assert.deepEqual(canvas.nthtmlWarnings,[]);
   const demo = process.argv[2] || 'overview';
-  const sourcePath = demo === 'overview' ? 'examples/demo/sample.html' : `examples/demo/documents/${demo}.html`;
+  const sourcePath = demo === 'tty-styles' ? 'internal/demos/tty-styles.html' : demo === 'overview' ? 'examples/demo/sample.html' : `examples/demo/documents/${demo}.html`;
   assert.equal(reference.srcdoc, '<!doctype html><meta charset="utf-8">\n' + fs.readFileSync(sourcePath, 'utf8'));
   assert.ok(tty.textContent.length > 100);
   assert.ok(!tty.textContent.includes("<style>"));
   assert.match(status.textContent, /Go WebAssembly/);
   assert.equal(tty.nthtmlSegments.map(s => s.text).join(''),tty.textContent);
+  if (demo === 'tty-styles') {
+    assert.ok(tty.nthtmlSegments.some(s => s.style?.fontWeight === 'bold'));
+    assert.ok(tty.nthtmlSegments.some(s => s.style?.fontStyle === 'italic'));
+    assert.ok(tty.nthtmlSegments.some(s => s.style?.color?.startsWith('#')));
+    assert.ok(tty.nthtmlSegments.some(s => s.href && s.style));
+    for (const mode of [false, true]) {
+      assert.ok(nthtmlDemo.search('the', mode).length > 0);
+    }
+  }
   const linkIDs = canvas.nthtmlLinks.map(l => l.id);
   if (demo === 'guide') {
     assert.equal(linkIDs.length,4);

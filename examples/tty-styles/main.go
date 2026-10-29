@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"os"
 	"strings"
@@ -12,11 +11,11 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"nimbleterminal.dev/nthtml"
 	"nimbleterminal.dev/nthtml/document"
+	"nimbleterminal.dev/nthtml/internal/demos"
 	"nimbleterminal.dev/ntpicture"
 )
 
-//go:embed sample.html
-var sample string
+var sample = demos.TTYStyles
 
 type comparison struct {
 	left, right  *nthtml.Model

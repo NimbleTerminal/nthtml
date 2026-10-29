@@ -8,7 +8,7 @@ env:
 
 vars:
   EXE: '{{if eq OS "windows"}}.exe{{end}}'
-  DEMOS: [overview, invoice, field-notes, status-report, guide, typography, diagrams, navigation, reports, positioning]
+  DEMOS: [overview, invoice, field-notes, status-report, guide, typography, diagrams, navigation, reports, positioning, tty-styles]
 
 tasks:
   default:
@@ -73,7 +73,7 @@ tasks:
   previews:
     desc: Regenerate the checked-in demo PNG previews
     cmds:
-      - for: [invoice, field-notes, status-report, guide, typography, diagrams, navigation, reports, positioning]
+      - for: [invoice, field-notes, status-report, guide, typography, diagrams, navigation, reports, positioning, tty-styles]
         task: render
         vars:
           INPUT: 'examples/demo/documents/{{.ITEM}}.html'

@@ -49,8 +49,8 @@ footer{padding:12px 24px;color:#a7b7ce;font-size:12px}
 <span class="brand">nthtml</span>
 <a href="https://github.com/NimbleTerminal/nthtml">GitHub</a>
 <label for="demo">Document</label>
-<select id="demo"><option value="overview">Platform overview</option><option value="invoice">Studio invoice</option><option value="field-notes">Field notes</option><option value="status-report">Delivery status</option><option value="guide">Documentation guide</option><option value="typography">Typography &amp; spacing</option><option value="diagrams">SVG &amp; Mermaid</option><option value="navigation">Document navigation</option><option value="reports">Reports &amp; merged tables</option><option value="positioning">Positioned blocks</option></select>
-<div class="controls"><button id="layout" aria-pressed="false">Layout: Typeset</button><button id="out" aria-label="Zoom out">−</button><button id="in" aria-label="Zoom in">+</button><button id="reset">Reset</button><button id="compare" aria-expanded="false" aria-controls="reference-pane">Show browser reference</button></div>
+<select id="demo"><option value="overview">Platform overview</option><option value="invoice">Studio invoice</option><option value="field-notes">Field notes</option><option value="status-report">Delivery status</option><option value="guide">Documentation guide</option><option value="typography">Typography &amp; spacing</option><option value="diagrams">SVG &amp; Mermaid</option><option value="navigation">Document navigation</option><option value="reports">Reports &amp; merged tables</option><option value="positioning">Positioned blocks</option><option value="tty-styles">Styled conversation</option></select>
+<div class="controls"><button id="layout" aria-pressed="false">Layout: Typeset</button><button id="out" aria-label="Zoom out">−</button><button id="in" aria-label="Zoom in">+</button><button id="fit">Fit: width</button><button id="reset">Reset</button><button id="compare" aria-expanded="false" aria-controls="reference-pane">Show browser reference</button></div>
 </header>
 <div id="search-controls"><label for="search-query">Find</label><input id="search-query" type="search" maxlength="256" placeholder="Search document"><button id="search-prev" aria-label="Previous match">Previous</button><button id="search-next" aria-label="Next match">Next</button><span id="search-count" role="status">0 matches</span><button id="select-text">Select all text</button><button id="copy-text">Copy selection</button></div>
 <div id="status" role="status">Loading Go WebAssembly…</div>
@@ -58,14 +58,14 @@ footer{padding:12px 24px;color:#a7b7ce;font-size:12px}
 <section class="pane" aria-labelledby="render-heading">
 <div class="pane-heading"><h2 id="render-heading">nthtml · Go WASM</h2><span id="render-description">Typeset · 800 px document</span></div>
 <div id="reflow-controls"><label for="container-width">Container width</label><input id="container-width" type="number" min="280" max="1600" step="20" value="800" aria-label="Container width in pixels"><span>px</span><button id="fit-container">Fit pane</button><span>Drag the lower-right corner to reflow.</span></div>
-<div id="terminal-container"><div id="viewport" class="viewport"><div id="canvas-stage"><canvas id="document" aria-label="Rendered HTML document preview"></canvas><div id="text-layer" aria-label="Selectable document text"></div><div id="search-layer" aria-hidden="true"></div><div id="link-layer" aria-label="Document links"></div></div><pre id="tty" hidden aria-label="Plain text document"></pre></div></div>
+<div id="terminal-container"><div id="viewport" class="viewport"><div id="canvas-stage"><canvas id="document" aria-label="Rendered HTML document preview"></canvas><div id="text-layer" aria-label="Selectable document text"></div><div id="search-layer" aria-hidden="true"></div><div id="link-layer" aria-label="Document links"></div></div><pre id="tty" hidden aria-label="Styled terminal text document"></pre></div></div>
 </section>
 <section id="reference-pane" class="pane" aria-labelledby="reference-heading" hidden>
 <div class="pane-heading"><h2 id="reference-heading">Browser · same HTML</h2><span>800 px viewport</span><button id="close-reference" aria-label="Close browser reference">Close</button></div>
 <div class="viewport"><iframe id="browser-reference" title="Browser rendering of the selected HTML document" sandbox="" referrerpolicy="no-referrer"></iframe></div>
 </section>
 </main>
-<footer>Browser reference uses native browser defaults; differences are expected. Scroll each pane independently; Tab to focus links; / to find, n/N for matches; drag text to select and copy. Press t for layout, + / − to zoom, and 0 to reset.</footer>
+<footer>Browser reference uses native browser defaults; differences are expected. Scroll each pane independently; Tab to focus links; / to find, n/N for matches; drag text to select and copy. Press f for width/contain fit, t for layout, + / − to zoom, and 0 to reset.</footer>
 <span id="cell-measure" aria-hidden="true">0000000000</span>
 <script src="wasm_exec.js"></script>
 <script>
@@ -75,6 +75,7 @@ const selected=Array.from(picker.options).some(o=>o.value===requested)?requested
 picker.value=selected;
 picker.onchange=()=>{const url=new URL(location.href);url.searchParams.set('demo',picker.value);location.assign(url)};
 let zoom=1;
+let contain=false;
 let ttyMode=false;
 const positions={typeset:[0,0],tty:[0,0]};
 const compareButton=document.getElementById('compare');
@@ -124,7 +125,13 @@ function refreshLinks(){
  }
  if(previousSegments!==tty.nthtmlSegments){
   previousSegments=tty.nthtmlSegments;tty.replaceChildren();const seen=new Set();
-  for(const segment of tty.nthtmlSegments||[]){const href=segment.href&&safeHref(segment.href);if(!href){tty.append(document.createTextNode(segment.text));continue};const a=document.createElement('a');a.textContent=segment.text;a.href=href;a.target='_blank';a.rel='noopener noreferrer';a.title=segment.href;if(seen.has(segment.id))a.tabIndex=-1;seen.add(segment.id);bindDocumentLink(a,segment.href);tty.append(a)}
+  for(const segment of tty.nthtmlSegments||[]){
+   const href=segment.href&&safeHref(segment.href);
+   const node=document.createElement(href?'a':'span');node.textContent=segment.text;
+   if(segment.style)Object.assign(node.style,segment.style);
+   if(href){node.href=href;node.target='_blank';node.rel='noopener noreferrer';node.title=segment.href;if(seen.has(segment.id))node.tabIndex=-1;seen.add(segment.id);bindDocumentLink(node,segment.href)}
+   tty.append(node);
+  }
  }
 }
 const viewport=document.getElementById('viewport');
@@ -150,23 +157,26 @@ const observer=new ResizeObserver(scheduleReflow);observer.observe(viewport);
 widthInput.addEventListener('change',()=>{const width=widthInput.valueAsNumber;if(!Number.isFinite(width))return;terminalContainer.style.width=Math.max(280,Math.min(1600,width))+'px';scheduleReflow()});
 document.getElementById('fit-container').onclick=()=>{terminalContainer.style.width='100%';scheduleReflow()};
 setComparison(new URLSearchParams(location.search).get('compare')==='1');
-function scale(){canvasStage.style.width=(canvas.width*zoom)+'px';canvas.style.width='100%';for(const span of textLayer.children)span.style.fontSize=(Number(span.dataset.height)*zoom*.7)+'px'}
+function scale(){if(contain)zoom=Math.min(viewport.clientWidth/canvas.width,viewport.clientHeight/canvas.height);canvasStage.style.width=(canvas.width*zoom)+'px';canvas.style.width='100%';for(const span of textLayer.children)span.style.fontSize=(Number(span.dataset.height)*zoom*.7)+'px'}
 function toggleLayout(){
  const previous=ttyMode?"tty":"typeset";positions[previous]=[viewport.scrollLeft,viewport.scrollTop];
  ttyMode=!ttyMode;canvasStage.hidden=ttyMode;tty.hidden=!ttyMode;
- describeLayout();scheduleReflow();
+ document.getElementById('fit').disabled=ttyMode;describeLayout();scheduleReflow();
  layoutButton.textContent="Layout: "+(ttyMode?"TTY":"Typeset");layoutButton.setAttribute("aria-pressed",String(ttyMode));
  document.getElementById("in").disabled=ttyMode;document.getElementById("out").disabled=ttyMode;
  viewport.scrollTo(...positions[ttyMode?"tty":"typeset"]);
 }
 layoutButton.onclick=toggleLayout;
-function zoomIn(){if(ttyMode)return;zoom=Math.min(4,zoom*1.25);scale()}
-function zoomOut(){if(ttyMode)return;zoom=Math.max(.25,zoom/1.25);scale()}
-function reset(){zoom=1;scale();viewport.scrollTo(0,0)}
+function updateFit(){document.getElementById('fit').textContent=contain?'Fit: contain':'Fit: width'}
+function toggleFit(){if(ttyMode)return;contain=!contain;zoom=1;updateFit();scale();viewport.scrollTo(0,0)}
+document.getElementById('fit').onclick=toggleFit;
+function zoomIn(){if(ttyMode)return;contain=false;updateFit();zoom=Math.min(4,zoom*1.25);scale()}
+function zoomOut(){if(ttyMode)return;contain=false;updateFit();zoom=Math.max(.25,zoom/1.25);scale()}
+function reset(){contain=false;updateFit();zoom=1;scale();viewport.scrollTo(0,0)}
 document.getElementById('in').onclick=zoomIn;
 document.getElementById('out').onclick=zoomOut;
 document.getElementById('reset').onclick=reset;
-document.addEventListener('keydown',event=>{if(event.target.closest('select,button,input'))return;if(event.key==='t'){toggleLayout();event.preventDefault()}else if(event.key==='+'||event.key==='='){zoomIn();event.preventDefault()}else if(event.key==='-'){zoomOut();event.preventDefault()}else if(event.key==='0'){reset();event.preventDefault()}});
+document.addEventListener('keydown',event=>{if(event.target.closest('select,button,input'))return;if(event.key==='f'){toggleFit();event.preventDefault()}else if(event.key==='t'){toggleLayout();event.preventDefault()}else if(event.key==='+'||event.key==='='){zoomIn();event.preventDefault()}else if(event.key==='-'){zoomOut();event.preventDefault()}else if(event.key==='0'){reset();event.preventDefault()}});
 
 const searchQuery=document.getElementById('search-query');
 let searchMatches=[],searchCurrent=-1,searchTimer;

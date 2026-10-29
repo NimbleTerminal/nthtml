@@ -111,7 +111,7 @@ go run ./examples/tty-styles
 
 The left pane reflows Typeset to its available pixel width, including after
 terminal cell-size discovery and window resizing. The right pane uses styled TTY from the same
-[HTML/CSS](../examples/tty-styles/sample.html). Kitty-capable terminals use raster
+[HTML/CSS](../internal/demos/tty-styles.html). Kitty-capable terminals use raster
 graphics on the left; other terminals use the existing picture fallback.
 Use a terminal at least 100 columns wide for a useful comparison.
 
@@ -133,3 +133,5 @@ Press `/` to open the active pane's search prompt, type a query, and press
 The active pane also supports `n` next match, `v` select match, `Esc`
 clear, and arrow-key scrolling. Press `q` or `Ctrl+C` to exit. The demo never
 launches external links or modifies another application.
+
+The [web gallery](https://nimbleterminal.github.io/nthtml/?demo=tty-styles) uses the same sample. Choose **Styled conversation**, switch **Layout** between Typeset and styled TTY, and use **Fit** for width or whole-page containment. Web TTY styles come from the renderer’s style metadata; text selection and search remain plain text.

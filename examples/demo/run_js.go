@@ -69,22 +69,7 @@ func run(initial *document.Result, source string) {
 		currentTTY = result.TextIndex()
 		tty := d.Call("getElementById", "tty")
 		tty.Set("textContent", result.Text)
-		hrefs := map[int]string{}
-		for _, link := range result.Links {
-			hrefs[link.ID] = link.Href
-		}
-		segments := []any{}
-		pos := 0
-		for _, span := range result.Spans {
-			if span.Start > pos {
-				segments = append(segments, map[string]any{"text": result.Text[pos:span.Start]})
-			}
-			segments = append(segments, map[string]any{"text": result.Text[span.Start:span.End], "href": hrefs[span.LinkID], "id": span.LinkID})
-			pos = span.End
-		}
-		if pos < len(result.Text) {
-			segments = append(segments, map[string]any{"text": result.Text[pos:]})
-		}
+		segments := ttySegments(result)
 		tty.Set("nthtmlSegments", js.ValueOf(segments))
 	}
 	tty, err := doc.TTYLayout(ctx, 80)
