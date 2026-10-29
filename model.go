@@ -52,6 +52,16 @@ const (
 	LayoutTTY
 )
 
+// TypesetFit selects a scrollable document viewport or a whole-page overview.
+type TypesetFit uint8
+
+const (
+	// TypesetFitWidth uses the normal width-oriented viewport and scrolling.
+	TypesetFitWidth TypesetFit = iota
+	// TypesetFitContain fits the complete page inside the widget, with letterboxing.
+	TypesetFitContain
+)
+
 // ModelOptions configures a Bubble Tea document viewer Model.
 type ModelOptions struct {
 	// Session shares terminal discovery, cell geometry, and transport settings
@@ -85,6 +95,7 @@ type Model struct {
 	renderOpts                    document.Options
 	reflowTypeset                 bool
 	mode                          LayoutMode
+	typesetFit                    TypesetFit
 	ttyLines                      []string
 	ttyResult                     *document.TTYResult
 	focusID                       int
@@ -301,6 +312,43 @@ func (m *Model) SetLayoutMode(mode LayoutMode) tea.Cmd {
 	}
 	return tea.Batch(m.SetVisible(false), m.refreshHighlights())
 }
+
+// TypesetFit reports the current page fit policy.
+func (m *Model) TypesetFit() TypesetFit { return m.typesetFit }
+
+// SetTypesetFit changes the Typeset presentation without changing document text,
+// queries, or selection. It resets pan/zoom; TTY layout is unaffected.
+// Contain shows the complete page, so pan and zoom resume in Width mode.
+func (m *Model) SetTypesetFit(fit TypesetFit) tea.Cmd {
+	if fit != TypesetFitWidth && fit != TypesetFitContain || fit == m.typesetFit {
+		return nil
+	}
+	m.typesetFit = fit
+	m.zoom, m.x, m.y = 0, 0, 0
+	m.mouseDown, m.dragging = false, false
+	m.pressedLink = 0
+	m.kittyBandActive = false
+	m.focusCellRect = image.Rectangle{}
+	m.focusKey = focusOverlayKey{}
+	m.pic.ResetViewport()
+	size := m.pic.SetSize(m.cols, m.rows)
+	fitCmd := m.pic.SetFit(ntpicture.FitContain)
+	if m.mode != LayoutTypeset {
+		// The hidden picture may still contain only a previous Kitty band.
+		// Restore the full source before returning to a contained Typeset view.
+		var imageCmd tea.Cmd
+		if m.source != nil {
+			imageCmd = m.pic.SetImageCropped(m.source, m.cropRect())
+		}
+		return tea.Batch(size, fitCmd, imageCmd)
+	}
+	var focus tea.Cmd
+	if m.focusPic != nil {
+		focus = m.focusPic.SetVisible(fit == TypesetFitWidth)
+	}
+	return tea.Batch(size, fitCmd, focus, m.presentSource())
+}
+
 func (m *Model) ToggleLayout() tea.Cmd {
 	if m.mode == LayoutTypeset {
 		return m.SetLayoutMode(LayoutTTY)
@@ -381,6 +429,9 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	return tea.Batch(cropCmd, sizeCmd, m.refreshHighlights())
 }
 func (m *Model) Zoom(delta int) tea.Cmd {
+	if m.mode == LayoutTypeset && m.typesetFit == TypesetFitContain {
+		return nil
+	}
 	m.pressedLink = 0
 	hadSelection := m.selectStart != m.selectEnd
 	m.clearSelection()
@@ -408,6 +459,9 @@ func (m *Model) Pan(dx, dy int) tea.Cmd {
 		m.scrollTTY(step)
 		return nil
 	}
+	if m.typesetFit == TypesetFitContain {
+		return nil
+	}
 	m.x += max(-4096, min(4096, dx))
 	m.y += max(-16384, min(16384, dy))
 	return m.viewport()
@@ -422,7 +476,7 @@ func (m *Model) Reset() tea.Cmd {
 	return m.viewport()
 }
 func (m *Model) kittyViewportMode() bool {
-	return m.mode == LayoutTypeset && m.pic != nil && m.pic.Mode() == ntpicture.PictureKitty && m.source != nil
+	return m.mode == LayoutTypeset && m.typesetFit == TypesetFitWidth && m.pic != nil && m.pic.Mode() == ntpicture.PictureKitty && m.source != nil
 }
 func (m *Model) syncKittyBand(forceUpload bool) tea.Cmd {
 	if !m.kittyViewportMode() {
@@ -527,6 +581,9 @@ func (m *Model) cropRect() image.Rectangle {
 		return image.Rectangle{}
 	}
 	b := m.source.Bounds()
+	if m.typesetFit == TypesetFitContain {
+		return b
+	}
 	w := max(1, b.Dx()>>m.zoom)
 	h := min(b.Dy(), max(1, w*m.rows*2/m.cols))
 	m.x = max(0, min(m.x, b.Dx()-w))

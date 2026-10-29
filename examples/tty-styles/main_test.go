@@ -183,3 +183,22 @@ func TestComparisonInitUsesPaneBounds(t *testing.T) {
 		t.Fatalf("initial TTY bounds %v", got)
 	}
 }
+
+func TestComparisonFitToggle(t *testing.T) {
+	m := demoComparison(t)
+	send := func(code rune) { next, _ := m.Update(tea.KeyPressMsg{Code: code}); m = next.(comparison) }
+	send('f')
+	if m.left.TypesetFit() != nthtml.TypesetFitContain || !strings.Contains(m.View().Content, "[contain]") {
+		t.Fatal("contain toggle not visible")
+	}
+	send('/')
+	send('f')
+	if m.right.SearchInput() != "f" || m.left.TypesetFit() != nthtml.TypesetFitContain {
+		t.Fatal("fit key intercepted search input")
+	}
+	send(tea.KeyEscape)
+	send('f')
+	if m.left.TypesetFit() != nthtml.TypesetFitWidth || !strings.Contains(m.View().Content, "[width]") {
+		t.Fatal("width toggle not restored")
+	}
+}

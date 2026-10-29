@@ -61,6 +61,13 @@ func (m comparison) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		return m, focused.Update(msg)
 	case tea.KeyPressMsg:
+		if v.String() == "f" && !focused.SearchInputActive() {
+			fit := nthtml.TypesetFitContain
+			if m.left.TypesetFit() == fit {
+				fit = nthtml.TypesetFitWidth
+			}
+			return m, m.left.SetTypesetFit(fit)
+		}
 		if v.String() == "f6" {
 			m.typesetFocus = !m.typesetFocus
 			return m, nil
@@ -96,6 +103,11 @@ func (m comparison) View() tea.View {
 	if m.typesetFocus {
 		leftTitle, rightTitle = "Typeset [active]", "TTY"
 	}
+	fit := "width"
+	if m.left.TypesetFit() == nthtml.TypesetFitContain {
+		fit = "contain"
+	}
+	leftTitle += " [" + fit + "]"
 	out.WriteString(ansi.Truncate(leftTitle+strings.Repeat(" ", max(0, width-len(leftTitle)))+" │ "+rightTitle, max(1, m.cols), "") + "\n")
 	for i := 0; i < m.rows; i++ {
 		a, b := "", ""
@@ -123,7 +135,7 @@ func (m comparison) status() string {
 		}
 		return fmt.Sprintf("%s search %q · %d/%d · n/N next/previous · v select · F6 pane", name, query, current, total)
 	}
-	return name + ": F6 switch pane · / search · n next · v select · arrows scroll · q quit"
+	return name + ": f fit · F6 switch pane · / search · n next · v select · arrows scroll · q quit"
 }
 
 func main() {

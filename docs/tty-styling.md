@@ -120,6 +120,14 @@ in its header. Both Typeset and TTY support search and selection; each pane
 keeps its own query and matches. Typeset highlights use the rendered HTML's
 text index and pixel coordinates, without OCR.
 
+Press `f` (outside search input) to toggle the Typeset pane between **width**
+and **contain**. Width is the normal reflowed, scrollable view. Contain scales
+the whole page into the pane with letterboxing; switch back to width to pan or
+zoom. The header shows the current fit. Hosts can use
+`viewer.SetTypesetFit(nthtml.TypesetFitContain)` or `TypesetFitWidth` and must
+execute the returned command. Changing fit resets pan/zoom but retains search
+and selection; `LayoutTTY` text is unaffected.
+
 Press `/` to open the active pane's search prompt, type a query, and press
 `Enter` to search. The footer shows the current match count or “no matches.”
 The active pane also supports `n` next match, `v` select match, `Esc`
