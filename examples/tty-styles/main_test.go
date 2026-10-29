@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"nimbleterminal.dev/nthtml"
 	"nimbleterminal.dev/nthtml/document"
+	"nimbleterminal.dev/ntpicture"
 )
 
 func TestSharedSample(t *testing.T) {
@@ -142,5 +144,42 @@ func TestComparisonTypesetSearchAndPaneIsolation(t *testing.T) {
 	send(tea.KeyPressMsg{Code: tea.KeyF6})
 	if !strings.Contains(m.status(), "Café") {
 		t.Fatal("typeset search state lost")
+	}
+}
+
+func TestComparisonKittyDiscoveryReflowsWithoutResize(t *testing.T) {
+	m := demoComparison(t)
+	m.left.Close()
+	session := ntpicture.NewTerminalSession(ntpicture.TerminalOptions{
+		Kitty: ntpicture.KittyCapabilityUnsupported, CellPixelWidth: 14, CellPixelHeight: 28,
+	})
+	defer session.Close()
+	m.left = nthtml.NewWithOptions(m.right.Result(), nthtml.ModelOptions{Session: session, ReflowTypeset: true})
+	defer m.left.Close()
+	send := func(msg tea.Msg) { next, _ := m.Update(msg); m = next.(comparison) }
+	send(ntpicture.TerminalSessionMsg{Session: session, State: session.Snapshot()})
+	send(tea.WindowSizeMsg{Width: 103, Height: 26})
+	before := m.left.Result().Bounds().Dx()
+	send(session.SetKittyCapability(ntpicture.KittyCapabilitySupported)())
+	if m.left.Picture().Mode() != ntpicture.PictureKitty {
+		t.Fatal("discovery did not enable Kitty")
+	}
+	if got := m.left.Result().Bounds().Dx(); got != 700 {
+		t.Fatalf("Kitty discovery kept startup width %d (was %d); want 50 columns * 14 pixels without a resize", got, before)
+	}
+	send(tea.WindowSizeMsg{Width: 103, Height: 26})
+	if got := m.left.Result().Bounds().Dx(); got != 700 {
+		t.Fatalf("resize changed settled width: %d", got)
+	}
+}
+
+func TestComparisonInitUsesPaneBounds(t *testing.T) {
+	m := demoComparison(t)
+	width := (m.cols - 3) / 2
+	if got := m.left.Bounds(); got.Min.X != 0 || got.Min.Y != 1 || got.Dx() != width || got.Dy() != m.rows {
+		t.Fatalf("initial typeset bounds %v, want pane width %d and rows %d", got, width, m.rows)
+	}
+	if got := m.right.Bounds(); got.Min.X != width+3 || got.Min.Y != 1 || got.Dx() != m.cols-width-3 {
+		t.Fatalf("initial TTY bounds %v", got)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"nimbleterminal.dev/nthtml"
 	"nimbleterminal.dev/nthtml/document"
+	"nimbleterminal.dev/ntpicture"
 )
 
 //go:embed sample.html
@@ -22,6 +23,8 @@ type comparison struct {
 	cols, rows   int
 	cellW, cellH int
 	typesetFocus bool
+	pictureMode  ntpicture.PictureMode
+	resolution   float64
 }
 
 func newComparison(result *document.Result) comparison {
@@ -32,8 +35,16 @@ func newComparison(result *document.Result) comparison {
 }
 
 func (m comparison) Init() tea.Cmd {
-	return tea.Batch(m.left.Init(), m.right.Init(), m.right.SetLayoutMode(nthtml.LayoutTTY))
+	// Establish pane geometry and mode before Init schedules image preparation.
+	bounds := m.setPaneBounds()
+	mode := m.right.SetLayoutMode(nthtml.LayoutTTY)
+	return tea.Batch(bounds, mode, m.left.Init(), m.right.Init())
 }
+func (m comparison) setPaneBounds() tea.Cmd {
+	left := max(1, (m.cols-3)/2)
+	return tea.Batch(m.left.SetBounds(0, 1, left, m.rows), m.right.SetBounds(left+3, 1, max(1, m.cols-left-3), m.rows))
+}
+
 func (m comparison) focused() (*nthtml.Model, string) {
 	if m.typesetFocus {
 		return m.left, "Typeset"
@@ -46,8 +57,7 @@ func (m comparison) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.cols, m.rows = v.Width, max(1, v.Height-2)
-		left := max(1, (v.Width-3)/2)
-		return m, tea.Batch(m.left.SetBounds(0, 1, left, m.rows), m.right.SetBounds(left+3, 1, max(1, v.Width-left-3), m.rows), m.left.Update(msg), m.right.Update(msg))
+		return m, tea.Batch(m.setPaneBounds(), m.left.Update(msg), m.right.Update(msg))
 	case tea.PasteMsg:
 		return m, focused.Update(msg)
 	case tea.KeyPressMsg:
@@ -64,12 +74,15 @@ func (m comparison) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, focused.Update(msg)
 	}
-	// Terminal discovery can change pixel geometry after WindowSizeMsg.
+	// Discovery can change the rendering mode without changing cell dimensions.
+	// Both mode and resolution affect the document width used by reflow.
 	leftCmd, rightCmd := m.left.Update(msg), m.right.Update(msg)
 	afterW, afterH := m.left.Picture().CellPixelSize()
+	mode, resolution := m.left.Picture().Mode(), m.left.Picture().Resolution()
 	var reflow tea.Cmd
-	if m.cellW != afterW || m.cellH != afterH {
+	if m.cellW != afterW || m.cellH != afterH || m.pictureMode != mode || m.resolution != resolution {
 		m.cellW, m.cellH = afterW, afterH
+		m.pictureMode, m.resolution = mode, resolution
 		bounds := m.left.Bounds()
 		reflow = m.left.SetBounds(bounds.Min.X, bounds.Min.Y, bounds.Dx(), bounds.Dy())
 	}
