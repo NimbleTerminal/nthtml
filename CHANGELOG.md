@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+ * Pin ntfonts to v0.1.1-0.20261029000300-c0ab5130e225 for expanded text coverage and bundled Noto symbol fallback. Hosts can continue to opt into the separate CJK module through Options.FallbackFaces.
+
+ * Add coverage-aware raster font fallback: remaining CSS families, host-supplied Options.FallbackFaces, ntfonts.Fallbacks(), then Go/Go Mono. Missing variants try Regular; combining marks stay with their base. Layout, ink bounds, and repaint share the selected face runs and the primary baseline.
+ * Add Result.MissingGlyphs for characters lacking glyphs after fallback, without status-line warnings. Coverage and run-split caches are render-local and bounded; fallback font loads share the 128-face, 64-family, and font-byte budgets and degrade gracefully on exhaustion. TTY and text export retain their original text.
+
  * Preserve embedded-element geometry with bordered inline placeholders for sized iframe/video/canvas/object/embed elements and audio controls. Hide unsized audio without controls, suppress sized fallback content, and never load embedded resources.
 
  * Draw attribute-driven inputs, password masks, checkbox/radio states, buttons, selected options, clipped textareas, fieldset frames/legends, and progress/meter bars. Author CSS overrides the defaults. Controls expose whole-control bounds in existing Result.Boxes with Tag and SourceID (no dedicated Controls slice); Document.Sources includes generated nthtml-control-N IDs for controls without an HTML id. No editing state or resource fetching is added.

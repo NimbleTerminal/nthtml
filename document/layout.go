@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"math"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -29,6 +30,8 @@ type Box struct {
 	Color                                color.RGBA
 }
 type Result struct {
+	// MissingGlyphs counts visible characters with no glyph after font fallback.
+	MissingGlyphs int
 	// Warnings describe diagrams replaced by readable fallbacks.
 	Warnings []string
 	Anchors  map[string]image.Point
@@ -44,6 +47,7 @@ type Result struct {
 	size   image.Point
 }
 type operation struct {
+	runs   []glyphRun
 	owner  *positionFrame
 	box    Box
 	source image.Image
@@ -66,6 +70,12 @@ type layout struct {
 	lim                         Limits
 	maxHeight                   int
 	ops                         []operation
+	primary                     map[faceKey]font.Face
+	faceInfo                    map[font.Face]faceRecord
+	coverage                    map[coverageKey]bool
+	splits                      map[splitKey][]glyphRun
+	splitBytes                  int
+	fontStopped                 bool
 	faces                       map[faceKey]font.Face
 	fonts                       map[string]*opentype.Font
 	fontBytes                   int
@@ -96,9 +106,10 @@ func (l *layout) add(b Box, src image.Image) {
 			b.SourceID = l.activeSource
 		}
 	}
+	var runs []glyphRun
 	if b.Text != "" && b.FontSize > 0 {
-		f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
-		b.InkBounds = textInk(f, b)
+		runs = l.splitText(boxStyle(b), b.Text)
+		b.InkBounds = l.runsInk(runs, b)
 	}
 	if b.paintBottom() > l.pageHeightLimit() {
 		l.err = limitError("height")
@@ -108,7 +119,7 @@ func (l *layout) add(b Box, src image.Image) {
 		l.err = limitError("paint operations")
 		return
 	}
-	l.ops = append(l.ops, operation{box: b, source: src, owner: l.frame})
+	l.ops = append(l.ops, operation{box: b, source: src, owner: l.frame, runs: runs})
 }
 func (l *layout) rect(r image.Rectangle, c color.RGBA, tag string) {
 	if c.A > 0 && !r.Empty() {
@@ -257,6 +268,11 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	}
 	for _, op := range l.ops {
 		b := op.box
+		if b.Color.A > 0 && b.FontSize > 0 && (b.Clip.Empty() || b.Bounds.Union(b.InkBounds).Overlaps(b.Clip)) {
+			for _, run := range op.runs {
+				result.MissingGlyphs += run.missing
+			}
+		}
 		result.Boxes = append(result.Boxes, b)
 		if b.Anchor != "" {
 			if _, exists := result.Anchors[b.Anchor]; !exists {
@@ -1228,8 +1244,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 				}
 				preStart = false
 			}
-			runes := []rune(text)
-			for index, r := range runes {
+			clusters := textClusters(text)
+			for index, cluster := range clusters {
+				r, _ := utf8.DecodeRuneInString(cluster)
 				if l.err != nil {
 					return
 				}
@@ -1256,19 +1273,19 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 				}
 				px += pendingLeft
 				pendingLeft = 0
-				if st.whiteSpace != "pre" && !cssSpace(r) && (index == 0 || cssSpace(runes[index-1])) {
+				if st.whiteSpace != "pre" && !cssSpace(r) && (index == 0 || clusterSpace(clusters[index-1])) {
 					end := index + 1
-					for end < len(runes) && !cssSpace(runes[end]) {
+					for end < len(clusters) && !clusterSpace(clusters[end]) {
 						end++
 					}
-					ww := l.measureTextStyled(st, f, string(runes[index:end]))
+					ww := l.measureTextStyled(st, f, strings.Join(clusters[index:end], ""))
 					if px > x && px+ww > x+w {
 						wrapLine()
 						refreshTextStyle()
 						prepareLine()
 					}
 				}
-				adv := l.glyphAdvanceStyled(st, f, r)
+				adv := l.measureTextStyled(st, f, cluster)
 				if st.whiteSpace != "pre" && (cssSpace(r) || st.overflowWrap != "normal") && px > x && px+adv > x+w {
 					wrapLine()
 					refreshTextStyle()
@@ -1281,7 +1298,7 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 				if inlineBg.A > 0 && adv > 0 && !st.hidden {
 					l.rect(image.Rect(px, y, px+adv, y+st.line), inlineBg, "span")
 				}
-				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: string(r), Baseline: baseOffset, WordSpacing: st.wordSpacing, LetterSpacing: st.letterSpacing, TextPrefix: prefix, FontSize: st.size, Bold: st.bold, SmallCaps: st.smallCaps, FontFamily: st.family, Italic: st.italic, Underline: st.underline && !st.hidden, Strike: st.strike && !st.hidden, Monospace: st.mono, Color: fgColor, LinkID: st.linkID}, nil)
+				l.add(Box{Bounds: image.Rect(px, y, px+adv, y+st.line), Tag: "text", Text: cluster, Baseline: baseOffset, WordSpacing: st.wordSpacing, LetterSpacing: st.letterSpacing, TextPrefix: prefix, FontSize: st.size, Bold: st.bold, SmallCaps: st.smallCaps, FontFamily: st.family, Italic: st.italic, Underline: st.underline && !st.hidden, Strike: st.strike && !st.hidden, Monospace: st.mono, Color: fgColor, LinkID: st.linkID}, nil)
 				prefix = ""
 				px += adv
 				hasText = true
@@ -1359,8 +1376,8 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 					px = runX + ww
 					lineHeight = max(lineHeight, st.line)
 				} else {
-					for _, r := range word {
-						nextW := l.measureTextStyled(st, f, run.String()+string(r))
+					for _, cluster := range textClusters(word) {
+						nextW := l.measureTextStyled(st, f, run.String()+cluster)
 						if willTruncate && runX+nextW+ellW > x+w {
 							run.WriteRune('…')
 							px = min(x+w, runX+l.measureTextStyled(st, f, run.String()))
@@ -1375,9 +1392,9 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 							px += pendingLeft
 							pendingLeft = 0
 							runX = px
-							nextW = l.measureTextStyled(st, f, string(r))
+							nextW = l.measureTextStyled(st, f, cluster)
 						}
-						run.WriteRune(r)
+						run.WriteString(cluster)
 						px = runX + nextW
 						lineHeight = max(lineHeight, st.line)
 					}

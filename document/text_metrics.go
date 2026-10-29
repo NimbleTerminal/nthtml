@@ -44,26 +44,20 @@ func glyphAdvanceWithLetter(f font.Face, r rune, spacing, letterSpacing int) int
 	return max(1, advance.Ceil())
 }
 func (l *layout) glyphAdvanceStyled(st style, f font.Face, r rune) int {
-	if st.smallCaps && unicode.IsLower(r) {
-		sc := st
-		sc.size = smallCapSize(st.size)
-		return glyphAdvanceWithLetter(l.face(sc), unicode.ToUpper(r), st.wordSpacing, st.letterSpacing)
-	}
-	return glyphAdvanceWithLetter(f, r, st.wordSpacing, st.letterSpacing)
-}
-func (l *layout) measureTextStyled(st style, f font.Face, text string) int {
-	clean := stripZeroWidth(text)
-	if clean == "" {
+	if zeroWidth(r) {
 		return 0
 	}
-	if st.wordSpacing == 0 && st.letterSpacing == 0 && !st.smallCaps {
-		return max(1, font.MeasureString(f, clean).Ceil())
+	return l.measureTextStyled(st, f, string(r))
+}
+func (l *layout) measureTextStyled(st style, f font.Face, text string) int {
+	runs := l.splitText(st, text)
+	if len(runs) == 0 {
+		return 0
 	}
-	width := 0
-	for _, r := range text {
-		width += l.glyphAdvanceStyled(st, f, r)
+	if st.wordSpacing != 0 || st.letterSpacing != 0 || st.smallCaps {
+		return l.runsAdvance(runs, st).Ceil()
 	}
-	return width
+	return max(1, l.runsAdvance(runs, st).Ceil())
 }
 func drawTextWithLetter(drawer *font.Drawer, smallFace font.Face, text string, spacing, letterSpacing int) {
 	text = stripZeroWidth(text)

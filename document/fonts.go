@@ -51,46 +51,34 @@ func (minimalFontSource) Face(family, variant string) ([]byte, error) {
 	}
 }
 
+// FallbackFace registers a host font without requiring a dependency on its module.
+type FallbackFace struct {
+	Family string
+	Source FaceSource
+}
+
 type faceKey struct {
 	size         int
 	family       string
 	bold, italic bool
+	source       int // 0: page source; -1: Go fonts; -2: ntfonts; positive: host fallback index + 1.
 }
 
-func (l *layout) face(s style) font.Face {
-	k := faceKey{s.size, s.family, s.bold, s.italic}
+func (l *layout) fontKey(s style) faceKey {
+	k := faceKey{size: s.size, family: s.family, bold: s.bold, italic: s.italic}
 	if s.mono && (k.family == "" || k.family == "Go Mono") {
 		k.family = cmp.Or(l.opts.FontFamilies.Monospace, "Go Mono")
 	} else if k.family == "" && l.opts.FontFamilies.Default != "" {
 		k.family = l.opts.FontFamilies.Default
 	}
-	if f := l.faces[k]; f != nil {
-		return f
-	}
-	if len(l.faces) >= 128 {
-		l.err = limitError("font faces")
-		return basicfont.Face7x13
-	}
-	variant := "Regular"
-	if s.bold {
-		variant = "Bold"
-	}
-	if s.italic {
-		variant = "Italic"
-		if s.bold {
-			variant = "BoldItalic"
-		}
-	}
-	source := l.opts.Fonts
-	if source == nil {
-		source = ntfonts.Embedded
-	}
-	var parsed *opentype.Font
+	return k
+}
+func (l *layout) cssFamilies(k faceKey) []faceKey {
 	families := strings.Split(k.family, ",")
 	if len(families) > 8 {
 		families = families[:8]
 	}
-	families = append(families, "Go")
+	out := make([]faceKey, 0, len(families))
 	for _, family := range families {
 		family = strings.Trim(strings.TrimSpace(family), "'\"")
 		switch strings.ToLower(family) {
@@ -109,63 +97,147 @@ func (l *layout) face(s style) font.Face {
 				break
 			}
 		}
-		key := family + "/" + variant
-		if t, ok := l.fonts[key]; ok {
-			if t != nil {
-				parsed = t
-				break
-			}
-			continue
-		}
-		if len(l.fonts) >= 64 {
-			l.err = limitError("font families")
-			return basicfont.Face7x13
-		}
-		var data []byte
+		f := k
+		f.family = family
 		if family == "Go" || family == "Go Mono" {
-			fonts := [][]byte{goregular.TTF, gobold.TTF, goitalic.TTF, gobolditalic.TTF}
-			if family == "Go Mono" {
-				fonts = [][]byte{gomono.TTF, gomonobold.TTF, gomonoitalic.TTF, gomonobolditalic.TTF}
+			f.source = -1
+		}
+		out = append(out, f)
+	}
+	return out
+}
+func (l *layout) face(s style) font.Face {
+	k := l.fontKey(s)
+	if l.primary == nil {
+		l.primary = map[faceKey]font.Face{}
+	}
+	if f := l.primary[k]; f != nil {
+		return f
+	}
+	candidates := l.cssFamilies(k)
+	goKey := k
+	goKey.family = "Go"
+	goKey.source = -1
+	candidates = append(candidates, goKey)
+	for _, candidate := range candidates {
+		if f := l.loadFace(candidate, false); f != nil {
+			if len(l.primary) < 128 {
+				l.primary[k] = f
 			}
-			i := 0
-			if s.bold {
-				i++
-			}
-			if s.italic {
-				i += 2
-			}
-			data = fonts[i]
+			return f
+		}
+	}
+	return basicfont.Face7x13
+}
+
+// loadFace shares the existing family, face and byte budgets with fallback.
+// Exhaustion degrades to .notdef instead of failing an otherwise renderable page.
+func (l *layout) loadFace(k faceKey, fallback bool) font.Face {
+	if l.fonts == nil {
+		l.fonts = map[string]*opentype.Font{}
+	}
+	if f := l.faces[k]; f != nil {
+		return f
+	}
+	if l.fontStopped {
+		return nil
+	}
+	if len(l.faces) >= 128 {
+		if fallback {
+			l.fontStopped = true
 		} else {
-			var err error
-			data, err = source.Face(family, variant)
-			if err != nil {
-				l.fonts[key] = nil
-				continue
+			l.err = limitError("font faces")
+		}
+		return nil
+	}
+	variant := "Regular"
+	if k.bold {
+		variant = "Bold"
+	}
+	if k.italic {
+		variant = "Italic"
+		if k.bold {
+			variant = "BoldItalic"
+		}
+	}
+	key := fmt.Sprintf("%d/%s/%s", k.source, k.family, variant)
+	parsed, known := l.fonts[key]
+	if !known {
+		if len(l.fonts) >= 64 {
+			if fallback {
+				l.fontStopped = true
+			} else {
+				l.err = limitError("font families")
 			}
+			return nil
+		}
+		source := l.opts.Fonts
+		if source == nil {
+			source = ntfonts.Embedded
+		}
+		if k.source == -1 {
+			source = MinimalFonts
+		}
+		if k.source == -2 {
+			source = ntfonts.Embedded
+		}
+		if k.source > 0 {
+			if k.source > len(l.opts.FallbackFaces) {
+				return nil
+			}
+			source = l.opts.FallbackFaces[k.source-1].Source
+		}
+		if source == nil {
+			l.fonts[key] = nil
+			return nil
+		}
+		data, err := source.Face(k.family, variant)
+		if err != nil && variant != "Regular" {
+			data, err = source.Face(k.family, "Regular")
+		}
+		if err != nil {
+			l.fonts[key] = nil
+			return nil
 		}
 		if len(data) > 4<<20 || l.fontBytes+len(data) > 16<<20 {
-			l.err = limitError("font bytes")
-			return basicfont.Face7x13
+			if !fallback {
+				l.err = limitError("font bytes")
+			}
+			l.fontStopped = true
+			return nil
 		}
 		l.fontBytes += len(data)
-		var err error
 		parsed, err = opentype.Parse(data)
 		if err != nil {
-			l.err = fmt.Errorf("nthtml: font %s: %w", key, err)
-			return basicfont.Face7x13
+			l.fonts[key] = nil
+			if !fallback {
+				l.err = fmt.Errorf("nthtml: font %s: %w", key, err)
+			}
+			return nil
 		}
 		l.fonts[key] = parsed
-		break
+	}
+	if parsed == nil {
+		return nil
 	}
 	hinting := font.HintingFull
 	if strings.Contains(strings.ToLower(k.family), "ahem") {
 		hinting = font.HintingNone
 	}
-	f, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: float64(s.size), DPI: 72 * cmp.Or(l.scale, 1), Hinting: hinting})
+	f, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: float64(k.size), DPI: 72 * cmp.Or(l.scale, 1), Hinting: hinting})
 	if err != nil {
-		l.err = err
-		return basicfont.Face7x13
+		if !fallback {
+			l.err = err
+		}
+		return nil
+	}
+	if l.faces == nil {
+		l.faces = map[faceKey]font.Face{}
 	}
 	l.faces[k] = f
+	if l.faceInfo == nil {
+		l.faceInfo = map[font.Face]faceRecord{}
+	}
+	l.faceInfo[f] = faceRecord{key: k, parsed: parsed}
 	return f
 }

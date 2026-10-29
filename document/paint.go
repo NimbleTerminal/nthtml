@@ -121,10 +121,6 @@ func (l *layout) paint(dst *image.RGBA, ops []operation, area image.Rectangle, s
 				continue
 			}
 			f := l.face(style{size: b.FontSize, bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
-			var scFace font.Face
-			if b.SmallCaps {
-				scFace = l.face(style{size: smallCapSize(b.FontSize), bold: b.Bold, mono: b.Monospace, family: b.FontFamily, italic: b.Italic})
-			}
 			dot := fixed.Point26_6{
 				X: fixed.Int26_6(math.Round(float64(b.Bounds.Min.X-area.Min.X) * scale * 64)),
 				Y: fixed.Int26_6(math.Round(float64(b.Bounds.Min.Y+b.Baseline-area.Min.Y) * scale * 64)),
@@ -134,7 +130,7 @@ func (l *layout) paint(dst *image.RGBA, ops []operation, area image.Rectangle, s
 				dot.Y += f.Metrics().Ascent - fixed.I(f.Metrics().Ascent.Ceil())
 			}
 			dr := font.Drawer{Dst: opDst, Src: image.NewUniform(b.Color), Face: f, Dot: dot}
-			drawTextWithLetter(&dr, scFace, b.Text, int(math.Round(float64(b.WordSpacing)*scale)), int(math.Round(float64(b.LetterSpacing)*scale)))
+			l.drawRuns(&dr, op.runs, int(math.Round(float64(b.WordSpacing)*scale)), int(math.Round(float64(b.LetterSpacing)*scale)), b.SmallCaps)
 			if b.Strike {
 				// A third of the ascent above the baseline, in CSS pixels.
 				yy := b.Bounds.Min.Y + b.Baseline - int(math.Round(float64(f.Metrics().Ascent.Ceil()/3)/scale))

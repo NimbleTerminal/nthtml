@@ -70,6 +70,9 @@ type Colors struct {
 type Options struct {
 	// Fonts defaults to ntfonts.Embedded; missing families fall back to Go fonts.
 	Fonts FaceSource
+	// FallbackFaces are tried in order after CSS families and before bundled
+	// fallback fonts. Sources may serve Regular when a requested variant is absent.
+	FallbackFaces []FallbackFace
 	// FontFamilies overrides the default body font and generic CSS font families
 	// (serif, sans-serif, monospace) where the page sets none or names generics.
 	FontFamilies FontFamilies

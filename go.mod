@@ -9,7 +9,7 @@ require (
 	github.com/zkrebbekx/go-mermaid v0.1.6
 	golang.org/x/image v0.47.0
 	golang.org/x/net v0.62.0
-	nimbleterminal.dev/ntfonts v0.1.0
+	nimbleterminal.dev/ntfonts v0.1.1-0.20261029000300-c0ab5130e225
 	nimbleterminal.dev/ntpicture v0.1.3
 	nimbleterminal.dev/ntsvg v0.5.4
 	nimbleterminal.dev/nttypeset v0.1.6
