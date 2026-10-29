@@ -1,6 +1,7 @@
 package document
 
 import (
+	"cmp"
 	"image"
 	"strings"
 	"unicode"
@@ -119,6 +120,14 @@ func (l *layout) clusterFace(s style, text string) font.Face {
 			return f
 		}
 	}
+	for _, candidate := range l.bundledTextFallbacks(s, primary) {
+		if l.fontStopped {
+			break
+		}
+		if f := choose(candidate); f != nil {
+			return f
+		}
+	}
 	names := []string{"Go", "Go Mono"}
 	if s.mono {
 		names[0], names[1] = names[1], names[0]
@@ -132,6 +141,68 @@ func (l *layout) clusterFace(s style, text string) font.Face {
 		}
 	}
 	return baseFace
+}
+
+// Use the resolved primary family, rather than the whole CSS list, to
+// choose compatible text fallbacks. Custom generic mappings participate too.
+func (l *layout) bundledTextFallbacks(s style, primary font.Face) []faceKey {
+	family := l.faceInfo[primary].key.family
+	matches := func(config string) bool {
+		if config == "" {
+			return false
+		}
+		key := l.fontKey(s)
+		key.family = config
+		for _, candidate := range l.cssFamilies(key) {
+			if strings.EqualFold(family, candidate.family) {
+				return true
+			}
+		}
+		return false
+	}
+	mono := s.mono || matches(l.opts.FontFamilies.Monospace)
+	serif := matches(l.opts.FontFamilies.Serif)
+	switch strings.ToLower(family) {
+	case "go mono", "ibm plex mono", "iosevka", "jetbrains mono":
+		mono = true
+	case "literata", "newsreader", "source serif 4":
+		serif = true
+	}
+	var names []string
+	if mono {
+		names = []string{cmp.Or(l.opts.FontFamilies.Monospace, "IBM Plex Mono"), "Iosevka"}
+	} else {
+		names = []string{cmp.Or(l.opts.FontFamilies.SansSerif, "IBM Plex Sans"), cmp.Or(l.opts.FontFamilies.Serif, "Literata")}
+		if serif {
+			names[0], names[1] = names[1], names[0]
+		}
+	}
+	var out []faceKey
+	for _, name := range names {
+		key := l.fontKey(s)
+		key.family = name
+		for _, candidate := range l.cssFamilies(key) {
+			// Bundled families remain available even with a custom page FaceSource.
+			// A configured non-bundled family is supplied by that page source.
+			for _, bundled := range ntfonts.Families() {
+				if candidate.family == bundled {
+					candidate.source = -2
+					break
+				}
+			}
+			duplicate := false
+			for _, previous := range out {
+				if candidate == previous {
+					duplicate = true
+					break
+				}
+			}
+			if !duplicate {
+				out = append(out, candidate)
+			}
+		}
+	}
+	return out
 }
 
 // Combining marks form an indivisible unit with their preceding base.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Try compatible bundled text fonts after symbol fallback and before Go fonts, honoring configured serif/sans-serif/monospace mappings and the run variant. Default-font pages now render Vietnamese and currency characters such as ₹ while retaining their existing primary face.
+
  * Pin ntfonts to v0.1.1-0.20261029000300-c0ab5130e225 for expanded text coverage and bundled Noto symbol fallback. Hosts can continue to opt into the separate CJK module through Options.FallbackFaces.
 
  * Add coverage-aware raster font fallback: remaining CSS families, host-supplied Options.FallbackFaces, ntfonts.Fallbacks(), then Go/Go Mono. Missing variants try Regular; combining marks stay with their base. Layout, ink bounds, and repaint share the selected face runs and the primary baseline.

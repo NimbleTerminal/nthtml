@@ -95,12 +95,12 @@ func TestGlyphFallbackGoAndMissing(t *testing.T) {
 	if string(r.Image.Pix) == string(missing.Image.Pix) {
 		t.Fatal("fallback still .notdef")
 	}
-	// With no configured default family the primary remains Go. Other text
-	// families are eligible only when named by CSS or FontFamilies.
+	// The primary remains Go; bundled sans and serif text faces are now
+	// eligible after symbol fallback.
 	text := "Dvořák Ελληνικά Русский Tiếng Việt → ✓"
 	expected := 0
 	var fonts []*opentype.Font
-	for _, family := range append(ntfonts.Fallbacks(), "Go", "Go Mono") {
+	for _, family := range append(ntfonts.Fallbacks(), "IBM Plex Sans", "Literata", "Go", "Go Mono") {
 		source := FaceSource(ntfonts.Embedded)
 		if strings.HasPrefix(family, "Go") {
 			source = MinimalFonts
@@ -286,5 +286,60 @@ func TestExpandedTextCoverage(t *testing.T) {
 	r := fallbackRender(t, "<p>ř ł ş ő ơ ạ α ж</p>", Options{FontFamilies: FontFamilies{Default: "Literata"}})
 	if r.MissingGlyphs != 0 {
 		t.Fatalf("expanded text missing %d glyphs", r.MissingGlyphs)
+	}
+}
+
+func TestBundledTextFallbackCoverage(t *testing.T) {
+	for _, html := range []string{
+		"<p>Tiếng Việt ₹</p>",
+		"<p style='font-family:Missing'>Tiếng Việt ₹</p>",
+		"<p style='font-family:monospace'>Tiếng ┌─┐</p>",
+	} {
+		r := fallbackRender(t, html, Options{})
+		if r.MissingGlyphs != 0 {
+			t.Errorf("%s: missing %d", html, r.MissingGlyphs)
+		}
+	}
+	r := fallbackRender(t, "<p>ꯀ</p>", Options{})
+	if r.MissingGlyphs != 1 {
+		t.Fatal(r.MissingGlyphs)
+	}
+	r = fallbackRender(t, "<p style='font-family:Go'>a</p>", Options{})
+	for _, op := range r.ops {
+		for _, run := range op.runs {
+			if run.key.family != "Go" || run.key.source != -1 {
+				t.Fatalf("primary changed: %+v", run)
+			}
+		}
+	}
+}
+
+func TestBundledTextFallbackOrder(t *testing.T) {
+	primary := coverageFont(t, 'a')
+	fallback := coverageFont(t, '₹')
+	source := fontSource(func(family, variant string) ([]byte, error) {
+		switch family {
+		case "CustomSerif", "CustomSans", "CustomMono":
+			return fallback, nil
+		case "Newsreader", "Iosevka":
+			return primary, nil
+		}
+		return nil, fmt.Errorf("missing")
+	})
+	families := FontFamilies{Serif: "CustomSerif", SansSerif: "CustomSans", Monospace: "CustomMono"}
+	for _, tc := range []struct{ primary, want string }{
+		{"Go", "CustomSans"}, {"Newsreader", "CustomSerif"}, {"Iosevka", "CustomMono"},
+	} {
+		r := fallbackRender(t, "<p style='font-family:"+tc.primary+";font-weight:bold;font-style:italic'>₹</p>", Options{Fonts: source, FontFamilies: families})
+		if r.MissingGlyphs != 0 {
+			t.Fatal(r.MissingGlyphs)
+		}
+		for _, op := range r.ops {
+			for _, run := range op.runs {
+				if run.key.family != tc.want || !run.key.bold || !run.key.italic {
+					t.Fatalf("%s: %+v", tc.primary, run)
+				}
+			}
+		}
 	}
 }
