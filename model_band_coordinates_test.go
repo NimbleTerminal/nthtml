@@ -83,7 +83,7 @@ func TestKittyBandScaledCoordinates(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := bandCoordinateModel(t, &document.Result{Image: image.NewRGBA(image.Rect(0, 0, tc.width, 24000))}, image.Pt(11, 9), 80, 22, 10, 20)
-			m.Zoom(tc.zoom)
+			m.Zoom(tc.zoom * zoomStepsPerDoubling)
 			m.Pan(tc.panX, tc.top)
 			got, ok := m.CellToDocument(m.origin.Add(image.Pt(40, 0)))
 			if !ok || got != tc.want {
@@ -201,7 +201,7 @@ func TestDocumentViewportLetterboxingAndGeometry(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := bandCoordinateModel(t, &document.Result{Image: image.NewRGBA(tc.bounds)}, image.Pt(9, 6), 80, 22, 10, 20)
-			m.Zoom(tc.zoom)
+			m.Zoom(tc.zoom * zoomStepsPerDoubling)
 			m.Pan(tc.panX, tc.panY)
 			beforeX, beforeY := m.x, m.y
 			got, ok := m.DocumentViewport()

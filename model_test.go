@@ -18,7 +18,7 @@ func TestNavigationClamps(t *testing.T) {
 	defer func() { _ = m.Close() }()
 	m.Zoom(100)
 	m.Pan(100000, 100000)
-	if m.zoom != 6 || m.x < 0 || m.x >= 800 || m.y < 0 || m.y >= 2000 {
+	if m.zoom != maxZoomSteps || m.x < 0 || m.x >= 800 || m.y < 0 || m.y >= 2000 {
 		t.Fatalf("invalid viewport: %+v", m)
 	}
 	m.Reset()
@@ -541,5 +541,25 @@ func TestKittyViewportScrollBandCrossingFocusAndKeepView(t *testing.T) {
 	}
 	if downOut := driveRaw(t, mFrame, mFrame.Update(tea.KeyPressMsg{Code: tea.KeyDown})); downOut != "" {
 		t.Fatalf("expected 0 Kitty bytes on Down with VirtualPlacement+FrameEdits session, got %d bytes", len(downOut))
+	}
+}
+
+func TestZoomUsesSmallReversibleSteps(t *testing.T) {
+	m := New(&document.Result{Image: image.NewRGBA(image.Rect(0, 0, 800, 2000))})
+	defer func() { _ = m.Close() }()
+	m.cols, m.rows = 80, 24
+	initial := m.cropRect()
+	m.Zoom(1)
+	first := m.cropRect()
+	if first.Dx() >= initial.Dx() || first.Dx() <= initial.Dx()*3/4 {
+		t.Fatalf("first zoom step too large or ineffective: %v -> %v", initial, first)
+	}
+	m.Zoom(3)
+	if got := m.cropRect().Dx(); got != 400 {
+		t.Fatalf("four steps should double magnification: width=%d", got)
+	}
+	m.Zoom(-4)
+	if got := m.cropRect(); got != initial {
+		t.Fatalf("zoom out did not restore crop: %v want %v", got, initial)
 	}
 }

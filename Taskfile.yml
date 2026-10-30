@@ -26,7 +26,7 @@ tasks:
     cmds:
       - go build -mod=readonly ./...
       - go build -mod=readonly -o bin/nthtml{{.EXE}} ./cmd/nthtml
-      - go build -mod=readonly -o bin/demo{{.EXE}} ./examples/demo
+      - go build -mod=readonly -o bin/nthtml-demo{{.EXE}} ./examples/demo
 
   demo:
     desc: 'Run a terminal demo (DEMO=overview|invoice|field-notes|status-report|guide|typography|diagrams|navigation|reports|positioning; t toggles layout)'

@@ -16,6 +16,14 @@ import (
 
 const maxKittyBandRows = 283
 
+// Four zoom steps double magnification, preserving the former 64x limit.
+const zoomStepsPerDoubling = 4
+const maxZoomSteps = 6 * zoomStepsPerDoubling
+
+func zoomScale(steps int) float64 {
+	return math.Exp2(float64(steps) / zoomStepsPerDoubling)
+}
+
 func cropBandImage(img image.Image, r image.Rectangle) image.Image {
 	if img == nil {
 		return nil
@@ -428,6 +436,8 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	}
 	return tea.Batch(cropCmd, sizeCmd, m.refreshHighlights())
 }
+
+// Zoom changes magnification by delta steps; four steps double the scale.
 func (m *Model) Zoom(delta int) tea.Cmd {
 	if m.mode == LayoutTypeset && m.typesetFit == TypesetFitContain {
 		return nil
@@ -438,7 +448,7 @@ func (m *Model) Zoom(delta int) tea.Cmd {
 	if m.mode == LayoutTTY {
 		return nil
 	}
-	m.zoom = max(0, min(6, m.zoom+delta))
+	m.zoom = max(0, min(maxZoomSteps, m.zoom+delta))
 	if hadSelection {
 		return m.refreshHighlights()
 	}
@@ -494,9 +504,9 @@ func (m *Model) syncKittyBand(forceUpload bool) tea.Cmd {
 	if cellH <= 0 {
 		cellH = 20
 	}
-	visW := max(1, srcW>>m.zoom)
+	visW := max(1, int(float64(srcW)/zoomScale(m.zoom)))
 	tw := max(1, m.cols*cellW)
-	scaledH := srcH << m.zoom
+	scaledH := max(1, int(math.Ceil(float64(srcH)*zoomScale(m.zoom))))
 	if visW > tw {
 		scaledH = max(1, int((int64(srcH)*int64(tw)+int64(visW)-1)/int64(visW)))
 	}
@@ -584,7 +594,7 @@ func (m *Model) cropRect() image.Rectangle {
 	if m.typesetFit == TypesetFitContain {
 		return b
 	}
-	w := max(1, b.Dx()>>m.zoom)
+	w := max(1, int(float64(b.Dx())/zoomScale(m.zoom)))
 	h := min(b.Dy(), max(1, w*m.rows*2/m.cols))
 	m.x = max(0, min(m.x, b.Dx()-w))
 	m.y = max(0, min(m.y, b.Dy()-h))

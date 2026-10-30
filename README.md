@@ -161,7 +161,9 @@ content. “Typeset” names the existing nthtml raster layout, not integration 
 the separate nttypeset engine.
 
 Arrows / hjkl pan, Page Up / Down scroll, + / − zoom the Typeset view, and
-0 / Home reset the active view.
+0 / Home reset the active view. Each zoom step increases magnification by about
+19%; four steps double it. `task build` produces `bin/nthtml-demo` (run, for
+example, `bin/nthtml-demo -demo tty-styles`).
 Kitty support is detected by ntpicture, with half-block glyph fallback.
 Zoom crops the raster; it does not reflow or regenerate higher-resolution text.
 The example uses a full-screen component; multiple positioned Kitty widgets are

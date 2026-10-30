@@ -112,7 +112,7 @@ func TestMouseRasterLinksAndZoom(t *testing.T) {
 	if m.x != 0 || m.y != 0 {
 		t.Fatal("click unexpectedly scrolled viewport")
 	}
-	mouseCommands(t, m, m.Zoom(1), m.Pan(200, 80))
+	mouseCommands(t, m, m.Zoom(zoomStepsPerDoubling), m.Pan(200, 80))
 	if got := clickCell(t, m, image.Pt(18, 7), tea.MouseLeft); len(got) != 1 {
 		t.Fatal("zoomed/panned click failed", got)
 	}
