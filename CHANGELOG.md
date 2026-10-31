@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## v0.2.2 (2026-10-31)
 
  * Upgrade `nttypeset` to `v0.1.8` and `ntfonts` to `v0.2.1` for source fallback family support.
 
