@@ -6,6 +6,7 @@ import (
 	"context"
 	"github.com/charmbracelet/x/ansi"
 	"image"
+	"image/color"
 	"image/draw"
 	"math"
 	"nimbleterminal.dev/nthtml/document"
@@ -46,6 +47,8 @@ func cropBandImage(img image.Image, r image.Rectangle) image.Image {
 type focusOverlayKey struct {
 	focusID                 int
 	sourceID                string
+	pixels                  image.Point
+	background              color.RGBA64
 	bandCrop                image.Rectangle
 	cols, bandRows          int
 	cellW, cellH            int

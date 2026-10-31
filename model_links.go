@@ -7,6 +7,8 @@ import (
 	"math"
 	"strings"
 
+	xdraw "golang.org/x/image/draw"
+
 	tea "charm.land/bubbletea/v2"
 	"nimbleterminal.dev/nthtml/document"
 	"nimbleterminal.dev/ntpicture"
@@ -184,8 +186,8 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 		m.focusKey = focusOverlayKey{}
 		return nil
 	}
-	cellRect, patchSrc := focusBandCellsAndSource(regions, cells, pixels, crop)
-	if cellRect.Empty() || patchSrc.Empty() {
+	cellRect, pagePixels := focusBandCellsAndPage(regions, cells, pixels, crop)
+	if cellRect.Empty() || pagePixels.Empty() {
 		m.focusCellRect = image.Rectangle{}
 		m.focusKey = focusOverlayKey{}
 		return nil
@@ -199,16 +201,18 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 		cellH = 20
 	}
 	key := focusOverlayKey{
-		focusID:  m.focusID,
-		sourceID: m.focusSourceID,
-		bandCrop: crop,
-		cols:     cells.X,
-		bandRows: cells.Y,
-		cellW:    cellW,
-		cellH:    cellH,
-		match:    m.match,
-		selStart: m.selectStart,
-		selEnd:   m.selectEnd,
+		focusID:    m.focusID,
+		sourceID:   m.focusSourceID,
+		pixels:     pixels,
+		background: color.RGBA64Model.Convert(m.pic.Background()).(color.RGBA64),
+		bandCrop:   crop,
+		cols:       cells.X,
+		bandRows:   cells.Y,
+		cellW:      cellW,
+		cellH:      cellH,
+		match:      m.match,
+		selStart:   m.selectStart,
+		selEnd:     m.selectEnd,
 	}
 	if m.focusKey == key {
 		return nil
@@ -218,20 +222,7 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 	if m.overlayImg != nil {
 		base = m.overlayImg
 	}
-	patch := image.NewRGBA(patchSrc)
-	draw.Draw(patch, patchSrc, base, patchSrc.Min, draw.Src)
-	ink := image.NewUniform(color.RGBA{235, 155, 35, 255})
-	for _, r := range regions {
-		r = r.Inset(-1)
-		for _, edge := range []image.Rectangle{
-			image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1),
-			image.Rect(r.Min.X, r.Max.Y-1, r.Max.X, r.Max.Y),
-			image.Rect(r.Min.X, r.Min.Y, r.Min.X+1, r.Max.Y),
-			image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y),
-		} {
-			draw.Draw(patch, edge.Intersect(patchSrc), ink, image.Point{}, draw.Over)
-		}
-	}
+	patch := paintFocusPatch(base, regions, crop, pagePixels, cellRect, cells, pixels, image.Pt(cellW, cellH), m.pic.Background())
 	return m.focusPic.Submit(ntpicture.Frame{
 		Image:      patch,
 		Cols:       cellRect.Dx(),
@@ -243,7 +234,10 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 	})
 }
 
-func focusBandCellsAndSource(regions []image.Rectangle, cells, pixels image.Point, crop image.Rectangle) (image.Rectangle, image.Rectangle) {
+func focusBandCellsAndPage(regions []image.Rectangle, cells, pixels image.Point, crop image.Rectangle) (image.Rectangle, image.Rectangle) {
+	if cells.X <= 0 || cells.Y <= 0 || pixels.X <= 0 || pixels.Y <= 0 || crop.Empty() {
+		return image.Rectangle{}, image.Rectangle{}
+	}
 	tw, th := pixels.X, pixels.Y
 	sw, sh := crop.Dx(), crop.Dy()
 	iw, ih := tw, th
@@ -277,10 +271,52 @@ func focusBandCellsAndSource(regions []image.Rectangle, cells, pixels image.Poin
 	if cellUnion.Empty() || cellUnion.Dx() > maxKittyBandRows || cellUnion.Dy() > maxKittyBandRows {
 		return image.Rectangle{}, image.Rectangle{}
 	}
-	tl := rasterCellSource(image.Pt(cellUnion.Min.X, cellUnion.Min.Y), cells, pixels, crop)
-	br := rasterCellSource(image.Pt(cellUnion.Max.X-1, cellUnion.Max.Y-1), cells, pixels, crop)
-	patchSrc := tl.Union(br).Intersect(crop)
-	return cellUnion, patchSrc
+	return cellUnion, image.Rect(ox, oy, ox+iw, oy+ih)
+}
+
+// focusRingImage adds the same source-pixel ring as the fallback picture path.
+// Keeping the entire crop as the scaler's source preserves sampling at patch
+// edges; only the destination is clipped to the selected whole cells.
+type focusRingImage struct {
+	image.Image
+	edges []image.Rectangle
+}
+
+func (im focusRingImage) At(x, y int) color.Color {
+	for _, edge := range im.edges {
+		if image.Pt(x, y).In(edge) {
+			return color.RGBA{235, 155, 35, 255}
+		}
+	}
+	return im.Image.At(x, y)
+}
+
+func paintFocusPatch(base image.Image, regions []image.Rectangle, crop, pagePixels, cellRect image.Rectangle, cells, pixels, cellSize image.Point, bg color.Color) *image.RGBA {
+	patchRect := image.Rect(cellRect.Min.X*cellSize.X, cellRect.Min.Y*cellSize.Y, cellRect.Max.X*cellSize.X, cellRect.Max.Y*cellSize.Y)
+	patch := image.NewRGBA(patchRect)
+	draw.Draw(patch, patchRect, image.NewUniform(bg), image.Point{}, draw.Src)
+	ring := focusRingImage{Image: base}
+	for _, r := range regions {
+		r = r.Inset(-1)
+		ring.edges = append(ring.edges,
+			image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1),
+			image.Rect(r.Min.X, r.Max.Y-1, r.Max.X, r.Max.Y),
+			image.Rect(r.Min.X, r.Min.Y, r.Min.X+1, r.Max.Y),
+			image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y))
+	}
+	// Usually raster pixels equal terminal pixels. Use the base raster's actual
+	// letterbox proportions when its resolution has been reduced.
+	target := image.Rect(
+		pagePixels.Min.X*cells.X*cellSize.X/pixels.X,
+		pagePixels.Min.Y*cells.Y*cellSize.Y/pixels.Y,
+		pagePixels.Max.X*cells.X*cellSize.X/pixels.X,
+		pagePixels.Max.Y*cells.Y*cellSize.Y/pixels.Y)
+	if target.Size() == crop.Size() {
+		draw.Draw(patch, target, ring, crop.Min, draw.Over)
+	} else {
+		xdraw.CatmullRom.Scale(patch, target, ring, crop, draw.Over, nil)
+	}
+	return patch
 }
 
 func (m *Model) spliceFocusOverlay(base string) string {
