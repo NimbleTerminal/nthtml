@@ -1,6 +1,8 @@
 # CHANGELOG
 
-## Unreleased
+## v0.1.3 (2026-10-30)
+
+ * Use finer viewer zoom steps: each step increases magnification by about 19%, and four steps double it. Rename the terminal demo binary produced by `task build` to `bin/nthtml-demo`.
 
  * Skip and cache oversized fallback faces (over 4 MiB) without stopping later candidates. The shared 16 MiB total, lookup, and face-count budgets still stop further loads; primary face limits still return ErrLimit.
 
@@ -10,7 +12,7 @@
 
  * Use one cached, source-aware fallback path without redundant bundled lookups. Try configured bundled text families after symbol fallback and before Go/Go Mono, preserving primary faces and run variants. Serif/sans order follows the primary face; monospace runs try the configured monospace face then Iosevka. Default Vietnamese, currency, and monospace box drawing now use the widened ntfonts coverage within existing font budgets.
 
- * Pin ntfonts to v0.1.1-0.20261029000300-c0ab5130e225 for expanded text coverage and bundled Noto symbol fallback. Hosts can continue to opt into the separate CJK module through Options.FallbackFaces.
+ * Upgrade `ntfonts` to `v0.2.0` for expanded text coverage and bundled Noto symbol fallback. Hosts can continue to opt into the separate CJK module through Options.FallbackFaces.
 
  * Add coverage-aware raster font fallback: remaining CSS families, host-supplied Options.FallbackFaces, ntfonts.Fallbacks(), then Go/Go Mono. Missing variants try Regular; combining marks stay with their base. Layout, ink bounds, and repaint share the selected face runs and the primary baseline.
  * Add Result.MissingGlyphs for characters lacking glyphs after fallback, without status-line warnings. Coverage and run-split caches are render-local and bounded; fallback font loads share the 128-face, 64-family, and font-byte budgets and degrade gracefully on exhaustion. TTY and text export retain their original text.
@@ -27,7 +29,7 @@
 
  * Default unknown and phrasing elements to inline, with explicit HTML block and non-rendering defaults; author display declarations still win.
 
- * Upgrade `ntsvg` to `v0.5.4`, `ntpicture` to `v0.1.3`, and `oksvg` to `v0.1.4` for SVG image support.
+ * Upgrade `ntsvg` to `v0.5.5`, `ntpicture` to `v0.1.4`, and `oksvg` to `v0.1.5` for SVG image support and rendering fixes. Update indirect dependencies `regexp2/v2` to `v2.12.0` and `terminfo` to `v1.3.0`.
 
  * Fix Kitty band coordinates for `CellToDocument`, link hit-testing, source lookup, and mouse selection across band transitions, zoom, and letterboxing. Add `Model.DocumentViewport()` for the visible document-pixel bounds. Clarify that `SetResultKeepView` clears selection and active mouse drags while preserving scroll, zoom, search, and link focus.
 
