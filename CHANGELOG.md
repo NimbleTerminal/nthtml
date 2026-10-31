@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## v0.2.1 (2026-10-31)
 
  * Add `Model.ShowFocusSource(id)` to reapply source focus without changing scroll, selection, or search after a frame replacement. `FocusSource` now scrolls only when the element is not fully visible, in both Typeset and TTY modes.
 
