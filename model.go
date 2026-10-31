@@ -228,7 +228,7 @@ func (m *Model) SetResult(result *document.Result) tea.Cmd {
 // scroll offset, zoom, search state, and the focused link (by Link.ID) when
 // present in the new Result. Selection and an in-progress mouse drag are cleared:
 // their text offsets may refer to different content in the replacement Result.
-// Source focus is always cleared; hosts should reapply FocusSource after replacement.
+// Source focus is always cleared; hosts should reapply ShowFocusSource after replacement.
 func (m *Model) SetResultKeepView(result *document.Result) tea.Cmd {
 	return m.setResult(result, true)
 }

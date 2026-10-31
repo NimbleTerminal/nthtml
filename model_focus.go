@@ -8,11 +8,22 @@ import (
 )
 
 // FocusSource highlights the element whose Anchor or SourceID is id and scrolls
-// it into view. An empty id clears focus. An unknown id returns false without
+// it into view only when it is not fully visible. An empty id clears focus. An unknown id returns false without
 // changing the view. SetResult and SetResultKeepView clear source focus.
 // In TTY mode, mapped source text runs use reverse video; elements without TTY
 // text have no visible highlight. Source focus does not activate links.
 func (m *Model) FocusSource(id string) (tea.Cmd, bool) {
+	return m.setSourceFocus(id, true)
+}
+
+// ShowFocusSource highlights id without changing scroll, selection, or search.
+// Hosts can use it to reapply focus after replacing a Result and restoring the
+// viewport. Return values and clearing behavior are the same as FocusSource.
+func (m *Model) ShowFocusSource(id string) (tea.Cmd, bool) {
+	return m.setSourceFocus(id, false)
+}
+
+func (m *Model) setSourceFocus(id string, scroll bool) (tea.Cmd, bool) {
 	if id == "" {
 		m.focusID = 0
 		m.clearSourceFocus()
@@ -41,14 +52,22 @@ func (m *Model) FocusSource(id string) (tea.Cmd, bool) {
 	}
 	m.focusID = 0
 	m.pressedLink = 0
-	m.clearSelection()
+	if scroll {
+		m.clearSelection()
+	}
 	m.focusSourceID = id
 	m.sourceFocusBounds = bounds
+	if !scroll {
+		return m.refreshHighlights(), true
+	}
 	if m.mode == LayoutTTY {
-		if r, ok := m.ttyResult.AnchorBounds(id); ok {
+		if r, ok := m.ttyResult.AnchorBounds(id); ok && !r.In(image.Rect(0, m.ttyTop, m.cols, m.ttyTop+m.rows)) {
 			m.ttyTop = r.Min.Y
 			m.scrollTTY(0)
 		}
+		return m.refreshHighlights(), true
+	}
+	if viewport, ok := m.DocumentViewport(); ok && bounds.In(viewport) {
 		return m.refreshHighlights(), true
 	}
 	return m.scrollTo(bounds.Min), true
