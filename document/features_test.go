@@ -123,7 +123,7 @@ func TestListsAndPreformattedCode(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	for _, want := range []string{"3. First item", "   • Nested item", "9. Last item", "func main() {\n    println(\"x\")\n\n    done()\n}"} {
+	for _, want := range []string{"3. First item", "   ◦ Nested item", "9. Last item", "func main() {\n    println(\"x\")\n\n    done()\n}"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q:\n%s", want, text)
 		}

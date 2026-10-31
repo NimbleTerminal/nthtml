@@ -2,6 +2,8 @@
 
 ## v0.1.3 (2026-10-30)
 
+ * Default nested unordered-list markers to circle at the second level and square at deeper levels, counting enclosing lists through intervening elements. Preserve author styles, inherited author values, and HTML `type` overrides consistently in raster, TTY, Blocks, and ExtractTypeset output.
+
  * Default buttons, selects, and button-like inputs to `box-sizing: border-box`, while preserving author overrides and content-box text inputs. Explicit control heights now include padding and borders, preventing sprite backgrounds from exposing adjacent rows.
 
  * Use finer viewer zoom steps: each step increases magnification by about 19%, and four steps double it. Rename the terminal demo binary produced by `task build` to `bin/nthtml-demo`.

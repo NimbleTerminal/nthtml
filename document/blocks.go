@@ -75,6 +75,21 @@ func resolveListStyleType(listNode, itemNode *node, itemStyle style) string {
 		if listNode.tag == "ol" {
 			return "decimal"
 		}
+		// Resolve only the UA fallback here, so inherited author styles and
+		// HTML type attributes above retain precedence over nesting defaults.
+		depth := 0
+		for p := listNode.parent; p != nil; p = p.parent {
+			switch p.tag {
+			case "ul", "ol", "menu", "dir":
+				depth++
+			}
+			if depth >= 2 {
+				return "square"
+			}
+		}
+		if depth == 1 {
+			return "circle"
+		}
 	}
 	return "disc"
 }
