@@ -152,9 +152,10 @@ func (m *Model) mouseRelease(v tea.MouseReleaseMsg) tea.Cmd {
 	if !ok || link.ID != pressed {
 		return nil
 	}
+	m.clearSourceFocus()
 	m.focusID = link.ID
 	if m.mode == LayoutTTY {
-		return m.ActivateLink()
+		return tea.Batch(m.refreshHighlights(), m.ActivateLink())
 	}
 	return tea.Batch(m.showLinkFocus(), m.ActivateLink())
 }

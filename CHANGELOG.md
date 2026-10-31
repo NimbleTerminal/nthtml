@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Unreleased
+
+ * Add `Model.FocusSource(id)` to highlight and scroll to any element using its source boxes and text runs. Source and link focus share the existing raster ring and are mutually exclusive. TTY source text runs use reverse video; elements without mapped TTY text have no visible highlight. An empty ID clears focus, unknown IDs leave the view unchanged, and both result setters clear source focus for hosts to reapply.
+
 ## v0.2.0 (2026-10-31)
 
 This minor release expands HTML element rendering, adds styled TTY output and coverage-aware font fallback, and improves SVG rendering and viewer navigation.

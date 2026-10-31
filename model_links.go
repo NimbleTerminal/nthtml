@@ -43,9 +43,10 @@ func (m *Model) FocusedLink() (document.Link, bool) {
 // NextLink cycles through visible document links and scrolls the selection into view.
 func (m *Model) NextLink(backward bool) tea.Cmd {
 	m.pressedLink = 0
+	m.clearSourceFocus()
 	links := m.links()
 	if len(links) == 0 {
-		return nil
+		return m.refreshHighlights()
 	}
 	index := -1
 	for i, l := range links {
@@ -74,7 +75,7 @@ func (m *Model) NextLink(backward bool) tea.Cmd {
 		}
 	}
 	if m.mode == LayoutTTY {
-		return nil
+		return m.refreshHighlights()
 	}
 	return m.showLinkFocus()
 }
@@ -82,8 +83,7 @@ func (m *Model) hasSearchOrSelectionOverlay() bool {
 	return (m.match >= 0 && m.match < len(m.matches)) || m.selectStart != m.selectEnd
 }
 func (m *Model) hasOverlay() bool {
-	_, ok := m.FocusedLink()
-	return ok || m.hasSearchOrSelectionOverlay()
+	return len(m.focusRegions()) > 0 || m.hasSearchOrSelectionOverlay()
 }
 func (m *Model) paintSearchAndSelectionOverlay() *image.RGBA {
 	b := m.source.Bounds()
@@ -143,8 +143,8 @@ func (m *Model) showLinkFocus() tea.Cmd {
 		focusCmd := m.updateKittyFocusOverlay()
 		return tea.Batch(bandCmd, focusCmd)
 	}
-	link, ok := m.FocusedLink()
-	if !ok && !m.hasSearchOrSelectionOverlay() {
+	regions := m.focusRegions()
+	if len(regions) == 0 && !m.hasSearchOrSelectionOverlay() {
 		if m.overlayPainted {
 			m.overlayPainted = false
 			m.overlayImg = nil
@@ -154,7 +154,7 @@ func (m *Model) showLinkFocus() tea.Cmd {
 	}
 	img := m.paintSearchAndSelectionOverlay()
 	ink := image.NewUniform(color.RGBA{235, 155, 35, 255})
-	for _, r := range link.Regions {
+	for _, r := range regions {
 		r = r.Inset(-1)
 		for _, edge := range []image.Rectangle{image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1), image.Rect(r.Min.X, r.Max.Y-1, r.Max.X, r.Max.Y), image.Rect(r.Min.X, r.Min.Y, r.Min.X+1, r.Max.Y), image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y)} {
 			draw.Draw(img, edge, ink, image.Point{}, draw.Over)
@@ -170,8 +170,8 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 		m.focusKey = focusOverlayKey{}
 		return nil
 	}
-	link, ok := m.FocusedLink()
-	if !ok || len(link.Regions) == 0 {
+	regions := m.focusRegions()
+	if len(regions) == 0 {
 		m.focusCellRect = image.Rectangle{}
 		m.focusKey = focusOverlayKey{}
 		return nil
@@ -184,7 +184,7 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 		m.focusKey = focusOverlayKey{}
 		return nil
 	}
-	cellRect, patchSrc := focusBandCellsAndSource(link.Regions, cells, pixels, crop)
+	cellRect, patchSrc := focusBandCellsAndSource(regions, cells, pixels, crop)
 	if cellRect.Empty() || patchSrc.Empty() {
 		m.focusCellRect = image.Rectangle{}
 		m.focusKey = focusOverlayKey{}
@@ -199,7 +199,8 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 		cellH = 20
 	}
 	key := focusOverlayKey{
-		focusID:  link.ID,
+		focusID:  m.focusID,
+		sourceID: m.focusSourceID,
 		bandCrop: crop,
 		cols:     cells.X,
 		bandRows: cells.Y,
@@ -220,7 +221,7 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 	patch := image.NewRGBA(patchSrc)
 	draw.Draw(patch, patchSrc, base, patchSrc.Min, draw.Src)
 	ink := image.NewUniform(color.RGBA{235, 155, 35, 255})
-	for _, r := range link.Regions {
+	for _, r := range regions {
 		r = r.Inset(-1)
 		for _, edge := range []image.Rectangle{
 			image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1),

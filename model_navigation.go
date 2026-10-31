@@ -39,6 +39,7 @@ func (m *Model) NavigateFragment(href string) (tea.Cmd, bool) {
 		return nil, false
 	}
 	m.focusID = 0
+	m.clearSourceFocus()
 	m.clearSelection()
 	cmd := m.scrollTo(p)
 	if m.mode == LayoutTTY {
@@ -67,6 +68,7 @@ func (m *Model) NavigateSource(id string) (tea.Cmd, bool) {
 		return nil, false
 	}
 	m.focusID = 0
+	m.clearSourceFocus()
 	m.clearSelection()
 	cmd := m.scrollTo(rect.Min)
 	if m.mode == LayoutTTY {
@@ -189,7 +191,8 @@ func (m *Model) clearSelection() {
 }
 func (m *Model) refreshHighlights() tea.Cmd {
 	if m.mode == LayoutTTY {
-		spans := append([]document.Match(nil), m.matches...)
+		spans := m.sourceFocusMatches()
+		spans = append(spans, m.matches...)
 		if m.selectStart != m.selectEnd {
 			spans = append(spans, document.Match{Start: m.selectStart, End: m.selectEnd})
 		}

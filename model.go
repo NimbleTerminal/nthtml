@@ -45,6 +45,7 @@ func cropBandImage(img image.Image, r image.Rectangle) image.Image {
 
 type focusOverlayKey struct {
 	focusID                 int
+	sourceID                string
 	bandCrop                image.Rectangle
 	cols, bandRows          int
 	cellW, cellH            int
@@ -107,6 +108,8 @@ type Model struct {
 	ttyLines                      []string
 	ttyResult                     *document.TTYResult
 	focusID                       int
+	focusSourceID                 string
+	sourceFocusBounds             image.Rectangle
 	origin, pressCell             image.Point
 	pressedLink                   int
 	ttyTop                        int
@@ -225,12 +228,14 @@ func (m *Model) SetResult(result *document.Result) tea.Cmd {
 // scroll offset, zoom, search state, and the focused link (by Link.ID) when
 // present in the new Result. Selection and an in-progress mouse drag are cleared:
 // their text offsets may refer to different content in the replacement Result.
+// Source focus is always cleared; hosts should reapply FocusSource after replacement.
 func (m *Model) SetResultKeepView(result *document.Result) tea.Cmd {
 	return m.setResult(result, true)
 }
 
 func (m *Model) setResult(result *document.Result, keepView bool) tea.Cmd {
 	m.result = result
+	m.clearSourceFocus()
 	m.index = nil
 	m.pressedLink = 0
 	m.clearSelection()
@@ -293,7 +298,7 @@ func (m *Model) View() string {
 		return text
 	}
 	base := m.pic.View()
-	if m.kittyViewportMode() && m.focusID != 0 && !m.focusCellRect.Empty() && m.focusPic != nil {
+	if m.kittyViewportMode() && !m.focusCellRect.Empty() && m.focusPic != nil {
 		return m.spliceFocusOverlay(base)
 	}
 	return base
@@ -374,6 +379,7 @@ func (m *Model) reflowTTY() {
 	m.ttyLines = strings.Split(text, "\n")
 	m.scrollTTY(0)
 	m.resetTextLayout()
+	m.refreshHighlights()
 }
 func (m *Model) scrollTTY(delta int) {
 	m.ttyTop = max(0, min(max(0, len(m.ttyLines)-m.rows), m.ttyTop+delta))
@@ -640,6 +646,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			m.matches = nil
 			m.match = -1
 			m.focusID = 0
+			m.clearSourceFocus()
 			m.clearSelection()
 			cmd = m.refreshHighlights()
 		case "ctrl+a":

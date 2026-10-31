@@ -200,6 +200,15 @@ A press/release must stay on the same link and cell;
 dragging cancels activation. Clicks are ignored while a replacement raster is
 pending so they cannot activate a target from an undisplayed layout.
 
+Hosts that manage focus across links and form controls can call
+`cmd, ok := model.FocusSource(id)` and run the returned command. It scrolls to
+the element and draws the same ring as link focus, including the full text
+extent of inline elements. TTY mode uses reverse video on mapped source text;
+elements without TTY text have no visible highlight. `FocusSource("")` clears
+focus, and unknown IDs return false without changing the view. Source focus
+and link focus replace each other; source focus does not enable `ActivateLink`.
+Reapply source focus after either `SetResult` or `SetResultKeepView`.
+
 `Document.TTYLayout(ctx, columns)` (also available on `Result`) returns plain
 `Text`, cell-based `Links`, UTF-8 byte-offset `Spans`, and CSS `Styles`. Use `.ANSI()`
 to emit truecolor SGR and OSC 8 hyperlinks; the widget does this automatically.
