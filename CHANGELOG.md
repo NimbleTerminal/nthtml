@@ -33,7 +33,7 @@
 
  * Default unknown and phrasing elements to inline, with explicit HTML block and non-rendering defaults; author display declarations still win.
 
- * Upgrade `ntsvg` to `v0.5.5`, `ntpicture` to `v0.1.4`, and `oksvg` to `v0.1.5` for SVG image support and rendering fixes. Update indirect dependencies `regexp2/v2` to `v2.12.0` and `terminfo` to `v1.3.0`.
+ * Upgrade `ntsvg` to `v0.5.5`, `ntpicture` to `v0.1.4`, `nttypeset` to `v0.1.7`, and `oksvg` to `v0.1.6` for SVG image support and rendering fixes, including rounded SVG rectangles with only `rx` or `ry` specified. Update indirect dependencies `regexp2/v2` to `v2.12.0` and `terminfo` to `v1.3.0`.
 
  * Fix Kitty band coordinates for `CellToDocument`, link hit-testing, source lookup, and mouse selection across band transitions, zoom, and letterboxing. Add `Model.DocumentViewport()` for the visible document-pixel bounds. Clarify that `SetResultKeepView` clears selection and active mouse drags while preserving scroll, zoom, search, and link focus.
 
