@@ -99,6 +99,16 @@ func controlDefaults(n *node, s *style, bw *[4]int) {
 	s.overflow = "hidden"
 	*bw = [4]int{1, 1, 1, 1}
 	s.borderStyle = [4]string{"solid", "solid", "solid", "solid"}
+	// HTML control defaults precede author box-sizing declarations.
+	if n.tag == "button" || n.tag == "select" {
+		s.borderBox = true
+	}
+	if n.tag == "input" {
+		switch inputType(n) {
+		case "button", "submit", "reset", "image", "color", "file", "checkbox", "radio":
+			s.borderBox = true
+		}
+	}
 	if n.tag == "fieldset" {
 		s.display = "block"
 		s.padding = uniform(8)
@@ -134,7 +144,6 @@ func controlDefaults(n *node, s *style, bw *[4]int) {
 	if n.tag == "input" && (inputType(n) == "checkbox" || inputType(n) == "radio") {
 		s.width = px(13)
 		s.height = px(13)
-		s.borderBox = true
 		s.padding = uniform(0)
 	}
 }

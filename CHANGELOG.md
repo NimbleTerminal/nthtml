@@ -2,6 +2,8 @@
 
 ## v0.1.3 (2026-10-30)
 
+ * Default buttons, selects, and button-like inputs to `box-sizing: border-box`, while preserving author overrides and content-box text inputs. Explicit control heights now include padding and borders, preventing sprite backgrounds from exposing adjacent rows.
+
  * Use finer viewer zoom steps: each step increases magnification by about 19%, and four steps double it. Rename the terminal demo binary produced by `task build` to `bin/nthtml-demo`.
 
  * Skip and cache oversized fallback faces (over 4 MiB) without stopping later candidates. The shared 16 MiB total, lookup, and face-count budgets still stop further loads; primary face limits still return ErrLimit.
