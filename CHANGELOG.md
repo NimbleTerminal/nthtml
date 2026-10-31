@@ -1,6 +1,10 @@
 # CHANGELOG
 
-## v0.1.3 (2026-10-30)
+## v0.2.0 (2026-10-31)
+
+This minor release expands HTML element rendering, adds styled TTY output and coverage-aware font fallback, and improves SVG rendering and viewer navigation.
+
+**Migration:** `task build` now produces the terminal demo at `bin/nthtml-demo`; update scripts that invoke `bin/demo`. The HTML-to-PNG CLI remains `bin/nthtml`.
 
  * Default nested unordered-list markers to circle at the second level and square at deeper levels, counting enclosing lists through intervening elements. Preserve author styles, inherited author values, and HTML `type` overrides consistently in raster, TTY, Blocks, and ExtractTypeset output.
 
