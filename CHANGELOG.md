@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Upgrade `nttypeset` to `v0.1.8` and `ntfonts` to `v0.2.1` for source fallback family support.
+
  * Preserve page scale and letterbox background pixels in Kitty focus overlays at the top, bottom, left, and right edges. Focus patches now render complete destination cells instead of stretching a clipped source region, for both link and source focus.
 
 ## v0.2.1 (2026-10-31)

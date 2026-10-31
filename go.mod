@@ -10,10 +10,10 @@ require (
 	github.com/zkrebbekx/go-mermaid v0.1.6
 	golang.org/x/image v0.47.0
 	golang.org/x/net v0.62.0
-	nimbleterminal.dev/ntfonts v0.2.0
+	nimbleterminal.dev/ntfonts v0.2.1
 	nimbleterminal.dev/ntpicture v0.1.4
 	nimbleterminal.dev/ntsvg v0.5.5
-	nimbleterminal.dev/nttypeset v0.1.7
+	nimbleterminal.dev/nttypeset v0.1.8
 )
 
 require (
