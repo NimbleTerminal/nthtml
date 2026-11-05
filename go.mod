@@ -13,7 +13,7 @@ require (
 	nimbleterminal.dev/ntfonts v0.3.1
 	nimbleterminal.dev/ntpicture v0.1.5
 	nimbleterminal.dev/ntsvg v0.6.0
-	nimbleterminal.dev/nttypeset v0.1.9-0.20261105063257-3686fd5854b1
+	nimbleterminal.dev/nttypeset v0.1.9
 )
 
 require (
@@ -33,7 +33,7 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
-	github.com/xo/terminfo v1.3.0 // indirect
+	github.com/xo/terminfo v1.3.1 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

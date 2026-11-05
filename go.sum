@@ -58,8 +58,8 @@ github.com/smarty/assertions v1.15.0 h1:cR//PqUBUiQRakZWqBiFFQ9wb8emQGDb0HeGdqGB
 github.com/smarty/assertions v1.15.0/go.mod h1:yABtdzeQs6l1brC900WlRNwj6ZR55d7B+E8C6HtKdec=
 github.com/smartystreets/goconvey v1.8.1 h1:qGjIddxOk4grTu9JPOU31tVfq3cNdBlNa5sSznIX1xY=
 github.com/smartystreets/goconvey v1.8.1/go.mod h1:+/u4qLyY6x1jReYOp7GOM2FSt8aP9CzCZL03bI28W60=
-github.com/xo/terminfo v1.3.0 h1:KstyePbNW6UaLq9y12+544VK4aTP3Eku/sym3a9+UgQ=
-github.com/xo/terminfo v1.3.0/go.mod h1:lGzkSo8Fe7IRh/w+Gqz7n5mDog4FVXCj3gy/DYTBqio=
+github.com/xo/terminfo v1.3.1 h1:4ZwPCuu4PEFw0PkNp3Hv/x3gqvgLCzYhurszsj101cM=
+github.com/xo/terminfo v1.3.1/go.mod h1:lGzkSo8Fe7IRh/w+Gqz7n5mDog4FVXCj3gy/DYTBqio=
 github.com/zkrebbekx/go-mermaid v0.1.6 h1:iNRHNNcADyyBYT8uSUbN9Of/3A28lko8nc2tOc8ue1o=
 github.com/zkrebbekx/go-mermaid v0.1.6/go.mod h1:kB4kIa9HE4LnTdCUh7AvqLCUbfuT8twrItRNDjJbO6M=
 golang.org/x/image v0.47.0 h1:za/8gVz++PPZqmZJBNSISICN5Rrj5zixP/8K++fgmqo=
@@ -86,5 +86,5 @@ nimbleterminal.dev/ntpicture v0.1.5 h1:C7X4ELgziPy/a9nr4AoPORpGvtmbn3sdNzOZdM/PO
 nimbleterminal.dev/ntpicture v0.1.5/go.mod h1:7UV/ypmD630ctf/v9I9dA/ty/25SL6Ms7+Fs7LQc1CQ=
 nimbleterminal.dev/ntsvg v0.6.0 h1:2PHBYsic0rrXCPC1BLn/1La+f+U8dcprJ0iqUI+0JzE=
 nimbleterminal.dev/ntsvg v0.6.0/go.mod h1:AYdN3abB25Fw8/O+kj1YRBw/3DS7hnvb04BgpzVOREg=
-nimbleterminal.dev/nttypeset v0.1.9-0.20261105063257-3686fd5854b1 h1:h4ulFCqaejM9Lcot5ZzfNoGitcGdwmruMft5SAbZN9c=
-nimbleterminal.dev/nttypeset v0.1.9-0.20261105063257-3686fd5854b1/go.mod h1:SJzPcfWdfd8DF3wsFBU0VZy61PEw4+3A9+SYJ17QKfc=
+nimbleterminal.dev/nttypeset v0.1.9 h1:BUcT4h6CtdOKekZ5ZYeCJyN9PMcpnSQhFTAGpRADNx4=
+nimbleterminal.dev/nttypeset v0.1.9/go.mod h1:SJzPcfWdfd8DF3wsFBU0VZy61PEw4+3A9+SYJ17QKfc=
