@@ -10,10 +10,10 @@ require (
 	github.com/zkrebbekx/go-mermaid v0.1.6
 	golang.org/x/image v0.47.0
 	golang.org/x/net v0.62.0
-	nimbleterminal.dev/ntfonts v0.2.1
-	nimbleterminal.dev/ntpicture v0.1.4
-	nimbleterminal.dev/ntsvg v0.5.5
-	nimbleterminal.dev/nttypeset v0.1.8
+	nimbleterminal.dev/ntfonts v0.3.1
+	nimbleterminal.dev/ntpicture v0.1.5
+	nimbleterminal.dev/ntsvg v0.6.0
+	nimbleterminal.dev/nttypeset v0.1.9-0.20261105063257-3686fd5854b1
 )
 
 require (
@@ -37,10 +37,11 @@ require (
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
+	nimbleterminal.dev/ntconfine v0.1.1 // indirect
+	nimbleterminal.dev/ntconfine/pkg/confine v0.1.0 // indirect
+	nimbleterminal.dev/ntmediabox v0.1.0 // indirect
+	nimbleterminal.dev/ntmediabox/pkg/mediabox v0.1.0 // indirect
 )
-
-// Same WASM-capable Bubble Tea pin as ntpicture/nttypeset/ntsvg.
-replace charm.land/bubbletea/v2 => github.com/neomantra/bubbletea/v2 v2.0.0-20261020122444-536722b0bdb6
 
 // Vector rendering fork used by nttypeset and ntsvg.
 replace github.com/srwiley/rasterx => github.com/neomantra/rasterx v0.1.0

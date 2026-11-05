@@ -409,7 +409,7 @@ the build copies the matching Go WASM runtime. Generated binaries are not commit
 ```sh
 CGO_ENABLED=0 go test ./...
 go vet ./...
-GOOS=js GOARCH=wasm go build ./...
+GOWORK="$PWD/wasm.work" GOOS=js GOARCH=wasm go build ./...
 go test ./document -fuzz FuzzRender -fuzztime 10s
 ```
 
@@ -422,12 +422,16 @@ package and smaller budgets when evaluating such targets.
 
 ### Bubble Tea on WASM
 
-Like ntvideo, this repository pins the WASM-capable Bubble Tea fork. Go does not
-inherit dependency replacements: applications importing the root widget package
-on WASM must add this to their own `go.mod`:
+Native builds use upstream Bubble Tea. Like ntpicture and ntsvg, `wasm.work`
+pins the WASM-capable Bubble Tea fork for browser builds. The WASM tasks and
+`scripts/build-web.sh` select this workspace automatically; manual WASM builds
+must set `GOWORK="$PWD/wasm.work"`.
+
+Go does not inherit dependency replacements: applications importing the root
+widget package on WASM must add this to their own WASM workspace or `go.mod`:
 
 ```go
-replace charm.land/bubbletea/v2 => github.com/neomantra/bubbletea/v2 v2.0.0-20261009201241-c397c32a5074
+replace charm.land/bubbletea/v2 => github.com/neomantra/bubbletea/v2 v2.0.0-20261020122444-536722b0bdb6
 ```
 
 Consumers importing only `document` do not need this replacement.
