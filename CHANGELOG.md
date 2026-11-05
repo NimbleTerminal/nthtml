@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## v0.2.3 (2026-11-05)
+
+ * Upgrade `nttypeset` to `v0.1.9`, `ntfonts` to `v0.3.1`, `ntpicture` to `v0.1.5`, `ntsvg` to `v0.6.0`, and indirect dependency `terminfo` to `v1.3.1`.
+
+ * Use upstream Bubble Tea for native builds and isolate the WASM-capable fork in `wasm.work`. Browser build scripts, tasks, and CI select this workspace automatically. Manual browser builds must set `GOWORK="$PWD/wasm.work"`; downstream WASM applications still need their own fork replacement.
+
+ * Expand fuzz coverage for TTY search and selection, SVG sanitization, and HTML-to-nttypeset source mapping alongside HTML rendering. Add configurable `task fuzz` campaigns and run each target for 10 seconds with two workers in CI. Include the `typeset` package in WASM tests.
+
 ## v0.2.2 (2026-10-31)
 
  * Upgrade `nttypeset` to `v0.1.8` and `ntfonts` to `v0.2.1` for source fallback family support.
