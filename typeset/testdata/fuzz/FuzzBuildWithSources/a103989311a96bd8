@@ -1,0 +1,2 @@
+go test fuzz v1
+string("<stYle>#hidden{displAY:none}</stYle><div id=\"#00000\"000000000000000000000000000000000000>")

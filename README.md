@@ -410,8 +410,16 @@ the build copies the matching Go WASM runtime. Generated binaries are not commit
 CGO_ENABLED=0 go test ./...
 go vet ./...
 GOWORK="$PWD/wasm.work" GOOS=js GOARCH=wasm go build ./...
-go test ./document -fuzz FuzzRender -fuzztime 10s
+task fuzz DURATION=10s WORKERS=2
 ```
+
+`task fuzz` runs separate mutation campaigns for HTML rendering, TTY search and
+selection, SVG sanitization, and HTML-to-nttypeset source mapping. Each target
+gets `DURATION` (10 seconds by default), using two workers by default. Both
+`task ci` and GitHub CI run these bounded campaigns. Ordinary native and WASM
+tests also replay their seed corpora. To investigate one target, run for example
+`GOWORK=off go test ./document -run '^$' -fuzz '^FuzzSVGRewrite$' -fuzztime 1m -parallel 2`.
+Keep any failing inputs Go writes under `testdata/fuzz/` as regression cases.
 
 A checked-in PNG golden verifies the shared renderer. Font antialiasing can differ
 by one channel level across architectures; the golden allows a two-level

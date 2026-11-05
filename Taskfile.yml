@@ -115,13 +115,15 @@ tasks:
       - git --no-pager diff --check
 
   fuzz:
-    desc: 'Fuzz the document renderer (DURATION=10s)'
+    desc: 'Fuzz rendering, TTY navigation, SVG rewriting, and typeset bridging (DURATION=10s per target WORKERS=2)'
     vars:
       DURATION: '{{default "10s" .DURATION}}'
+      WORKERS: '{{default "2" .WORKERS}}'
     env:
       NTHTML_FUZZ_DURATION: '{{.DURATION}}'
+      NTHTML_FUZZ_WORKERS: '{{.WORKERS}}'
     cmds:
-      - go test ./document -run '^$' -fuzz '^FuzzRender$' -fuzztime "$NTHTML_FUZZ_DURATION"
+      - sh scripts/fuzz.sh
 
   build-wasm-site:
     desc: Build the browser demo and matching Go WASM runtime into web/
@@ -171,6 +173,7 @@ tasks:
     desc: Run native checks, builds, WASM tests, and browser smoke checks
     cmds:
       - task: check
+      - task: fuzz
       - task: build
       - task: test-wasm
       - task: test-web
