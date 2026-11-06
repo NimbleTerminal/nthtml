@@ -1,10 +1,16 @@
 # CHANGELOG
 
-## Unreleased
+## v0.3.0 (2026-11-05)
 
- * Upgrade `nttypeset` to v0.2.0 and add opt-in `typeset.BuildChunked`, implementing its `ChunkSource` contract with lazy semantic subtree extraction/highlighting, bounded assets and source indexes, and chunk-local source maps. Existing complete-document adapters remain unchanged.
+This release adds bounded, lazy HTML-to-nttypeset chunks for long documents and conversation histories.
 
- * Add fragment-to-chunk navigation, inherited ancestor sections, explicit oversized-unit errors, and tests for long conversation histories, distant access, cancellation, source identity, assets, and compatibility. Document whole-document parsing limits, per-chunk limits, repeated ancestor decoration, and host adoption/selection responsibilities. This does not change the separate CSS renderer used by ntbrowser.
+**Adoption:** Existing `Build` and `BuildWithSources` callers need no changes. To opt in, use `typeset.BuildChunked` with `Engine.NewChunked` / `At`, resolve fragments with `ChunkRange`, and retain the chunk index alongside selections and anchors. `ChunkWithSources` returns a chunk-local source map.
+
+**Limits:** Parsing remains whole-document. Oversized indivisible units return errors without truncation; ancestor section decoration repeats across chunks, and hosts manage cross-chunk selection. This does not change ntbrowser's separate CSS renderer or its long-page limits.
+
+ * Upgrade `nttypeset` to `v0.2.0` and add opt-in `typeset.BuildChunked`, implementing its `ChunkSource` contract with lazy semantic subtree extraction/highlighting, bounded assets and source indexes, and chunk-local source maps. Existing complete-document adapters remain unchanged.
+
+ * Preserve fragment navigation, inherited styles, sections, links, images, and stable source IDs across chunks. Add coverage for 33,000-message histories, distant access, cache eviction, cancellation, oversized units, asset bounds, and compatibility with the complete-document adapter.
 
 ## v0.2.3 (2026-11-05)
 
