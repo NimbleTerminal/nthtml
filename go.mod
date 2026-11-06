@@ -13,7 +13,7 @@ require (
 	nimbleterminal.dev/ntfonts v0.3.1
 	nimbleterminal.dev/ntpicture v0.1.5
 	nimbleterminal.dev/ntsvg v0.6.0
-	nimbleterminal.dev/nttypeset v0.1.9
+	nimbleterminal.dev/nttypeset v0.2.0
 )
 
 require (

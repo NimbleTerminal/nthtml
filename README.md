@@ -349,6 +349,95 @@ go run ./cmd/nthtml -mode tty -columns 80 typeset/testdata/structured_sections.h
 - **Advanced table styling & spans**: `nttypeset` tables render content-weighted columns with a header fill and horizontal row rules; `colspan`/`rowspan`, per-cell custom backgrounds/borders, `border-collapse` conflict resolution, and vertical cell alignment remain native-only.
 - **Margin collapsing & overflow clipping**: `nttypeset` `SpaceBefore` and `SpaceAfter` are nonnegative and additive (no CSS vertical margin collapsing or negative margins). CSS `overflow: hidden | clip` and `text-overflow: ellipsis` on arbitrary blocks, dashed/dotted border patterns (drawn as solid borders in `nttypeset.Section`), and mixed font sizes or inline background boxes within a single paragraph are rendered only by the native rasterizer.
 
+#### Lazy chunks for long histories
+
+`typeset.BuildChunked` is an opt-in adapter for `nttypeset` v0.2.0. `Build`,
+`BuildWithSources`, `Raster`, and `RenderResult` still build one complete AST.
+The chunked adapter is suitable for long conversation-style HTML, including
+Thinkt histories, when messages use block containers such as `article` or
+`section`. It does not change nthtml's separate CSS renderer or ntbrowser's
+long-page limits. Existing viewers do not automatically adopt it.
+
+```go
+source, err := typeset.BuildChunked(ctx, doc, typeset.ChunkOptions{
+    Options: typeset.Options{Document: document.Options{Width: 800}},
+})
+if err != nil { return err }
+chunks, err := engine.NewChunked(source)
+if err != nil { return err }
+index := 0
+if first, _, ok := source.ChunkRange("#message-1000"); ok {
+    index = first
+}
+chunk, err := chunks.At(ctx, index, 800, nttypeset.LayoutOptions{})
+if err != nil { return err }
+anchor, found, err := chunk.Layout.AnchorBounds(ctx, "message-1000", true)
+// Raster only the current viewport with chunk.Layout.Raster.
+// Keep index alongside anchor, selections, Places, and scroll state.
+_, _, _ = anchor, found, err
+```
+
+`ChunkRange(idOrHref)` returns a half-open range of **chunk indexes**. IDs keep
+their document-wide meaning; duplicate IDs route to their first visible HTML
+occurrence. `#` routes to the first chunk; percent-encoded fragments are decoded.
+A container ID can cover several chunks. `ChunkWithSources(ctx, index)` returns
+an AST and the usual `SourceMap`: its `BlockRange` values are **local to that
+chunk**, and `IDs` lists only that chunk's mapped IDs. Empty HTML anchors may
+have no local geometry; check `AnchorBounds`'s boolean result. Use a local map's
+`Palette()` rather than `PaletteFor`, which invokes the complete adapter.
+
+Construction walks the parsed tree to index source nodes, visibility, costs,
+and IDs, but builds no styled blocks, highlights no code, and renders no diagrams.
+Opening a distant chunk extracts only its subtree and ancestor chain. Generic
+containers split at block-child boundaries only when they exceed the chunk
+budget. Each resulting subtree is one chunk, so small messages can produce
+small chunks. Mixed inline content, paragraphs, code blocks, lists, blockquotes,
+and tables (including layout tables) remain atomic. Source order and inherited
+CSS are preserved. Ancestor sections reopen with their IDs, padding, margins,
+backgrounds, and borders in every chunk; their decoration is repeated, not a
+continuous box across chunks. The bridge's existing CSS limitations still apply.
+
+The default per-chunk ceiling is 2,048 HTML nodes and 65,536 source text/attribute
+bytes (including ancestors and serialized SVG), with depth capped at 64 to keep
+section extraction lossless. `ChunkOptions.Limits` can lower node and byte
+ceilings, never raise them. An indivisible oversized unit remains indexed;
+loading it returns `document.ErrLimit`, without partial output or truncation.
+Other chunks remain accessible. Hosts should show the error and offer an
+alternate view/export or regenerate smaller semantic units. Layout may separately
+return `nttypeset.ErrLimit`, even for an adapter-sized chunk (for example a
+paragraph over its rune limit).
+
+Resource and lifetime boundaries:
+
+- Parsing, CSS cascade/media resolution, and HTML bytes/nodes/depth/rules limits
+  remain **whole-document**. Parsing is not streaming. The parsed tree remains
+  resident; indexing retains at most one unit and ID entry per parsed node.
+  Existing parser defaults and maximums are unchanged. CSS reference width and
+  color scheme are fixed at construction; rebuild the source when they change.
+- Styled-block/section and diagram budgets apply **per chunk** (existing 32,768
+  styled-block ceiling, 32 diagrams, and aggregate diagram pixel budget).
+  All nttypeset block/run/rune/glyph/operation/height/deadline limits still apply
+  per layout, raster pixels per raster, and engine caches remain bounded.
+  Native renderer height/pixel limits are unchanged; chunking does not call it.
+- The source caches no output AST, source map, or generated image. `NewChunked`
+  retains at most two layouts. Release old chunks, maps, rasters and selections
+  to preserve bounded residency; calls to `ChunkWithSources` rebuild on demand.
+- Supplied `Images` and `SVGImages` allowlists are snapshotted and together capped
+  at 256 entries, 1 MiB of keys, and 16 Mi decoded pixels; output image references
+  also have a 16 Mi pixel ceiling per chunk. Background-image maps are unused.
+  Hosts own image decoding, backing storage, and custom renderer allocations;
+  bounds cannot account for oversized backing buffers behind small image views.
+  Keep image data and custom renderers immutable/deterministic. No assets are fetched.
+- Cancellation is checked during indexing, extraction and conversion, and passed
+  to highlighting and diagram renderers. Custom renderers must honor the context.
+
+Downstream hosts must adopt `BuildChunked` and `Engine.NewChunked`, navigate with
+`At`, and retain the chunk index with every position or anchor. There is no
+single global block index, Y coordinate, total laid-out height, or cross-chunk
+selection API. A host that needs selection/export across chunks must explicitly
+visit them in order, combine text under its own budget, and release each result.
+Do not pass a position from one chunk to another layout.
+
 To allow an image, decode it with `document.DecodeImage(reader)` or
 `document.DecodeDataURL(src)` and insert it into `Options.Images[src]`. HTML never
 opens a path or fetches a URL. `Document.ImageSources()` lists the distinct `src`

@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased
+
+ * Upgrade `nttypeset` to v0.2.0 and add opt-in `typeset.BuildChunked`, implementing its `ChunkSource` contract with lazy semantic subtree extraction/highlighting, bounded assets and source indexes, and chunk-local source maps. Existing complete-document adapters remain unchanged.
+
+ * Add fragment-to-chunk navigation, inherited ancestor sections, explicit oversized-unit errors, and tests for long conversation histories, distant access, cancellation, source identity, assets, and compatibility. Document whole-document parsing limits, per-chunk limits, repeated ancestor decoration, and host adoption/selection responsibilities. This does not change the separate CSS renderer used by ntbrowser.
+
 ## v0.2.3 (2026-11-05)
 
  * Upgrade `nttypeset` to `v0.1.9`, `ntfonts` to `v0.3.1`, `ntpicture` to `v0.1.5`, `ntsvg` to `v0.6.0`, and indirect dependency `terminfo` to `v1.3.1`.

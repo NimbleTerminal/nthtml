@@ -181,6 +181,10 @@ func BuildWithSources(ctx context.Context, doc *document.Document, opts Options)
 	if err != nil {
 		return nil, nil, err
 	}
+	return convertDocument(ctx, extracted, opts)
+}
+
+func convertDocument(ctx context.Context, extracted *document.TypesetDocument, opts Options) (*nttypeset.Document, *SourceMap, error) {
 	sm := &SourceMap{
 		parents:    make(map[string]string),
 		ranges:     make(map[string][2]int),
@@ -294,6 +298,9 @@ func BuildWithSources(ctx context.Context, doc *document.Document, opts Options)
 			nb.Spans = convertSpans(b.Spans)
 		}
 		blocks = append(blocks, nb)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
 	}
 	return &nttypeset.Document{
 		Sections: sections,
