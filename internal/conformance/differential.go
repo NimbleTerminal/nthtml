@@ -84,6 +84,8 @@ type DocumentDimensions struct {
 
 // DifferentialResult holds the full comparison between nthtml and Chromium for one WPT fixture.
 type DifferentialResult struct {
+	Backend              string               `json:"backend"`
+	PixelStatus          string               `json:"pixel_status"`
 	Path                 string               `json:"path"`
 	Category             string               `json:"category"`
 	URL                  string               `json:"url"`
@@ -106,6 +108,7 @@ type DifferentialResult struct {
 
 // DifferentialReport summarizes a run of the Chromium differential harness.
 type DifferentialReport struct {
+	Backend    string                    `json:"backend"`
 	Repository string                    `json:"repository"`
 	Revision   string                    `json:"revision"`
 	Viewport   Viewport                  `json:"viewport"`
@@ -118,6 +121,7 @@ type DifferentialReport struct {
 
 // DifferentialOptions configures a differential conformance run.
 type DifferentialOptions struct {
+	Backend      string // native (default) or typeset
 	ArtifactsDir string
 	ChromiumPath string
 	Cases        []DifferentialSpec
@@ -1109,6 +1113,13 @@ func matchElementGeometry(target DifferentialTarget, chr chromiumElement, boxes 
 // RunDifferential renders the selected WPT fixtures in both nthtml and headless Chromium,
 // comparing element geometry, document dimensions, and viewport screenshots.
 func (s Suite) RunDifferential(ctx context.Context, o DifferentialOptions) (DifferentialReport, error) {
+	backend, err := differentialBackend(o.Backend)
+	if err != nil {
+		return DifferentialReport{}, err
+	}
+	if err := checkDifferentialDirectory(o.ArtifactsDir, backend); err != nil {
+		return DifferentialReport{}, err
+	}
 	if err := s.Verify(); err != nil {
 		return DifferentialReport{}, err
 	}
@@ -1128,6 +1139,7 @@ func (s Suite) RunDifferential(ctx context.Context, o DifferentialOptions) (Diff
 	defer session.close()
 
 	report := DifferentialReport{
+		Backend:    backend,
 		Repository: s.Manifest.Repository,
 		Revision:   s.Manifest.Revision,
 		Viewport:   s.Manifest.Viewport,
@@ -1142,6 +1154,10 @@ func (s Suite) RunDifferential(ctx context.Context, o DifferentialOptions) (Diff
 		Categories: map[string]map[string]int{},
 	}
 
+	if backend == "typeset" {
+		report.Note = "Typeset adapter vs Chromium: unmodified fixture, 800×600, one layout unit per CSS pixel, scale 1. Source envelopes are compared to DOM border boxes with 1px rounding only; no native font/intro-flow allowances. Pixels use exact RGBA comparison with no tolerance. GEOMETRY_MATCH is not pixel or HTML/CSS conformance. Default font differences remain measured; Ahem requirements are UNSUPPORTED until CSS font-family mapping is available."
+		report.Counts["UNSUPPORTED"] = 0
+	}
 	v := s.Manifest.Viewport
 	totalPixels := v.Width * v.Height
 
@@ -1153,7 +1169,7 @@ func (s Suite) RunDifferential(ctx context.Context, o DifferentialOptions) (Diff
 		if !ok {
 			return report, fmt.Errorf("differential case %q is not in manifest.json", spec.Path)
 		}
-		res := s.runDifferentialCase(ctx, session, c, spec, totalPixels, o.ArtifactsDir)
+		res := s.runDifferentialCase(ctx, session, c, spec, totalPixels, o.ArtifactsDir, backend)
 		report.Counts[res.Status]++
 		cat := spec.Category
 		if cat == "" {
@@ -1173,15 +1189,32 @@ func (s Suite) RunDifferential(ctx context.Context, o DifferentialOptions) (Diff
 	return report, nil
 }
 
-func (s Suite) runDifferentialCase(ctx context.Context, session *cdpSession, c Case, spec DifferentialSpec, totalPixels int, artifactsDir string) DifferentialResult {
+func (s Suite) runDifferentialCase(ctx context.Context, session *cdpSession, c Case, spec DifferentialSpec, totalPixels int, artifactsDir, backend string) DifferentialResult {
 	r := DifferentialResult{
+		Backend:     backend,
+		PixelStatus: "UNAVAILABLE",
 		Path:        c.Path,
 		Category:    spec.Category,
 		URL:         s.Manifest.Repository + "/blob/" + s.Manifest.Revision + "/" + c.Path,
 		Ahem:        c.Ahem,
 		TotalPixels: totalPixels,
 	}
-	ntImg, ntRes, err := s.renderWithBoxes(ctx, c)
+	if backend == "typeset" && (c.Ahem || c.Expected == "UNSUPPORTED") {
+		r.Status = "UNSUPPORTED"
+		r.Summary = c.Reason
+		if c.Ahem {
+			r.Summary = "Ahem CSS font-family mapping is unavailable in the typeset backend; no substitute font is used."
+		}
+		return r
+	}
+	var ntImg *image.RGBA
+	var ntRes *document.Result
+	var err error
+	if backend == "typeset" {
+		ntImg, ntRes, err = s.renderTypesetWithBoxes(ctx, c)
+	} else {
+		ntImg, ntRes, err = s.renderWithBoxes(ctx, c)
+	}
 	if err != nil {
 		r.Status = "ERROR"
 		r.Summary = "nthtml render: " + err.Error()
@@ -1195,7 +1228,7 @@ func (s Suite) runDifferentialCase(ctx context.Context, session *cdpSession, c C
 	}
 
 	introPShift := 0
-	if chrMeas.IntroPHeight > 0 {
+	if backend == "native" && chrMeas.IntroPHeight > 0 {
 		if ntPH := nthtmlIntroPHeight(ntRes.Boxes); ntPH > 0 {
 			introPShift = ntPH - chrMeas.IntroPHeight
 		}
@@ -1229,6 +1262,9 @@ func (s Suite) runDifferentialCase(ctx context.Context, session *cdpSession, c C
 			chrEl = chrMeas.Elements[i]
 		}
 		g := matchElementGeometry(target, chrEl, ntRes.Boxes, introPShift)
+		if backend == "typeset" {
+			g = matchTypesetGeometry(target, chrEl, ntRes.Boxes)
+		}
 		switch g.Status {
 		case "MATCH":
 			r.MatchedElements++
@@ -1241,6 +1277,10 @@ func (s Suite) runDifferentialCase(ctx context.Context, session *cdpSession, c C
 	}
 
 	different, maxDelta, diffImg := Compare(ntImg, chrImg)
+	r.PixelStatus = "EXACT"
+	if different > 0 {
+		r.PixelStatus = "DIFFERENT"
+	}
 	r.DifferentPixels = different
 	r.MaxChannelDifference = maxDelta
 	if totalPixels > 0 {
@@ -1250,6 +1290,9 @@ func (s Suite) runDifferentialCase(ctx context.Context, session *cdpSession, c C
 	if artifactsDir != "" {
 		sum := sha256.Sum256([]byte(c.Path))
 		prefix := fmt.Sprintf("%x", sum[:6])
+		if backend == "typeset" {
+			prefix += "-typeset"
+		}
 		r.NTHTMLPNG = prefix + "-nthtml.png"
 		r.ChromiumPNG = prefix + "-chromium.png"
 		r.DiffPNG = prefix + "-diff.png"
@@ -1276,7 +1319,7 @@ func (s Suite) runDifferentialCase(ctx context.Context, session *cdpSession, c C
 		if r.DifferentPixels == 0 {
 			r.Summary = fmt.Sprintf("all %d comparable elements match; pixel-identical (0.00%% diff)", r.MatchedElements)
 		} else {
-			r.Summary = fmt.Sprintf("all %d comparable elements match (%d unavailable); %.2f%% cosmetic/font pixel diff",
+			r.Summary = fmt.Sprintf("all %d comparable elements match (%d unavailable); %.2f%% pixel diff (cause not classified)",
 				r.MatchedElements, r.UnavailableElements, r.PixelDiffPercent)
 		}
 	default:
@@ -1289,6 +1332,14 @@ func (s Suite) runDifferentialCase(ctx context.Context, session *cdpSession, c C
 
 // WriteDifferentialReport writes report.json and index.html to dir.
 func WriteDifferentialReport(dir string, report DifferentialReport) error {
+	backend, err := differentialBackend(report.Backend)
+	if err != nil {
+		return err
+	}
+	if err := checkDifferentialDirectory(dir, backend); err != nil {
+		return err
+	}
+	report.Backend = backend
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -1330,19 +1381,17 @@ img{width:360px;max-width:100%;border:1px solid #cbd5e1;background:#fff}
 .geom-table td,.geom-table th{padding:6px 8px}
 small{color:#475569}
 </style>
-<h1>nthtml · Chromium differential conformance</h1>
+<h1>nthtml {{.Backend}} · Chromium differential conformance</h1>
 <p>{{.Note}}</p>
-<p><strong>{{index .Counts "GEOMETRY_MATCH"}} GEOMETRY_MATCH</strong> · <strong>{{index .Counts "GEOMETRY_MISMATCH"}} GEOMETRY_MISMATCH</strong> · <strong>{{index .Counts "GEOMETRY_UNAVAILABLE"}} GEOMETRY_UNAVAILABLE</strong> · <strong>{{index .Counts "ERROR"}} ERROR</strong></p>
-<p>WPT revision <code>{{.Revision}}</code> · Viewport {{.Viewport.Width}} × {{.Viewport.Height}} · Browser <code>{{.Browser}}</code></p>
-<table>
-<tr><th>Category</th><th>GEOMETRY_MATCH</th><th>GEOMETRY_MISMATCH</th><th>GEOMETRY_UNAVAILABLE</th><th>ERROR</th></tr>
-{{range $cat, $counts := .Categories}}<tr><td>{{$cat}}</td><td>{{index $counts "GEOMETRY_MATCH"}}</td><td>{{index $counts "GEOMETRY_MISMATCH"}}</td><td>{{index $counts "GEOMETRY_UNAVAILABLE"}}</td><td>{{index $counts "ERROR"}}</td></tr>{{end}}
-</table>
+<p>{{range $status,$count := .Counts}}<strong>{{$count}} {{$status}}</strong> · {{end}}</p>
+<p>Backend <code>{{.Backend}}</code> · WPT revision <code>{{.Revision}}</code> · Viewport {{.Viewport.Width}} × {{.Viewport.Height}} · Browser <code>{{.Browser}}</code></p>
+<table><tr><th>Category</th><th>Results</th></tr>
+{{range $cat,$counts := .Categories}}<tr><td>{{$cat}}</td><td>{{range $status,$count := $counts}}{{$count}} {{$status}} · {{end}}</td></tr>{{end}}</table>
 {{range .Results}}
 <div style="border:1px solid #cbd5e1;border-radius:6px;padding:16px;margin-bottom:20px">
 <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
 <div><span class="{{.Status}}">{{.Status}}</span> · <a href="{{.URL}}"><code>{{.Path}}</code></a> <small>({{.Category}}{{if .Ahem}} · Ahem{{end}})</small></div>
-<div><small>Pixels differing: {{.DifferentPixels}} / {{.TotalPixels}} ({{printf "%.2f" .PixelDiffPercent}}%) · max channel Δ {{.MaxChannelDifference}}</small></div>
+<div><small>Pixels {{.PixelStatus}}: {{.DifferentPixels}} / {{.TotalPixels}} ({{printf "%.2f" .PixelDiffPercent}}%) · max channel Δ {{.MaxChannelDifference}}</small></div>
 </div>
 <p style="margin:6px 0"><small>{{.Summary}} · Document bounds: nthtml <code>{{.Document.NTHTML.Width}}×{{.Document.NTHTML.Height}}</code> vs Chromium <code>{{.Document.Chromium.Width}}×{{.Document.Chromium.Height}}</code> ({{.Document.Note}})</small></p>
 <table class="geom-table">
@@ -1361,7 +1410,7 @@ small{color:#475569}
 </table>
 {{if .NTHTMLPNG}}
 <div class="images">
-<figure><figcaption>nthtml ({{$.Viewport.Width}}×{{$.Viewport.Height}})</figcaption><a href="{{.NTHTMLPNG}}"><img alt="nthtml render" src="{{.NTHTMLPNG}}"></a></figure>
+<figure><figcaption>nthtml {{$.Backend}} ({{$.Viewport.Width}}×{{$.Viewport.Height}})</figcaption><a href="{{.NTHTMLPNG}}"><img alt="nthtml render" src="{{.NTHTMLPNG}}"></a></figure>
 <figure><figcaption>Chromium ({{$.Viewport.Width}}×{{$.Viewport.Height}})</figcaption><a href="{{.ChromiumPNG}}"><img alt="Chromium render" src="{{.ChromiumPNG}}"></a></figure>
 <figure><figcaption>Pixel diff (magenta = different)</figcaption><a href="{{.DiffPNG}}"><img alt="Pixel difference" src="{{.DiffPNG}}"></a></figure>
 </div>

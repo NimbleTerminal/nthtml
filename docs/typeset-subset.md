@@ -93,7 +93,11 @@ CSS-conformant merely by dividing it into bounded chunks.
    asset pixels, order and fragment lookup. Boundary tests keep mixed-inline
    fallback and hidden-content behavior explicit. These are local preservation
    tests, not WPT or browser conformance passes.
-2. Add a typeset backend to the existing independent comparison infrastructure,
+2. The initial `task differential:typeset` backend now exercises the 20 existing
+   pinned WPT differential probes, with separate JSON/HTML/PNG artifacts and
+   reviewed status observations. It does not yet establish profile conformance:
+   some probes are outside the initial target, source envelopes are incomplete,
+   and Ahem font-family mapping is unsupported. Extend this infrastructure,
    starting with small authored cases for boxes, text, images, lists and tables.
    Keep genuine discrepancies FAIL; prerequisites outside the target are
    UNSUPPORTED; unavailable browser/font infrastructure is ERROR or explicitly

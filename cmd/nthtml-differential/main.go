@@ -17,10 +17,20 @@ import (
 )
 
 func main() {
-	out := flag.String("out", "artifacts/differential", "report and PNG output directory")
+	backend := flag.String("backend", "native", "renderer: native or typeset")
+	out := flag.String("out", "", "report and PNG output directory")
 	chromium := flag.String("chromium", "", "path to headless Chromium/Chrome binary (default: auto-detect or $NTHTML_CHROMIUM)")
-	strict := flag.Bool("strict", false, "exit non-zero if Chromium is missing or any fixture has GEOMETRY_MISMATCH")
+	strict := flag.Bool("strict", false, "require native geometry matches; typeset also requires complete geometry, exact document size/pixels and supported prerequisites")
 	flag.Parse()
+	if *backend != "native" && *backend != "typeset" {
+		fatal(fmt.Errorf("unknown backend %q", *backend))
+	}
+	if *out == "" {
+		*out = "artifacts/differential"
+		if *backend == "typeset" {
+			*out += "-typeset"
+		}
+	}
 
 	suite, err := conformance.Load()
 	if err != nil {
@@ -30,6 +40,7 @@ func main() {
 	defer cancel()
 
 	report, err := suite.RunDifferential(ctx, conformance.DifferentialOptions{
+		Backend:      *backend,
 		ArtifactsDir: *out,
 		ChromiumPath: *chromium,
 	})
@@ -64,6 +75,7 @@ func main() {
 		}
 	}
 
+	fmt.Printf("Backend: %s · %d UNSUPPORTED\n", report.Backend, report.Counts["UNSUPPORTED"])
 	fmt.Printf("\n%d GEOMETRY_MATCH · %d GEOMETRY_MISMATCH · %d GEOMETRY_UNAVAILABLE · %d ERROR\n",
 		report.Counts["GEOMETRY_MATCH"],
 		report.Counts["GEOMETRY_MISMATCH"],
@@ -77,13 +89,13 @@ func main() {
 	sort.Strings(cats)
 	for _, cat := range cats {
 		c := report.Categories[cat]
-		fmt.Printf("  %-28s %2d MATCH · %2d MISMATCH · %2d UNAVAILABLE · %d ERROR\n",
-			cat, c["GEOMETRY_MATCH"], c["GEOMETRY_MISMATCH"], c["GEOMETRY_UNAVAILABLE"], c["ERROR"])
+		fmt.Printf("  %-28s %2d MATCH · %2d MISMATCH · %2d UNAVAILABLE · %d UNSUPPORTED · %d ERROR\n",
+			cat, c["GEOMETRY_MATCH"], c["GEOMETRY_MISMATCH"], c["GEOMETRY_UNAVAILABLE"], c["UNSUPPORTED"], c["ERROR"])
 	}
 	fmt.Printf("Browser: %s\nPinned WPT: %s\nReport: %s\n",
 		report.Browser, report.Revision, filepath.Join(*out, "index.html"))
 
-	if report.Counts["ERROR"] > 0 || (*strict && report.Counts["GEOMETRY_MISMATCH"] > 0) {
+	if conformance.DifferentialFailed(report, *strict) {
 		os.Exit(1)
 	}
 }

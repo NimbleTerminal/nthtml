@@ -336,6 +336,13 @@ go run ./cmd/nthtml -mode typeset -width 800 -o bridged.png typeset/testdata/str
 go run ./cmd/nthtml -mode tty -columns 80 typeset/testdata/structured_sections.html
 ```
 
+`task differential:typeset` measures the adapter against Chromium using the
+pinned WPT differential fixtures. It writes a separate report under
+`artifacts/differential-typeset`; geometry gaps, exact pixel differences and
+unsupported font prerequisites stay visible. `-- -strict` fails on incomplete
+or differing results. These are diagnostic measurements, not a claim of
+conformance; see the [backend contract](internal/conformance/README.md#typeset-adapter-backend).
+
 The [shared HTML/CSS subset roadmap](docs/typeset-subset.md) distinguishes
 current content/style preservation from the proposed rendering-conformance
 contract and the gate for consolidating host renderers. Native WPT results do

@@ -1,0 +1,27 @@
+{
+  "note": "Reviewed initial typeset adapter observations; these failures are not conformance passes. Pixels are measured, not golden references. Changes require review, including improvements.",
+  "browser": "HeadlessChrome/143.0.7499.4",
+  "revision": "ffe56d4420d270941329689aff42d925f615d0b4",
+  "cases": {
+    "css/CSS2/margin-padding-clear/margin-001.xht": "GEOMETRY_MISMATCH",
+    "css/CSS2/box-display/display-none-001.xht": "GEOMETRY_UNAVAILABLE",
+    "css/css-color/rgb-001.html": "GEOMETRY_UNAVAILABLE",
+    "css/CSS2/normal-flow/width-006.xht": "GEOMETRY_MISMATCH",
+    "css/CSS2/normal-flow/height-001.xht": "GEOMETRY_UNAVAILABLE",
+    "css/CSS2/normal-flow/height-006.xht": "GEOMETRY_MISMATCH",
+    "css/CSS2/normal-flow/min-width-006.xht": "GEOMETRY_MISMATCH",
+    "css/CSS2/normal-flow/max-height-025.xht": "GEOMETRY_UNAVAILABLE",
+    "css/CSS2/margin-padding-clear/padding-001.xht": "GEOMETRY_MISMATCH",
+    "css/CSS2/borders/border-001.xht": "UNSUPPORTED",
+    "css/css-sizing/box-sizing-border-box-001.xht": "GEOMETRY_MISMATCH",
+    "css/CSS2/selectors/child-selector-001.xht": "GEOMETRY_UNAVAILABLE",
+    "css/CSS2/selectors/class-selector-001.xht": "GEOMETRY_UNAVAILABLE",
+    "css/CSS2/cascade/specificity-001.xht": "GEOMETRY_MISMATCH",
+    "css/CSS2/fonts/font-051.xht": "UNSUPPORTED",
+    "css/CSS2/linebox/line-height-006.xht": "UNSUPPORTED",
+    "css/CSS2/text/word-spacing-007.xht": "UNSUPPORTED",
+    "css/CSS2/text/white-space-nowrap-001.xht": "UNSUPPORTED",
+    "css/CSS2/tables/border-collapse-offset-001.xht": "GEOMETRY_UNAVAILABLE",
+    "css/CSS2/tables/border-conflict-element-001d.xht": "UNSUPPORTED"
+  }
+}

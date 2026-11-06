@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Add a separate typeset-vs-Chromium differential backend and report, with explicit unsupported prerequisites, strict incomplete-result handling, and reviewed status baselines independent of native rendering.
+
  * Preserve bare image-only runs between block siblings in complete and chunked typeset adapters, including local assets and image fragment IDs. Mixed inline text/image layout remains outside this fix.
  * Document the proposed shared HTML/CSS subset, current adapter gaps, independent validation requirements and host migration gate.
 

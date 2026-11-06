@@ -169,6 +169,11 @@ tasks:
     cmds:
       - go run ./cmd/nthtml-differential {{.CLI_ARGS}}
 
+  differential:typeset:
+    desc: Compare the typeset adapter with Chromium in a separate report
+    cmds:
+      - go run ./cmd/nthtml-differential -backend typeset {{.CLI_ARGS}}
+
   ci:
     desc: Run native checks, builds, WASM tests, and browser smoke checks
     cmds:
