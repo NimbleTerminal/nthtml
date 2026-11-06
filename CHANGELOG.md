@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+ * Preserve paragraph, link and image fragment IDs together on image-only typeset blocks, including chunked navigation and alt-text fallback.
+
+ * Honor `display:none` on images and enclosing links in image-only typeset paragraphs, in complete and chunked documents.
+
  * Add a separate typeset-vs-Chromium differential backend and report, with explicit unsupported prerequisites, strict incomplete-result handling, and reviewed status baselines independent of native rendering.
 
  * Preserve bare image-only runs between block siblings in complete and chunked typeset adapters, including local assets and image fragment IDs. Mixed inline text/image layout remains outside this fix.

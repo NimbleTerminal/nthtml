@@ -779,13 +779,22 @@ func (w *blockExtractor) walk(n *node, parent style, indent, availW int) error {
 		availW = max(32, availW-24)
 	}
 	if !hasBlockChildren(n, w.d, s) {
-		if single := standaloneImgChild(n); single != nil {
-			is := w.d.styled(single, s)
-			imgID := id
-			if imgID == "" {
-				imgID = w.claimID(anchorName(single))
+		if single, is := w.standaloneImgChild(n, s); single != nil {
+			// The image shortcut bypasses walk for the link and image nodes.
+			// Keep every visible fragment, with its nearest enclosing ID, on
+			// the image block (or the usual pending anchor if it has no content).
+			var path []*node
+			for cur := single; cur != nil && cur != n; cur = cur.parent {
+				path = append(path, cur)
 			}
-			return w.extractImage(single, is, indent, imgID, prevParentID, margin, padInsets)
+			parentID := w.parentID
+			for i := len(path) - 1; i >= 0; i-- {
+				if childID := w.claimID(anchorName(path[i])); childID != "" {
+					w.pendingIDs = append(w.pendingIDs, pendingID{id: childID, parentID: parentID})
+					parentID = childID
+				}
+			}
+			return w.extractImage(single, is, indent, id, prevParentID, margin, padInsets)
 		}
 		spans, inlineIDs := w.inlineSpansWithIDs(n, s)
 		if len(spans) > 0 {
@@ -996,25 +1005,32 @@ func (w *blockExtractor) extractList(n *node, s style, indent, availW int, id, p
 	return nil
 }
 
-func standaloneImgChild(n *node) *node {
+// Find an image-only visible run, applying styles along the entire path.
+// A child cannot restore display inside a display:none ancestor.
+func (w *blockExtractor) standaloneImgChild(n *node, parent style) (*node, style) {
 	var found *node
+	var imageStyle style
 	for _, c := range n.children {
 		if c.tag == "" && strings.TrimSpace(c.text) == "" {
 			continue
 		}
+		cs := w.d.styled(c, parent)
+		if cs.display == "none" {
+			continue
+		}
 		if c.tag == "img" && found == nil {
-			found = c
+			found, imageStyle = c, cs
 			continue
 		}
 		if c.tag == "a" && found == nil {
-			if sub := standaloneImgChild(c); sub != nil {
-				found = sub
+			if sub, ss := w.standaloneImgChild(c, cs); sub != nil {
+				found, imageStyle = sub, ss
 				continue
 			}
 		}
-		return nil
+		return nil, style{}
 	}
-	return found
+	return found, imageStyle
 }
 
 func hasBlockChildren(n *node, d *Document, parent style) bool {
