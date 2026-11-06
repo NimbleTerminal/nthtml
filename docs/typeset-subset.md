@@ -118,7 +118,22 @@ and adjacent margins are zero.
 This verifies explicit spacing, not general CSS margin layout. Margins still
 add rather than collapse; horizontal/auto and negative margins, complex list
 items containing blocks, and default list indentation/markers remain outside
-this change. Width/image sizing is the next planned step.
+this change. The image-cap step below covers the first part of width/image sizing.
+
+### Image maximum dimensions
+
+Image blocks now pass positive absolute `max-width` and `max-height` values to
+nttypeset's shrink-only bounds, including CSS lengths such as `em` resolved by
+the cascade. Complete/chunked raster tests and Chromium image-pixel measurements
+cover individual/combined caps, smaller explicit width, stylesheet declarations,
+non-inheritance and maxima larger than the intrinsic image. These measurements
+compare image sizes, not full-page placement.
+
+The supported target is aspect-ratio-preserving downscaling. Percentage caps need
+the final containing-block dimensions; zero-size images, enlargement/minimum
+sizes, independently forced width and height, border-box image sizing and general
+container width/centering require further shared layout semantics. Those features
+are not made conformant by this change; existing permissive behavior remains.
 
 ## Recurring fix classes
 

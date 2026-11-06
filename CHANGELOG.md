@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Apply positive absolute `max-width` and `max-height` caps to typeset images while preserving their aspect ratio.
+
  * Preserve explicit vertical margins on typeset preformatted blocks, list containers and simple list items, including zero and sub-four-pixel item margins.
 
  * Remove extra reading-mode spacing inside bordered typeset headings and paragraphs; explicit zero padding no longer changes their layout.

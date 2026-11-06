@@ -1156,6 +1156,18 @@ func (w *blockExtractor) extractImage(n *node, s style, indent int, id, parentID
 	}
 	iw := min(availW, rawW)
 	ih := min(1024, rawH)
+	// Bounds are shrink-only, aspect-ratio-preserving caps. Percentages need
+	// the final containing-block width from layout, not this input width.
+	if s.maxWidth.absolute() {
+		if cap := s.maxWidth.resolve(0, availW); cap > 0 && (iw == 0 || cap < iw) {
+			iw = cap
+		}
+	}
+	if s.maxHeight.absolute() {
+		if cap := s.maxHeight.resolve(0, 1024); cap > 0 && (ih == 0 || cap < ih) {
+			ih = cap
+		}
+	}
 	align := ""
 	if s.align == "center" || s.align == "right" {
 		align = s.align
