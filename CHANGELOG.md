@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Respect CSS font weight in typeset table cells, including normal-weight headers and ordinary cells inside header groups.
+
  * Apply positive absolute `max-width` and `max-height` caps to typeset images while preserving their aspect ratio.
 
  * Preserve explicit vertical margins on typeset preformatted blocks, list containers and simple list items, including zero and sub-four-pixel item margins.

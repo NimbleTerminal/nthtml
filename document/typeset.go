@@ -1494,8 +1494,8 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 	var uniformCellBg color.RGBA
 	allCellsSameBg := true
 	sawAnyCell := false
-	collectRow := func(tr *node, rowStyle style, forceBold bool) {
-		if forceBold {
+	collectRow := func(tr *node, rowStyle style, headerGroup bool) {
+		if headerGroup {
 			hasHeader = true
 		}
 		if rid := anchorName(tr); rid != "" {
@@ -1515,8 +1515,7 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 			if cid := anchorName(cell); cid != "" {
 				innerIDs = append(innerIDs, cid)
 			}
-			if cell.tag == "th" || forceBold {
-				cs.bold = true
+			if cell.tag == "th" || headerGroup {
 				hasHeader = true
 			}
 			cellBg := cs.bg

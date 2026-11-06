@@ -135,6 +135,22 @@ sizes, independently forced width and height, border-box image sizing and genera
 container width/centering require further shared layout semantics. Those features
 are not made conformant by this change; existing permissive behavior remains.
 
+### Table text styles and the next model boundary
+
+Simple table extraction now preserves resolved cell font weight: default `th`
+remains bold, CSS normal/400 overrides survive, and `td` inside `thead` is not
+made bold merely because of its group. Complete/chunked tests and an independent
+Chromium computed-style probe cover these cases and inline overrides. Header
+identity remains separate from font weight.
+
+Cell padding, alignment, backgrounds and per-side borders cannot yet be passed
+through the shared table model: `nttypeset.Block.Rows` contains only spans.
+Its layout supplies fixed 12px horizontal/10px vertical insets, a first-row fill
+and row rules. The next substantive table step needs bounded opt-in per-cell
+style metadata in nttypeset, preserving its existing defaults for other callers,
+then nthtml translation and independent geometry/pixel tests. Do not simulate
+those styles by flattening simple tables or painting over the shared renderer.
+
 ## Recurring fix classes
 
 Use these groups to choose small, independently testable changes:
