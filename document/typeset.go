@@ -1045,6 +1045,24 @@ func (w *blockExtractor) walkChildren(n *node, s style, indent, availW int) erro
 		}
 		tmp := &node{tag: "div", children: inlineBuf}
 		inlineBuf = nil
+		// A bare image between block siblings occupies its own anonymous
+		// inline run. Preserve its pixels and source identity instead of
+		// replacing it with alt text. Mixed inline content still uses spans;
+		// this is not an implementation of inline replaced-element layout.
+		var only *node
+		for _, child := range tmp.children {
+			if child.tag == "" && strings.TrimSpace(child.text) == "" {
+				continue
+			}
+			if only != nil {
+				only = nil
+				break
+			}
+			only = child
+		}
+		if only != nil && only.tag == "img" {
+			return w.walk(only, s, indent, availW)
+		}
 		spans, inlineIDs := w.inlineSpansWithIDs(tmp, s)
 		if len(spans) == 0 {
 			for _, inl := range inlineIDs {

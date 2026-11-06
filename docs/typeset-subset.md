@@ -1,0 +1,112 @@
+# HTML/CSS subset for shared typesetting
+
+Status: proposed conformance target, with an audited implementation inventory.
+This is the migration contract for consumers seeking one nttypeset rendering
+path. It is **not a claim that the current adapter conforms to this subset**.
+`typeset.Build`, `BuildWithSources`, and `BuildChunked` currently preserve a
+reading document with some resolved CSS. `document.Render` remains the page
+renderer while the gaps below are closed.
+
+## What conformance will mean
+
+For a supported document, HTML parsing, CSS cascade/inheritance, used values,
+box layout, painting, and document coordinates must agree with the documented
+subset. Preserving a property in an AST is necessary but does not demonstrate
+its layout semantics. Non-browser paragraph spacing, table rules or heading
+colors must not override supported author CSS. A uniform CSS-pixel scale must
+be specified before comparing browser geometry.
+
+Two separate result sets are required:
+
+- Content/interaction: text and image preservation, source order, link targets,
+  fragments, source identity, selection and copying, including chunk navigation.
+- HTML/CSS rendering: geometry and pixels against independent browser results
+  under fixed viewport, fonts, assets, zoom and device scale. Every case states
+  its prerequisites and its geometry/pixel tolerance before baselining.
+
+Native `document.Render` WPT results do not transfer to the typeset adapter.
+The existing WPT reference harness renders both sides with the native renderer;
+its Chromium differential harness provides independent comparisons. Extend
+these with an explicitly named typeset backend and separate reviewed results.
+Never overwrite native baselines or count an unsupported case as passing.
+
+## Initial target and current gaps
+
+The initial target is static, single-column documents. This table is a work
+list, not an automatic capability detector. Existing README preservation claims
+remain useful implementation details; they do not imply browser conformance.
+
+| Area | Initial target | Current adapter evidence / gap |
+| --- | --- | --- |
+| Structure | HTML parsing; body, headings, paragraphs, nested div/section/article/main/aside/header/footer; source-order content | Blocks and nested sections exist. Browser-equivalent default spacing and used dimensions are not established. |
+| Cascade | Documented native selectors, inheritance, specificity and supported declarations, including inline style | Reuses nthtml's resolved styles. Native selector passes still need adapter-specific rendering coverage. |
+| Text | Uniform run font metrics, bold/italic/monospace, author colors, explicit font size and line height, normal/preformatted whitespace, explicit breaks | Font roles, default margins and line breaking differ; mixed-size inline runs and inline background boxes are gaps. |
+| Boxes | Normal block flow, CSS width/min/max sizing and box sizing, solid backgrounds, per-side solid borders, padding, nonnegative margins | Section decoration is translated. Margins are additive, not CSS-collapsed; width/box sizing and inherited-versus-noninherited values need independent geometry coverage. |
+| Images | Explicitly supplied local images, alt fallback, intrinsic/aspect-ratio sizing, explicit dimensions, image-only lines and linked images | Bare image-only runs between blocks now preserve the asset. Mixed inline images become alt text. The fix does not establish replaced-element baseline or used-size conformance; linked-image IDs/styles also need auditing. |
+| Lists | Ordered/unordered lists, numbering and markers, nested lists | Reading-order list extraction exists; indentation, marker geometry and spacing require browser comparisons. |
+| Tables | Simple rectangular tables without spans, cell content and author foreground/background/border styling | nttypeset uses content-weighted columns and default header fill/row rules. This is a layout gap, not conformant table CSS. |
+| Identity | IDs, local fragments, external links, selection and logical copy text | Source maps and chunk ranges exist. Test mapping after resize, chunk eviction, and fragment jumps; do not reuse chunk-local coordinates globally. |
+| Hidden content | `display:none` and documented HTML hidden behavior | Hidden subtrees are omitted. Preserve visible anchor placeholders only under the existing documented adapter contract. |
+
+### Outside the initial target
+
+Scripts/DOM execution, forms interaction, remote fetching, flex/grid,
+floats/clear, positioned/overlapping content and stacking, transforms,
+pseudo-element generated content, background images, mixed inline replaced
+objects, overflow clipping/ellipsis, negative margins, complex table spans and
+collapsed-border conflict resolution are outside the initial target. Some are
+supported by the native renderer or partially translated today; that does not
+make them supported by this conformance profile. Add them only with explicit
+semantics and independent tests.
+
+### Unsupported features and failures
+
+The legacy adapter is permissive: it may flatten positioned layouts, omit
+background images, simplify tables, substitute image alt text, or approximate
+borders and spacing. It does not currently emit a complete unsupported-feature
+report. **A consumer cannot yet use this profile to promise faithful fallback.**
+
+Before migration, add an opt-in audited capability report identifying unsupported
+features with source IDs where possible. It must cover resolved requirements,
+not merely scan raw CSS property names. The host then either retains its CSS
+renderer or reports the unsupported document. Existing permissive APIs remain
+compatible. Do not silently label fallback output conformant, and do not retry
+untrusted content with relaxed resource limits.
+
+## Chunking contract
+
+Parsing and source indexing remain whole-document and bounded. Per-chunk ASTs,
+assets, layout, glyphs, rasters and caches retain their existing limits. Oversized
+indivisible units fail without truncation. A chunk index accompanies every
+selection or anchor; hosts own cross-chunk copying and navigation.
+
+Repeated ancestor decoration at a chunk boundary is the current reading-mode
+behavior. It is not CSS box-fragmentation conformance. Until a fragmentation
+contract is tested, validate rendering conformance on complete documents and
+report chunk boundary behavior separately. Do not claim that a document becomes
+CSS-conformant merely by dividing it into bounded chunks.
+
+## Implementation sequence and migration gate
+
+1. Preserve essential content and identity. `TestSubsetStandaloneImageBetweenBlocks`
+   covers the first fix through complete and chunked adapters, including actual
+   asset pixels, order and fragment lookup. Boundary tests keep mixed-inline
+   fallback and hidden-content behavior explicit. These are local preservation
+   tests, not WPT or browser conformance passes.
+2. Add a typeset backend to the existing independent comparison infrastructure,
+   starting with small authored cases for boxes, text, images, lists and tables.
+   Keep genuine discrepancies FAIL; prerequisites outside the target are
+   UNSUPPORTED; unavailable browser/font infrastructure is ERROR or explicitly
+   skipped, never PASS. Gate CI against a reviewed baseline, including improvements.
+3. Close translation gaps in nthtml and layout-model gaps in nttypeset. Required
+   geometry fixes must not be implemented as host-specific HTML rewriting.
+4. Add capability reporting and test fallback decisions. Validate composed
+   documents as well as isolated properties. Include the Gloss field-notes and
+   nested-section shapes, linked figures, tables, and conversation histories.
+5. Migrate a host only when its required cases pass and behavior changes are
+   documented. Include viewing, exports, search, selection, local fragments,
+   resource ownership, cancellation and stale-frame rejection. Measure removed
+   host code and retained dependency cost, not just the number of renderer APIs.
+
+Gloss must keep its current renderer until that gate passes. No dependency pin,
+renderer default, export contract, or ntbrowser rollout is changed by this work.

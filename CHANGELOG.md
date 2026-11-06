@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased
+
+ * Preserve bare image-only runs between block siblings in complete and chunked typeset adapters, including local assets and image fragment IDs. Mixed inline text/image layout remains outside this fix.
+ * Document the proposed shared HTML/CSS subset, current adapter gaps, independent validation requirements and host migration gate.
+
 ## v0.4.0 (2026-11-05)
 
 This release adds opt-in CSS-preserving viewport painting without a resident whole-page raster.

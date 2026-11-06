@@ -336,6 +336,11 @@ go run ./cmd/nthtml -mode typeset -width 800 -o bridged.png typeset/testdata/str
 go run ./cmd/nthtml -mode tty -columns 80 typeset/testdata/structured_sections.html
 ```
 
+The [shared HTML/CSS subset roadmap](docs/typeset-subset.md) distinguishes
+current content/style preservation from the proposed rendering-conformance
+contract and the gate for consolidating host renderers. Native WPT results do
+not establish conformance of this adapter.
+
 **What the `typeset` bridge preserves:**
 - **Reading-order blocks & inline typography**: Headings (`h1`–`h6`), paragraphs, blockquotes, lists (`ul`/`ol` with `start`, `reversed`, and `list-style-type`), tables, horizontal rules (`hr`), `<pre><code>` blocks (with optional Chroma syntax highlighting via `typeset.Options.Syntax`), inline `bold`, `italic`, `monospace`, `strikethrough`, `small-caps`, `::before`/`::after` pseudo-elements, and `<br>` line breaks.
 - **Resolved CSS sizing & colors**: Explicit CSS `font-size` (`Block.Size`), `line-height` (`BlockFormat.LineHeight`), canvas/body colors (`typeset.PaletteFor` / `SourceMap.Palette`), and explicit author text and hyperlink colors (`Span.Ink` with `RoleText`, without replacing explicit CSS sizes with hardcoded heading sizes or overriding explicit CSS colors with `RoleAccent`). Unstyled documents continue to use `nttypeset` palette roles.
