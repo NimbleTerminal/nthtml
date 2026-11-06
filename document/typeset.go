@@ -665,12 +665,6 @@ func (w *blockExtractor) walk(n *node, parent style, indent, availW int) error {
 	}
 	if lvl := headingLevel(n.tag); lvl > 0 {
 		spans, inlineIDs := w.inlineSpansWithIDs(n, s)
-		for i := range spans {
-			spans[i].Bold = true
-			if !spans[i].ExplicitColor {
-				spans[i].Accent = true
-			}
-		}
 		sz := max(1, s.size)
 		if singleSz := uniformSpanSize(spans); singleSz > 0 && n.decl["font-size"] == "" {
 			sz = singleSz
@@ -711,7 +705,7 @@ func (w *blockExtractor) walk(n *node, parent style, indent, availW int) error {
 		code := strings.TrimSuffix(strings.TrimPrefix(collectRawText(n), "\n"), "\n")
 		lang := codeLanguage(n)
 		var fmt *BlockFormat
-		if hasPadding || hasBg || s.hasBorder() {
+		if hasPadding || hasBg || s.hasBorder() || s.lineMode != 0 {
 			fmt = &BlockFormat{
 				LineHeight:  s.line,
 				SpaceBefore: max(0, margin[0]),

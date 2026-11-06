@@ -1666,44 +1666,44 @@ func (d *Document) styled(n *node, parent style) style {
 	switch n.tag {
 	case "h1":
 		s.size = 32
-		s.line = 40
-		s.lineMultiplier = 0
-		s.lineMode = 0
+		if parent.lineMode == 0 {
+			s.line = 40
+		}
 		s.bold = true
 		s.margin = [4]cssLength{px(12), {}, px(12), {}}
 	case "h2":
 		s.size = 24
-		s.line = 32
-		s.lineMultiplier = 0
-		s.lineMode = 0
+		if parent.lineMode == 0 {
+			s.line = 32
+		}
 		s.bold = true
 		s.margin = [4]cssLength{px(10), {}, px(10), {}}
 	case "h3":
 		s.size = 20
-		s.line = 28
-		s.lineMultiplier = 0
-		s.lineMode = 0
+		if parent.lineMode == 0 {
+			s.line = 28
+		}
 		s.bold = true
 		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	case "h4":
 		s.size = 16
-		s.line = 22
-		s.lineMultiplier = 0
-		s.lineMode = 0
+		if parent.lineMode == 0 {
+			s.line = 22
+		}
 		s.bold = true
 		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	case "h5":
 		s.size = 14
-		s.line = 20
-		s.lineMultiplier = 0
-		s.lineMode = 0
+		if parent.lineMode == 0 {
+			s.line = 20
+		}
 		s.bold = true
 		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	case "h6":
 		s.size = 12
-		s.line = 18
-		s.lineMultiplier = 0
-		s.lineMode = 0
+		if parent.lineMode == 0 {
+			s.line = 18
+		}
 		s.bold = true
 		s.margin = [4]cssLength{px(8), {}, px(8), {}}
 	case "body":

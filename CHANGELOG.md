@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+ * Keep uncolored typeset headings in the text color, preserve inherited heading line heights, and honor explicit/inherited line spacing in preformatted blocks.
+
+ * Honor CSS font-weight on typeset headings and their inline children instead of forcing every heading run bold.
+
  * Preserve paragraph, link and image fragment IDs together on image-only typeset blocks, including chunked navigation and alt-text fallback.
 
  * Honor `display:none` on images and enclosing links in image-only typeset paragraphs, in complete and chunked documents.

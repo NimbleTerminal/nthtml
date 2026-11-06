@@ -73,6 +73,45 @@ renderer or reports the unsupported document. Existing permissive APIs remain
 compatible. Do not silently label fallback output conformant, and do not retry
 untrusted content with relaxed resource limits.
 
+### Text styling coverage and remaining limits
+
+Headings retain resolved font weight and foreground colors. Without author
+colors they use the document/host text palette, not an automatic heading accent;
+link styling remains independent. Explicit and inherited positive line heights
+are passed to heading, paragraph and preformatted layouts. Unitless inheritance
+scales with the child's font size; inherited lengths and percentages retain their
+computed length. Chromium computed-style probes check these values, and raster
+regressions measure line spacing in complete and chunked documents.
+
+This is not full CSS line-box conformance: nttypeset still clamps painted line
+height to at least the shaped font's ascent plus descent. Zero/tight line heights,
+mixed inline font sizes and browser-equivalent baseline placement require shared
+layout changes. The supported spacing tests use heights above that minimum.
+
+## Recurring fix classes
+
+Use these groups to choose small, independently testable changes:
+
+- **Traversal shortcuts:** specialized extraction must preserve the same resolved
+  visibility, inherited styles, IDs and ancestry as ordinary traversal. The
+  image-only path exposed both hidden-content and missing-fragment bugs. Audit
+  preformatted-text, list and table shortcuts against the same invariants;
+  candidates are not claims of confirmed failures.
+- **Reading defaults overriding CSS:** preserve resolved values before applying
+  adapter presentation defaults. Heading font weight now comes from the cascade,
+  including normal-weight descendants; complete/chunked tests and an authored
+  Chromium computed-style comparison cover it. Heading text now retains its resolved color instead of gaining an accent role;
+  table header fills/rules remain audit targets. Computed-style agreement does not
+  establish font-metric or pixel conformance.
+- **Missing layout-model semantics:** width/min/max sizing, empty boxes, box
+  sizing, margin collapsing and fragmentation need explicit shared layout
+  semantics and independent geometry tests. Avoid approximating these through
+  host HTML rewriting or unrelated spacing adjustments.
+
+Keep measurement gaps separate from rendering bugs: missing source geometry,
+unsupported font mapping and incomplete pixel results must stay explicit in the
+harness. Improvements to instrumentation do not count as rendering fixes.
+
 ## Chunking contract
 
 Parsing and source indexing remain whole-document and bounded. Per-chunk ASTs,
