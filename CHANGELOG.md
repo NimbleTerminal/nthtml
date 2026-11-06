@@ -1,6 +1,12 @@
 # CHANGELOG
 
-## Unreleased
+## v0.4.0 (2026-11-05)
+
+This release adds opt-in CSS-preserving viewport painting without a resident whole-page raster.
+
+**Adoption:** Existing viewers retain their behavior. Hosts opt in with `ModelOptions.HostPainted`, render with `NoImage`, and install the layout plus its first painted band atomically with `SetPaintedResult`. Use automatic paint scale (`Scale: 0`). Route subsequent `PaintRequest` messages through a serial worker with one reusable `document.Painter` per layout revision, deadlines, and cancellation. See the [integration contract](docs/host-painted.md).
+
+**Limits:** DOM and CSS layout remain eager and bounded. Host-painted mode supports width fit, retains the existing zoom range, and requires immutable results/assets. Production CJK font throughput still needs host benchmarking before ntbrowser rollout. This release does not itself enable the new path in ntbrowser.
 
  * Fix host-painted TTY frame replacement, reconcile stale install geometry, retain sub-row pan input, and resize retained bands while new column geometry is painting. Initial plans now use automatic paint scale in the integration guide and example.
 
