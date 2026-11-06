@@ -2,28 +2,44 @@
 
 ## Unreleased
 
- * Preserve cell padding, backgrounds, solid borders and horizontal alignment for simple top-aligned, zero-spacing tables in complete/chunked typesetting, using nttypeset v0.3.0.
+## v0.5.0 (2026-11-06)
 
- * Respect CSS font weight in typeset table cells, including normal-weight headers and ordinary cells inside header groups.
+This release improves CSS style and content preservation in the shared
+HTML-to-nttypeset reading path, with independent Chromium probes and a documented
+subset roadmap.
 
- * Apply positive absolute `max-width` and `max-height` caps to typeset images while preserving their aspect ratio.
+**Adoption:** Upgrade to this version to receive the fixes through `typeset.Build`,
+`BuildWithSources` and `BuildChunked`. The bridge now uses published nttypeset
+v0.3.0. Eligible tables automatically carry per-cell styles; existing CSS page
+rendering and host-painted viewport APIs remain available. This release does not
+switch any host's renderer.
 
- * Preserve explicit vertical margins on typeset preformatted blocks, list containers and simple list items, including zero and sub-four-pixel item margins.
+**Limits:** This is not full HTML/CSS conformance. Styled tables must be rectangular,
+without spans or nested block structure, top-aligned, with uniform cell font
+size, separate borders, zero border spacing and transparent/opaque cell
+backgrounds. Only solid cell borders are supported. Other tables retain the existing permissive reading fallback.
+Column sizing, margin collapsing, percentage image caps and very tight line
+heights remain gaps. See [the supported scope and migration gate](docs/typeset-subset.md).
 
- * Remove extra reading-mode spacing inside bordered typeset headings and paragraphs; explicit zero padding no longer changes their layout.
-
- * Keep uncolored typeset headings in the text color, preserve inherited heading line heights, and honor explicit/inherited line spacing in preformatted blocks.
-
- * Honor CSS font-weight on typeset headings and their inline children instead of forcing every heading run bold.
-
- * Preserve paragraph, link and image fragment IDs together on image-only typeset blocks, including chunked navigation and alt-text fallback.
-
- * Honor `display:none` on images and enclosing links in image-only typeset paragraphs, in complete and chunked documents.
-
- * Add a separate typeset-vs-Chromium differential backend and report, with explicit unsupported prerequisites, strict incomplete-result handling, and reviewed status baselines independent of native rendering.
-
- * Preserve bare image-only runs between block siblings in complete and chunked typeset adapters, including local assets and image fragment IDs. Mixed inline text/image layout remains outside this fix.
- * Document the proposed shared HTML/CSS subset, current adapter gaps, independent validation requirements and host migration gate.
+ * Preserve cell padding, backgrounds, per-side solid borders and horizontal
+   alignment on supported tables, including empty cells and single-row grids,
+   in complete and chunked typesetting.
+ * Honor CSS font weight in headings and table cells, including inline overrides;
+   ordinary cells in header groups are no longer forced bold. Uncolored headings
+   use the document text color instead of an automatic accent.
+ * Preserve inherited heading line heights and explicit/inherited preformatted
+   line spacing. Retain explicit vertical margins on preformatted blocks, list
+   containers and simple list items, including zero and small item margins.
+ * Remove extra reading-mode spacing inside bordered headings and paragraphs;
+   explicitly declaring zero padding no longer changes their layout.
+ * Apply positive absolute image `max-width` and `max-height` caps while retaining
+   aspect ratio. Preserve standalone image-only runs between blocks and respect
+   `display:none` on images and enclosing links.
+ * Keep paragraph, link and image fragment IDs together on image-only blocks,
+   including chunked navigation and alt-text fallback.
+ * Add a separate typeset-vs-Chromium differential report and reviewed status
+   baseline, plus focused CSS paint/style probes. Unsupported prerequisites and
+   incomplete measurements remain explicit; native-renderer results are separate.
 
 ## v0.4.0 (2026-11-05)
 
