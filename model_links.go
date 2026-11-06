@@ -103,6 +103,9 @@ func (m *Model) paintSearchAndSelectionOverlay() *image.RGBA {
 	return img
 }
 func (m *Model) presentSource() tea.Cmd {
+	if m.hostPaint != nil {
+		return m.paintViewport(true)
+	}
 	m.overlayPainted = false
 	m.overlayImg = nil
 	m.focusKey = focusOverlayKey{}
@@ -126,6 +129,9 @@ func (m *Model) presentSource() tea.Cmd {
 	return m.pic.SetImageCropped(m.source, m.cropRect())
 }
 func (m *Model) showLinkFocus() tea.Cmd {
+	if m.hostPaint != nil {
+		return m.paintViewport(true)
+	}
 	if m.source == nil {
 		return nil
 	}
@@ -167,7 +173,7 @@ func (m *Model) showLinkFocus() tea.Cmd {
 }
 
 func (m *Model) updateKittyFocusOverlay() tea.Cmd {
-	if !m.kittyViewportMode() || m.focusPic == nil {
+	if (!m.kittyViewportMode() && !m.hostKitty()) || m.focusPic == nil {
 		m.focusCellRect = image.Rectangle{}
 		m.focusKey = focusOverlayKey{}
 		return nil
@@ -181,12 +187,20 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 	cells := image.Pt(m.bandCols, m.bandRows)
 	pixels := m.pic.RasterGeometry().Pixels
 	crop := m.bandCrop
+	if m.hostPaint != nil {
+		crop = m.source.Bounds()
+		projected := make([]image.Rectangle, len(regions))
+		for i, r := range regions {
+			projected[i] = m.paintRect(r)
+		}
+		regions = projected
+	}
 	if cells.X <= 0 || cells.Y <= 0 || pixels.X <= 0 || pixels.Y <= 0 || crop.Empty() {
 		m.focusCellRect = image.Rectangle{}
 		m.focusKey = focusOverlayKey{}
 		return nil
 	}
-	cellRect, pagePixels := focusBandCellsAndPage(regions, cells, pixels, crop)
+	cellRect, pagePixels := focusBandCellsAndPageFit(regions, cells, pixels, crop, m.hostPaint != nil)
 	if cellRect.Empty() || pagePixels.Empty() {
 		m.focusCellRect = image.Rectangle{}
 		m.focusKey = focusOverlayKey{}
@@ -214,6 +228,9 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 		selStart:   m.selectStart,
 		selEnd:     m.selectEnd,
 	}
+	if m.hostPaint != nil {
+		key.bandCrop = m.hostPaint.plan.Area
+	}
 	if m.focusKey == key {
 		return nil
 	}
@@ -235,6 +252,9 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 }
 
 func focusBandCellsAndPage(regions []image.Rectangle, cells, pixels image.Point, crop image.Rectangle) (image.Rectangle, image.Rectangle) {
+	return focusBandCellsAndPageFit(regions, cells, pixels, crop, false)
+}
+func focusBandCellsAndPageFit(regions []image.Rectangle, cells, pixels image.Point, crop image.Rectangle, fill bool) (image.Rectangle, image.Rectangle) {
 	if cells.X <= 0 || cells.Y <= 0 || pixels.X <= 0 || pixels.Y <= 0 || crop.Empty() {
 		return image.Rectangle{}, image.Rectangle{}
 	}
@@ -245,6 +265,9 @@ func focusBandCellsAndPage(regions []image.Rectangle, cells, pixels image.Point,
 		ih = max(1, int(int64(sh)*int64(tw)/int64(sw)))
 	} else {
 		iw = max(1, int(int64(sw)*int64(th)/int64(sh)))
+	}
+	if fill {
+		iw, ih = tw, th
 	}
 	ox, oy := (tw-iw)/2, (th-ih)/2
 	var cellUnion image.Rectangle

@@ -810,3 +810,5 @@ Part of the [Nimble Terminal](https://nimbleterminal.dev) family alongside [`ntp
 
 ----
 Made with :heart: and :fire: by the team behind [Nimble.Markets](https://nimble.markets).
+
+For CSS-preserving bounded raster residency, see the opt-in [host-painted viewport API](docs/host-painted.md). It keeps full CSS layout and paints requested bands on a host worker.

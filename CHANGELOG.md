@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased
+
+ * Add opt-in host-painted CSS viewports: atomic layout/first-band installation, cancellable revisioned paint requests, bounded band overlays, global hit-testing, and stable Kitty transport. Existing viewer APIs keep their behavior.
+ * Add reusable `document.Painter` with bounded font caches and a y-bucketed display-operation index. See [the host integration contract](docs/host-painted.md) for ownership, worker scheduling, limits, and ntbrowser adoption.
+
 ## v0.3.0 (2026-11-05)
 
 This release adds bounded, lazy HTML-to-nttypeset chunks for long documents and conversation histories.

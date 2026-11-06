@@ -37,6 +37,9 @@ func (m *Model) CellToDocument(p image.Point) (image.Rectangle, bool) {
 func (m *Model) DocumentViewport() (image.Rectangle, bool) {
 	cells, pixels, crop, view := m.rasterMapping()
 	area := rasterAreaSource(view, cells, pixels, crop)
+	if m != nil && m.hostPaint != nil && m.mode == LayoutTypeset && m.source != nil {
+		area = m.hostPaint.plan.cellArea(view)
+	}
 	return area, !area.Empty()
 }
 

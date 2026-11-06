@@ -232,6 +232,10 @@ func (m *Model) cellArea(p image.Point) image.Rectangle {
 	if !p.In(image.Rectangle{Max: view.Size()}) {
 		return image.Rectangle{}
 	}
+	if m.hostPaint != nil {
+		p = p.Add(view.Min)
+		return m.hostPaint.plan.cellArea(image.Rectangle{Min: p, Max: p.Add(image.Pt(1, 1))})
+	}
 	return rasterCellSource(p.Add(view.Min), cells, pixels, crop)
 }
 
@@ -240,6 +244,14 @@ func (m *Model) cellArea(p image.Point) image.Rectangle {
 // document space even when Picture owns only a band of that document.
 func (m *Model) rasterMapping() (cells, pixels image.Point, crop, view image.Rectangle) {
 	if m == nil || m.pic == nil || m.source == nil || m.mode != LayoutTypeset {
+		return
+	}
+	if m.hostPaint != nil {
+		p := m.hostPaint.plan
+		cells = image.Pt(p.Cols, p.BandRows)
+		pixels = m.pic.RasterGeometry().Pixels
+		crop = p.Area
+		view = image.Rect(0, p.RowOffset, p.Cols, p.RowOffset+p.Rows)
 		return
 	}
 	geom := m.pic.RasterGeometry()

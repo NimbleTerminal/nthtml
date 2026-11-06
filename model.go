@@ -4,6 +4,7 @@ package nthtml
 import (
 	tea "charm.land/bubbletea/v2"
 	"context"
+	"fmt"
 	"github.com/charmbracelet/x/ansi"
 	"image"
 	"image/color"
@@ -76,6 +77,10 @@ const (
 
 // ModelOptions configures a Bubble Tea document viewer Model.
 type ModelOptions struct {
+	// HostPainted accepts only atomic PaintedResult frames and emits PaintRequest
+	// messages for subsequent bands. CSS painting and reflow belong to the host.
+	// Construct with a nil result, then call SetPaintedResult.
+	HostPainted bool
 	// Session shares terminal discovery, cell geometry, and transport settings
 	// across multiple picture/document widgets.
 	Session *ntpicture.TerminalSession
@@ -94,6 +99,7 @@ type ModelOptions struct {
 // Model follows ntpicture's pointer-mutating component convention. Forward all
 // messages and run returned commands. The host owns focus and quit handling.
 type Model struct {
+	hostPaint                     *hostPaintState
 	index                         *document.TextIndex
 	query, searchInput            string
 	searching                     bool
@@ -168,6 +174,15 @@ func NewWithOptions(result *document.Result, opts ModelOptions) *Model {
 		reflowTypeset: opts.ReflowTypeset,
 		renderOpts:    opts.RenderOptions,
 	}
+	if opts.HostPainted {
+		m.hostPaint = &hostPaintState{}
+		m.initial = pic.SetFit(ntpicture.FitFill)
+		m.reflowTypeset = false
+		if result != nil {
+			m.err = fmt.Errorf("nthtml: use SetPaintedResult in host-painted mode")
+		}
+		return m
+	}
 	if result != nil {
 		if m.renderOpts.Width == 0 {
 			m.renderOpts = result.Options()
@@ -212,6 +227,9 @@ func (m *Model) ReflowTypeset() bool { return m.reflowTypeset }
 
 // SetReflowTypeset enables or disables responsive Typeset reflow on resize.
 func (m *Model) SetReflowTypeset(enabled bool) tea.Cmd {
+	if m.hostPaint != nil {
+		return nil
+	}
 	m.reflowTypeset = enabled
 	if enabled && m.mode == LayoutTypeset {
 		return m.SetSize(m.cols, m.rows)
@@ -237,6 +255,10 @@ func (m *Model) SetResultKeepView(result *document.Result) tea.Cmd {
 }
 
 func (m *Model) setResult(result *document.Result, keepView bool) tea.Cmd {
+	if m.hostPaint != nil {
+		m.err = fmt.Errorf("nthtml: use SetPaintedResult in host-painted mode")
+		return nil
+	}
 	m.result = result
 	m.clearSourceFocus()
 	m.index = nil
@@ -301,7 +323,7 @@ func (m *Model) View() string {
 		return text
 	}
 	base := m.pic.View()
-	if m.kittyViewportMode() && !m.focusCellRect.Empty() && m.focusPic != nil {
+	if (m.kittyViewportMode() || m.hostKitty()) && !m.focusCellRect.Empty() && m.focusPic != nil {
 		return m.spliceFocusOverlay(base)
 	}
 	return base
@@ -320,6 +342,7 @@ func (m *Model) SetLayoutMode(mode LayoutMode) tea.Cmd {
 	m.index = nil
 	m.clearSelection()
 	if mode == LayoutTTY {
+		m.cancelPaint()
 		m.reflowTTY()
 	}
 	if mode == LayoutTypeset {
@@ -336,6 +359,10 @@ func (m *Model) TypesetFit() TypesetFit { return m.typesetFit }
 // queries, or selection. It resets pan/zoom; TTY layout is unaffected.
 // Contain shows the complete page, so pan and zoom resume in Width mode.
 func (m *Model) SetTypesetFit(fit TypesetFit) tea.Cmd {
+	if m.hostPaint != nil && fit == TypesetFitContain {
+		m.err = fmt.Errorf("nthtml: host-painted mode requires width fit")
+		return nil
+	}
 	if fit != TypesetFitWidth && fit != TypesetFitContain || fit == m.typesetFit {
 		return nil
 	}
@@ -388,6 +415,13 @@ func (m *Model) scrollTTY(delta int) {
 	m.ttyTop = max(0, min(max(0, len(m.ttyLines)-m.rows), m.ttyTop+delta))
 }
 func (m *Model) Close() tea.Cmd {
+	if m.hostPaint != nil {
+		m.cancelPaint()
+		m.hostPaint.closed = true
+		m.source = nil
+		m.overlayImg = nil
+		m.result = nil
+	}
 	if m.focusPic != nil {
 		return tea.Batch(m.pic.Close(), m.focusPic.Close())
 	}
@@ -398,6 +432,13 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	m.cols = max(1, min(cols, 1000))
 	m.rows = max(1, min(rows, 1000))
 	m.clearSelection()
+	if m.hostPaint != nil {
+		if m.mode == LayoutTTY {
+			m.reflowTTY()
+			return nil
+		}
+		return m.paintViewport(true)
+	}
 	var cropCmd, sizeCmd tea.Cmd
 	if !m.kittyViewportMode() {
 		cropCmd = m.viewport()
@@ -495,7 +536,7 @@ func (m *Model) Reset() tea.Cmd {
 	return m.viewport()
 }
 func (m *Model) kittyViewportMode() bool {
-	return m.mode == LayoutTypeset && m.typesetFit == TypesetFitWidth && m.pic != nil && m.pic.Mode() == ntpicture.PictureKitty && m.source != nil
+	return m.hostPaint == nil && m.mode == LayoutTypeset && m.typesetFit == TypesetFitWidth && m.pic != nil && m.pic.Mode() == ntpicture.PictureKitty && m.source != nil
 }
 func (m *Model) syncKittyBand(forceUpload bool) tea.Cmd {
 	if !m.kittyViewportMode() {
@@ -587,6 +628,9 @@ func (m *Model) syncKittyBand(forceUpload bool) tea.Cmd {
 	return tea.Batch(sizeCmd, m.pic.SetImageCropped(cropBandImage(m.source, bandCrop), image.Rectangle{}))
 }
 func (m *Model) viewport() tea.Cmd {
+	if m.hostPaint != nil {
+		return m.paintViewport(false)
+	}
 	if m.source == nil {
 		return nil
 	}
@@ -613,6 +657,9 @@ func (m *Model) cropRect() image.Rectangle {
 // Update handles keyboard navigation, link clicks, and mouse-wheel scrolling.
 // Only forward input while focused; always forward non-input messages.
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
+	if ready, ok := msg.(PaintReady); ok {
+		return m.applyPaint(ready)
+	}
 	var cmd tea.Cmd
 	switch v := msg.(type) {
 	case tea.PasteMsg:
@@ -703,6 +750,20 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		case tea.MouseWheelDown:
 			cmd = m.Pan(0, 40)
 		}
+	}
+	if m.hostPaint != nil {
+		mode := m.pic.Mode()
+		cw, ch := m.pic.CellPixelSize()
+		picCmd := m.pic.Update(msg)
+		var focusCmd, geometryCmd tea.Cmd
+		if m.focusPic != nil {
+			focusCmd = m.focusPic.Update(msg)
+		}
+		nw, nh := m.pic.CellPixelSize()
+		if mode != m.pic.Mode() || cw != nw || ch != nh {
+			geometryCmd = m.paintViewport(true)
+		}
+		return tea.Batch(cmd, picCmd, focusCmd, geometryCmd)
 	}
 	wasKitty := m.kittyViewportMode()
 	prevCW, prevCH := m.pic.CellPixelSize()

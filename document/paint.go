@@ -39,26 +39,9 @@ func (r *Result) Background() color.RGBA {
 // origin is area.Min, at (0, 0). Area is clipped to the page; scale is
 // 1/16 to 16, and the image within the document's pixel limit.
 func (r *Result) Paint(ctx context.Context, area image.Rectangle, scale float64) (*image.RGBA, error) {
-	if r == nil || r.document == nil {
-		return nil, limitError("nil result")
-	}
-	if e := ctx.Err(); e != nil {
-		return nil, e
-	}
-	area = area.Intersect(r.Bounds())
-	if area.Empty() {
-		return nil, limitError("paint area outside the page")
-	}
-	if !(scale >= 1.0/16 && scale <= 16) {
-		return nil, limitError("scale outside 1/16..16")
-	}
-	w, h := int(math.Ceil(float64(area.Dx())*scale)), int(math.Ceil(float64(area.Dy())*scale))
-	pixLimit := r.limits.Pixels
-	if pixLimit <= 0 {
-		pixLimit = r.document.limits.Pixels
-	}
-	if w < 1 || h < 1 || w > pixLimit/h {
-		return nil, limitError("pixels")
+	area, size, err := r.paintSize(ctx, area, scale)
+	if err != nil {
+		return nil, err
 	}
 	l := &layout{ctx: ctx, d: r.document, opts: r.opts, lim: r.limits, canvasBg: r.Background(), maxHeight: max(r.size.Y, r.document.limits.Height), faces: map[faceKey]font.Face{}, fonts: map[string]*opentype.Font{}, scale: scale}
 	defer func() {
@@ -66,7 +49,7 @@ func (r *Result) Paint(ctx context.Context, area image.Rectangle, scale float64)
 			f.Close()
 		}
 	}()
-	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	img := image.NewRGBA(image.Rectangle{Max: size})
 	if err := l.paint(img, r.ops, area, scale); err != nil {
 		return nil, err
 	}
