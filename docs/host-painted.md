@@ -14,7 +14,8 @@ On a worker, in one pass:
 2. Create `result.NewPainter(ctx)`.
 3. Call `PlanPaint(result, viewport)` using the host's current geometry and
    desired scroll/zoom. For initial navigation use origin zero, zoom zero, and
-   `Scale: 1`. `Model.PaintViewport()` snapshots geometry for later reflows;
+   `Scale: 0` (the default, derived from geometry and zoom).
+   `Model.PaintViewport()` snapshots geometry for later reflows;
    snapshot on the UI goroutine before starting work.
 4. Paint `plan.Area` at `plan.Scale` with that painter.
 5. Deliver `PaintedResult{Result: result, Revision: revision, Plan: plan, Image: band}`
@@ -25,6 +26,10 @@ On a worker, in one pass:
 The compiled `ExamplePlanPaint` demonstrates this pass. No layout is installed
 without a matching first band. `keepView` retains search state; the supplied plan
 owns scroll and zoom. Source/link focus resets; hosts can reapply source focus.
+Installing during TTY defers picture submission until Typeset is selected. The
+viewer tracks the submitted revision separately, so it uploads the new band
+before accepting raster input. On installation it reconciles stale viewport
+geometry; a height-only change can reuse the existing band without painting.
 
 ## Later paint requests
 
@@ -48,7 +53,10 @@ Only the latest requested viewport is painted. Until completion, the old band
 and its displayed viewport remain together. Failures leave them intact and set
 `Model.Err()`; a later pan/resize can retry. `DocumentViewport` and
 `CellToDocument` describe the displayed band, while `PaintViewport` describes
-the desired view. Dispatch actions only when `InputReady()` and the host's
+the desired view. Sub-row pan input accumulates in that desired origin.
+A column resize immediately resizes the retained picture grid, preserving its
+CSS extent and updating hit-test mapping while replacement painting is pending.
+If painting fails, that resized old band remains usable. Dispatch actions only when `InputReady()` and the host's
 DOM/frame revision checks both pass. A paint in flight does not invalidate hits
 on an otherwise current, fully presented old band.
 

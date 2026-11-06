@@ -21,7 +21,7 @@ func ExamplePlanPaint() {
 		panic(err)
 	}
 	defer painter.Close() // In an application, retain until the next layout.
-	plan, err := nthtml.PlanPaint(result, nthtml.PaintViewport{Cols: 80, Rows: 24, CellWidth: 10, CellHeight: 20, Scale: 1})
+	plan, err := nthtml.PlanPaint(result, nthtml.PaintViewport{Cols: 80, Rows: 24, CellWidth: 10, CellHeight: 20})
 	if err != nil {
 		panic(err)
 	}

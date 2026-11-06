@@ -38,7 +38,7 @@ func (m *Model) DocumentViewport() (image.Rectangle, bool) {
 	cells, pixels, crop, view := m.rasterMapping()
 	area := rasterAreaSource(view, cells, pixels, crop)
 	if m != nil && m.hostPaint != nil && m.mode == LayoutTypeset && m.source != nil {
-		area = m.hostPaint.plan.cellArea(view)
+		area = m.hostPaint.presentedPlan.cellArea(view)
 	}
 	return area, !area.Empty()
 }

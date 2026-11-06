@@ -234,7 +234,7 @@ func (m *Model) cellArea(p image.Point) image.Rectangle {
 	}
 	if m.hostPaint != nil {
 		p = p.Add(view.Min)
-		return m.hostPaint.plan.cellArea(image.Rectangle{Min: p, Max: p.Add(image.Pt(1, 1))})
+		return m.hostPaint.presentedPlan.cellArea(image.Rectangle{Min: p, Max: p.Add(image.Pt(1, 1))})
 	}
 	return rasterCellSource(p.Add(view.Min), cells, pixels, crop)
 }
@@ -247,7 +247,7 @@ func (m *Model) rasterMapping() (cells, pixels image.Point, crop, view image.Rec
 		return
 	}
 	if m.hostPaint != nil {
-		p := m.hostPaint.plan
+		p := m.hostPaint.presentedPlan
 		cells = image.Pt(p.Cols, p.BandRows)
 		pixels = m.pic.RasterGeometry().Pixels
 		crop = p.Area

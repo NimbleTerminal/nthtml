@@ -200,7 +200,7 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 		m.focusKey = focusOverlayKey{}
 		return nil
 	}
-	cellRect, pagePixels := focusBandCellsAndPageFit(regions, cells, pixels, crop, m.hostPaint != nil)
+	cellRect, pagePixels := focusBandCellsAndPage(regions, cells, pixels, crop, m.hostPaint != nil)
 	if cellRect.Empty() || pagePixels.Empty() {
 		m.focusCellRect = image.Rectangle{}
 		m.focusKey = focusOverlayKey{}
@@ -251,10 +251,7 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 	})
 }
 
-func focusBandCellsAndPage(regions []image.Rectangle, cells, pixels image.Point, crop image.Rectangle) (image.Rectangle, image.Rectangle) {
-	return focusBandCellsAndPageFit(regions, cells, pixels, crop, false)
-}
-func focusBandCellsAndPageFit(regions []image.Rectangle, cells, pixels image.Point, crop image.Rectangle, fill bool) (image.Rectangle, image.Rectangle) {
+func focusBandCellsAndPage(regions []image.Rectangle, cells, pixels image.Point, crop image.Rectangle, fill bool) (image.Rectangle, image.Rectangle) {
 	if cells.X <= 0 || cells.Y <= 0 || pixels.X <= 0 || pixels.Y <= 0 || crop.Empty() {
 		return image.Rectangle{}, image.Rectangle{}
 	}

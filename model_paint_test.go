@@ -267,3 +267,155 @@ func TestHostPaintFractionalGeometryAndBudgets(t *testing.T) {
 		m.Close()
 	}
 }
+
+func TestHostPaintTTYReplacementPresentsNewBand(t *testing.T) {
+	m := NewWithOptions(nil, ModelOptions{HostPainted: true, Picture: ntpicture.Options{StableID: true, RetireDelay: -1, Render: ntpicture.Config{KittyFormat: ntpicture.KittyFormatZlib}}})
+	defer m.Close()
+	driveRaw(t, m, m.Picture().SetTerminal(true, 10, 20), m.SetSize(40, 24))
+	install := func(color string, revision uint64) string {
+		r, err := document.Render(context.Background(), strings.NewReader(`<body style="background:`+color+`"><a href="/`+color+`">new link</a>`+strings.Repeat(`<p style="height:1000px">text</p>`, 20)), document.Options{Width: 400, NoImage: true, Fonts: document.MinimalFonts})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd, err := m.SetPaintedResult(paintInitial(t, r, m.PaintViewport(), revision), false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return driveRaw(t, m, cmd)
+	}
+	first := install("red", 1)
+	driveRaw(t, m, m.SetLayoutMode(LayoutTTY))
+	install("blue", 2)
+	if m.hostPaint.presentedRevision != 1 {
+		t.Fatal("hidden band reported presented")
+	}
+	cmd := m.SetLayoutMode(LayoutTypeset)
+	if m.InputReady() {
+		t.Fatal("old picture accepted input for new layout")
+	}
+	second := driveRaw(t, m, cmd)
+	if !strings.Contains(second, "o=z") || kittyBandPayload(second) == kittyBandPayload(first) {
+		t.Fatal("new band not transmitted")
+	}
+	if m.hostPaint.presentedRevision != 2 || !m.InputReady() {
+		t.Fatal("replacement not ready")
+	}
+	link, ok := m.LinkAtCell(image.Pt(0, 0))
+	if !ok || link.Href != "/blue" {
+		t.Fatalf("new layout hit: %+v %v", link, ok)
+	}
+}
+
+func TestHostPaintInstallReconcilesGeometry(t *testing.T) {
+	for _, kind := range []string{"rows", "cols", "cells"} {
+		t.Run(kind, func(t *testing.T) {
+			m := NewWithOptions(nil, ModelOptions{HostPainted: true})
+			defer m.Close()
+			driveRaw(t, m, m.Picture().SetTerminal(true, 10, 20), m.SetSize(40, 24))
+			stale := m.PaintViewport()
+			switch kind {
+			case "rows":
+				stale.Rows = 8
+			case "cols":
+				stale.Cols = 20
+			case "cells":
+				stale.CellHeight = 44
+			}
+			frame := paintInitial(t, paintedPage(t), stale, 1)
+			cmd, err := m.SetPaintedResult(frame, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			driveRaw(t, m, cmd)
+			if kind == "rows" {
+				if m.hostPaint.pending != nil || m.hostPaint.plan.Rows != 24 {
+					t.Fatal("row-only resize did not reuse band")
+				}
+			} else {
+				if m.hostPaint.pending == nil {
+					t.Fatal("stale geometry did not request paint")
+				}
+				req := *m.hostPaint.pending
+				if req.Plan.Cols != 40 || req.Plan.Rows != 24 || req.Plan.CellHeight != 20 {
+					t.Fatalf("stale request %+v", req.Plan)
+				}
+				driveRaw(t, m, m.Update(readyPaint(t, req)))
+			}
+			viewport, _ := m.Picture().Viewport()
+			if viewport.Width != 40 || viewport.Height != 24 {
+				t.Fatalf("stale picture viewport %+v", viewport)
+			}
+		})
+	}
+}
+
+func TestHostPaintSubRowPansAccumulate(t *testing.T) {
+	m := NewWithOptions(nil, ModelOptions{HostPainted: true})
+	defer m.Close()
+	driveRaw(t, m, m.Picture().SetTerminal(true, 20, 44), m.SetSize(20, 12))
+	cmd, err := m.SetPaintedResult(paintInitial(t, paintedPage(t), m.PaintViewport(), 1), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	driveRaw(t, m, cmd)
+	for range 5 {
+		driveRaw(t, m, m.Pan(0, 40))
+	}
+	if m.PaintViewport().Origin.Y != 200 {
+		t.Fatalf("lost desired movement: %v", m.PaintViewport().Origin)
+	}
+	view, _ := m.DocumentViewport()
+	if view.Min.Y != 176 {
+		t.Fatalf("displayed row %v", view)
+	}
+	for range 5 {
+		driveRaw(t, m, m.Pan(0, -40))
+	}
+	view, _ = m.DocumentViewport()
+	if view.Min.Y != 0 || m.PaintViewport().Origin.Y != 0 {
+		t.Fatal("reverse movement lost")
+	}
+}
+
+func TestHostPaintFailedColumnResizeKeepsMapping(t *testing.T) {
+	m := NewWithOptions(nil, ModelOptions{HostPainted: true})
+	defer m.Close()
+	driveRaw(t, m, m.Picture().SetTerminal(true, 10, 20), m.SetSize(40, 24))
+	cmd, err := m.SetPaintedResult(paintInitial(t, paintedPage(t), m.PaintViewport(), 1), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	driveRaw(t, m, cmd)
+	before, _ := m.DocumentViewport()
+	driveRaw(t, m, m.SetSize(20, 24))
+	if m.hostPaint.pending == nil {
+		t.Fatal("resize didn't request paint")
+	}
+	req := *m.hostPaint.pending
+	driveRaw(t, m, m.Update(PaintReady{Request: req, Err: context.DeadlineExceeded}))
+	if m.Picture().RasterGeometry().Cells.X != 20 {
+		t.Fatal("failed resize kept old picture width")
+	}
+	after, _ := m.DocumentViewport()
+	left, ok := m.CellToDocument(image.Pt(0, 0))
+	right, rok := m.CellToDocument(image.Pt(19, 0))
+	if before != after || !ok || !rok || left.Min.X != before.Min.X || right.Max.X != before.Max.X {
+		t.Fatalf("retained band mapping: %v %v %v %v", before, after, left, right)
+	}
+	if !m.InputReady() {
+		t.Fatal("retained band is not usable after resize failure")
+	}
+}
+
+// Compare image payloads independently of visibility and placement commands.
+func kittyBandPayload(raw string) string {
+	var payload strings.Builder
+	for _, frame := range strings.Split(raw, "\x1b_G")[1:] {
+		frame, _, _ = strings.Cut(frame, "\x1b\\")
+		_, data, ok := strings.Cut(frame, ";")
+		if ok {
+			payload.WriteString(data)
+		}
+	}
+	return payload.String()
+}

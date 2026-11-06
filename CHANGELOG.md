@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Fix host-painted TTY frame replacement, reconcile stale install geometry, retain sub-row pan input, and resize retained bands while new column geometry is painting. Initial plans now use automatic paint scale in the integration guide and example.
+
  * Add opt-in host-painted CSS viewports: atomic layout/first-band installation, cancellable revisioned paint requests, bounded band overlays, global hit-testing, and stable Kitty transport. Existing viewer APIs keep their behavior.
  * Add reusable `document.Painter` with bounded font caches and a y-bucketed display-operation index. See [the host integration contract](docs/host-painted.md) for ownership, worker scheduling, limits, and ntbrowser adoption.
 

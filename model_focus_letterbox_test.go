@@ -29,7 +29,7 @@ func TestFocusPatchLetterboxGeometry(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cells, pixels, cellSize := image.Pt(10, 5), image.Pt(100, 100), image.Pt(10, 20)
-			cr, page := focusBandCellsAndPage([]image.Rectangle{tc.region}, cells, pixels, tc.crop)
+			cr, page := focusBandCellsAndPage([]image.Rectangle{tc.region}, cells, pixels, tc.crop, false)
 			if page != tc.page || cr.Empty() {
 				t.Fatalf("cells %v page %v, want page %v", cr, page, tc.page)
 			}

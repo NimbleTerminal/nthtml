@@ -143,6 +143,8 @@ type PaintedResult struct {
 type hostPaintState struct {
 	revision, sequence uint64
 	plan               PaintPlan
+	presentedPlan      PaintPlan
+	presentedRevision  uint64
 	pending            *PaintRequest
 	cancel             context.CancelFunc
 	closed             bool
@@ -189,7 +191,13 @@ func (m *Model) SetPaintedResult(frame PaintedResult, keepView bool) (tea.Cmd, e
 		m.reflowTTY()
 		return nil, nil
 	}
-	return m.presentPainted(true, true), nil
+	present := m.presentPainted(true, true)
+	v := m.PaintViewport()
+	p := frame.Plan
+	if p.Cols != v.Cols || p.Rows != min(v.Rows, p.BandRows) || p.CellWidth != v.CellWidth || p.CellHeight != v.CellHeight {
+		return tea.Batch(present, m.paintViewport(true)), nil
+	}
+	return present, nil
 }
 
 func validatePaint(result *document.Result, p PaintPlan, img *image.RGBA) error {
@@ -259,7 +267,13 @@ func (m *Model) paintViewport(overlays bool) tea.Cmd {
 		m.err = err
 		return nil
 	}
-	m.x, m.y = plan.Viewport.Min.X, plan.Viewport.Min.Y
+	// Keep sub-row input in the desired origin; only presentation snaps to rows.
+	b := m.result.Bounds()
+	m.x = max(b.Min.X, min(m.x, b.Max.X-plan.Area.Dx()))
+	rowHeight := float64(plan.Area.Dx()) * float64(plan.CellHeight) / float64(plan.Cols*plan.CellWidth)
+	lastRow := max(0, int(math.Ceil(float64(b.Dy())/rowHeight))-plan.Rows)
+	lastOrigin := b.Min.Y + int(math.Ceil(float64(lastRow)*rowHeight))
+	m.y = max(b.Min.Y, min(m.y, lastOrigin))
 	current := h.plan
 	if plan.Viewport.In(current.Area) && plan.Area.Dx() == current.Area.Dx() && plan.Area.Min.X == current.Area.Min.X && plan.Scale <= current.Scale && plan.Cols == current.Cols && plan.CellWidth == current.CellWidth && plan.CellHeight == current.CellHeight && plan.ZoomSteps == current.ZoomSteps {
 		m.cancelPaint()
@@ -341,10 +355,17 @@ func (m *Model) paintedOverlay(includeFocus bool) image.Image {
 func (m *Model) presentPainted(force, overlays bool) tea.Cmd {
 	h := m.hostPaint
 	p := h.plan
+	// Resize the retained band immediately, even while a new paint is pending.
+	// Keep its CSS extent and map hits through this actual presentation grid.
+	p.Cols = m.cols
+	p.Viewport = p.viewport()
+	force = force || h.presentedRevision != h.revision
+	resize := h.presentedPlan.Cols != p.Cols || h.presentedPlan.BandRows != p.BandRows
+	h.presentedRevision, h.presentedPlan = h.revision, p
 	m.bandCols, m.bandRows = p.Cols, p.BandRows
 	m.pic.SetViewport(ntpicture.Viewport{X: 0, Y: p.RowOffset, Width: p.Cols, Height: p.Rows})
 	var imageCmd, sizeCmd tea.Cmd
-	if force {
+	if force || resize {
 		sizeCmd = m.pic.SetSize(p.Cols, p.BandRows)
 	}
 	wantOverlay := m.hasSearchOrSelectionOverlay() || !m.hostKitty() && len(m.focusRegions()) > 0

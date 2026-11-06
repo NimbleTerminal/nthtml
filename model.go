@@ -347,6 +347,9 @@ func (m *Model) SetLayoutMode(mode LayoutMode) tea.Cmd {
 	}
 	if mode == LayoutTypeset {
 		m.resetTextLayout()
+		if m.hostPaint != nil && m.source != nil {
+			return tea.Batch(m.SetVisible(true), m.presentPainted(false, true), m.paintViewport(true))
+		}
 		return tea.Batch(m.SetVisible(true), m.showLinkFocus())
 	}
 	return tea.Batch(m.SetVisible(false), m.refreshHighlights())
@@ -437,7 +440,11 @@ func (m *Model) SetSize(cols, rows int) tea.Cmd {
 			m.reflowTTY()
 			return nil
 		}
-		return m.paintViewport(true)
+		var resize tea.Cmd
+		if m.source != nil && m.hostPaint.presentedPlan.Cols != m.cols {
+			resize = m.presentPainted(false, true)
+		}
+		return tea.Batch(resize, m.paintViewport(true))
 	}
 	var cropCmd, sizeCmd tea.Cmd
 	if !m.kittyViewportMode() {
