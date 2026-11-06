@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Simple styled cells</title>
+<style>
+body { background: white; color: black; }
+table { width: 700px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 16px; line-height: 40px; }
+td { vertical-align: top; border-style: solid; border-color: #203040; }
+.a, .b { padding: 6px 12px 10px 16px; border-width: 2px 4px 6px 8px; }
+.a { background: #d02030; text-align: left; }
+.b { background: #20b050; text-align: right; }
+.c, .d { padding: 5px; border-width: 3px; text-align: center; }
+.c { background: #3050d0; }
+.d { background: #d09020; }
+</style>
+<table><tbody>
+<tr><td class="a">M</td><td class="b">M</td></tr>
+<tr><td class="c">M</td><td class="d">M</td></tr>
+</tbody></table>

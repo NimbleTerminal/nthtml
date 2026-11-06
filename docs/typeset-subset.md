@@ -44,7 +44,7 @@ remain useful implementation details; they do not imply browser conformance.
 | Boxes | Normal block flow, CSS width/min/max sizing and box sizing, solid backgrounds, per-side solid borders, padding, nonnegative margins | Section decoration is translated. Margins are additive, not CSS-collapsed; width/box sizing and inherited-versus-noninherited values need independent geometry coverage. |
 | Images | Explicitly supplied local images, alt fallback, intrinsic/aspect-ratio sizing, explicit dimensions, image-only lines and linked images | Bare image-only runs between blocks now preserve the asset. Mixed inline images become alt text. The fix does not establish replaced-element baseline or used-size conformance; linked-image styles also need auditing. |
 | Lists | Ordered/unordered lists, numbering and markers, nested lists | Reading-order list extraction exists; indentation, marker geometry and spacing require browser comparisons. |
-| Tables | Simple rectangular tables without spans, cell content and author foreground/background/border styling | nttypeset uses content-weighted columns and default header fill/row rules. This is a layout gap, not conformant table CSS. |
+| Tables | Simple rectangular tables without spans, cell content and author foreground/background/border styling | Supported simple top-aligned, zero-spacing tables carry explicit cell styles through nttypeset v0.3.0. Other tables retain reading defaults; column sizing remains a layout gap. |
 | Identity | IDs, local fragments, external links, selection and logical copy text | Source maps and chunk ranges exist. Image-only paragraphs preserve their paragraph, link and image IDs, with regression coverage for reflow, chunk ranges, hidden/duplicate IDs and alt fallback. Test chunk eviction and composed-document fragment jumps; do not reuse chunk-local coordinates globally. |
 | Hidden content | `display:none` and documented HTML hidden behavior | Hidden subtrees are omitted, including image-only paragraphs and their enclosing links. Complete/chunked regression tests and an authored Chromium image-pixel probe cover this shortcut. Preserve visible anchor placeholders only under the existing documented adapter contract. |
 
@@ -143,13 +143,23 @@ made bold merely because of its group. Complete/chunked tests and an independent
 Chromium computed-style probe cover these cases and inline overrides. Header
 identity remains separate from font weight.
 
-Cell padding, alignment, backgrounds and per-side borders cannot yet be passed
-through the shared table model: `nttypeset.Block.Rows` contains only spans.
-Its layout supplies fixed 12px horizontal/10px vertical insets, a first-row fill
-and row rules. The next substantive table step needs bounded opt-in per-cell
-style metadata in nttypeset, preserving its existing defaults for other callers,
-then nthtml translation and independent geometry/pixel tests. Do not simulate
-those styles by flattening simple tables or painting over the shared renderer.
+nthtml now pins published nttypeset v0.3.0 and translates cell padding,
+backgrounds, per-side solid borders and physical horizontal alignment into its
+`Block.Table` model. Eligibility is deliberately restricted to rectangular tables
+without spans or nested block structure, separate borders with zero spacing,
+top-aligned cells, uniform font size, and transparent/opaque cell backgrounds.
+Empty cells and columns are retained, and a single supported row remains a table.
+Unsupported shapes/styles keep the existing permissive reading fallback; this is
+not a capability/error reporting API.
+
+The authored `table-cells.html` probe checks asymmetric padding/borders and four
+cell background dimensions against Chromium. Complete/chunked tests inspect the
+translated styles and validate the supported/fallback boundary. The probe uses
+fixed fixture dimensions; it does not establish general CSS column sizing or
+whole-page placement. Columns remain content-weighted, source mappings remain
+block-granular, and table-level borders, percentage sizing/padding, default cell
+metrics and empty-row height still need separate conformance work. No host
+renderer or Gloss dependency is changed.
 
 ## Recurring fix classes
 

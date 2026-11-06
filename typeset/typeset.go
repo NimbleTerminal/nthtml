@@ -286,6 +286,15 @@ func convertDocument(ctx context.Context, extracted *document.TypesetDocument, o
 			nb.Spans = convertSpans(b.Spans)
 		case document.BlockTable:
 			nb.Kind = nttypeset.KindTable
+			if b.Table != nil {
+				nb.Table = &nttypeset.TableFormat{Cells: make([][]nttypeset.CellFormat, len(b.Table.Cells))}
+				for r, row := range b.Table.Cells {
+					nb.Table.Cells[r] = make([]nttypeset.CellFormat, len(row))
+					for c, cell := range row {
+						nb.Table.Cells[r][c] = nttypeset.CellFormat{Padding: convertInsets(cell.Padding), Background: cell.Background, Top: convertBorder(cell.Top), Right: convertBorder(cell.Right), Bottom: convertBorder(cell.Bottom), Left: convertBorder(cell.Left), TextAlign: cell.TextAlign}
+					}
+				}
+			}
 			nb.Rows = make([][][]nttypeset.Span, len(b.Rows))
 			for r, row := range b.Rows {
 				nb.Rows[r] = make([][]nttypeset.Span, len(row))

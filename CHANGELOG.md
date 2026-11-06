@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+ * Preserve cell padding, backgrounds, solid borders and horizontal alignment for simple top-aligned, zero-spacing tables in complete/chunked typesetting, using nttypeset v0.3.0.
+
  * Respect CSS font weight in typeset table cells, including normal-weight headers and ordinary cells inside header groups.
 
  * Apply positive absolute `max-width` and `max-height` caps to typeset images while preserving their aspect ratio.

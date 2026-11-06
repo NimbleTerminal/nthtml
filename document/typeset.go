@@ -105,6 +105,18 @@ type Span struct {
 	Href                                       string
 }
 
+// CellFormat carries resolved styling for a supported simple table cell.
+type CellFormat struct {
+	Padding                  Insets
+	Background               color.RGBA
+	Top, Right, Bottom, Left SectionBorder
+	TextAlign                string
+}
+
+// TableFormat is present only for rectangular, top-aligned tables with separate
+// solid borders and zero border spacing. Other tables retain the reading fallback.
+type TableFormat struct{ Cells [][]CellFormat }
+
 // QuoteBar describes a vertical blockquote bar beside a block.
 type QuoteBar struct {
 	Indent int
@@ -121,6 +133,7 @@ type StyledBlock struct {
 	Language, Code          string
 	Spans                   []Span
 	Rows                    [][][]Span
+	Table                   *TableFormat
 	Quotes                  []QuoteBar
 	ImageKey, ImageAlign    string
 	Image                   image.Image
@@ -1488,7 +1501,9 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 	if tableHasNestedStructure(n, w.d, s) {
 		return w.extractLayoutTable(n, s, indent, availW, id, parentID, margin, pad)
 	}
-	var rows [][][]Span
+	var rows, allRows [][][]Span
+	var cellStyles [][]CellFormat
+	styled := !s.collapse && s.spacing == ([2]int{})
 	var innerIDs []string
 	hasHeader := false
 	var uniformCellBg color.RGBA
@@ -1502,6 +1517,7 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 			innerIDs = append(innerIDs, rid)
 		}
 		var cells [][]Span
+		var formats []CellFormat
 		rowHasSpans := false
 		for _, cell := range tr.children {
 			if cell.tag != "td" && cell.tag != "th" {
@@ -1529,6 +1545,24 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 			} else if uniformCellBg != cellBg {
 				allCellsSameBg = false
 			}
+			if spanValue(cell.attrs["colspan"], false) != 1 || spanValue(cell.attrs["rowspan"], true) != 1 || cs.vertical != "top" || cs.size != s.size || (cellBg.A != 0 && cellBg.A != 255) {
+				styled = false
+			}
+			for side, edge := range cs.bw {
+				if edge > 0 && cs.borderStyle[side] != "solid" {
+					styled = false
+				}
+			}
+			align := cs.align
+			switch align {
+			case "", "left", "center", "right":
+			default:
+				styled = false
+				align = ""
+			}
+			padding := resolveEdges(cs.padding, availW)
+			top, right, bottom, left := sectionBorders(cs)
+			formats = append(formats, CellFormat{Padding: Insets{Top: padding[0], Right: padding[1], Bottom: padding[2], Left: padding[3]}, Background: cellBg, Top: top, Right: right, Bottom: bottom, Left: left, TextAlign: align})
 			spans, inlIDs := w.inlineSpansWithIDs(cell, cs)
 			innerIDs = append(innerIDs, inlIDs...)
 			if len(spans) > 0 {
@@ -1539,6 +1573,10 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 			for k := 1; k < colSpan; k++ {
 				cells = append(cells, nil)
 			}
+		}
+		if len(cells) > 0 {
+			allRows = append(allRows, cells)
+			cellStyles = append(cellStyles, formats)
 		}
 		if rowHasSpans {
 			rows = append(rows, cells)
@@ -1572,9 +1610,25 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 			}
 		}
 	}
+	var tableFormat *TableFormat
+	if styled && len(allRows) > 0 {
+		cols := len(allRows[0])
+		for i, row := range allRows {
+			if len(row) != cols || len(cellStyles[i]) != cols {
+				styled = false
+			}
+		}
+		if styled {
+			if cols > maxStyledBlocks/len(allRows) {
+				return limitError("typeset table cells")
+			}
+			tableFormat = &TableFormat{Cells: cellStyles}
+			rows = allRows
+		}
+	}
 	hasMarginTop, hasMarginBottom, hasPadding, hasBg := hasExplicitBoxDecl(n)
 	tableBg := s.bg
-	if tableBg.A == 0 && sawAnyCell && allCellsSameBg && uniformCellBg.A != 0 {
+	if tableFormat == nil && tableBg.A == 0 && sawAnyCell && allCellsSameBg && uniformCellBg.A != 0 {
 		tableBg = uniformCellBg
 		hasBg = true
 	}
@@ -1599,7 +1653,7 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 	for _, r := range rows {
 		maxCols = max(maxCols, len(r))
 	}
-	if maxCols > 1 {
+	if tableFormat == nil && maxCols > 1 {
 		var kept []int
 		for c := 0; c < maxCols; c++ {
 			for _, r := range rows {
@@ -1622,8 +1676,11 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 		}
 	}
 	var fmt *BlockFormat
-	if hasMarginTop || hasMarginBottom || hasPadding || hasBg || s.lineMode != 0 {
+	if tableFormat != nil || hasMarginTop || hasMarginBottom || hasPadding || hasBg || s.lineMode != 0 {
 		spaceBefore, spaceAfter := 8, 8
+		if tableFormat != nil {
+			spaceBefore, spaceAfter = 0, 0
+		}
 		if hasMarginTop {
 			spaceBefore = max(0, margin[0])
 		}
@@ -1641,7 +1698,7 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 	tableStyle := s
 	tableStyle.bw = [4]int{}
 	tableStyle.bg = tableBg
-	if len(rows) == 1 && !hasHeader {
+	if tableFormat == nil && len(rows) == 1 && !hasHeader {
 		var merged []Span
 		for _, cell := range rows[0] {
 			if len(cell) == 0 {
@@ -1672,6 +1729,7 @@ func (w *blockExtractor) extractTable(n *node, s style, indent, availW int, id, 
 		Size:   max(1, s.size),
 		Indent: indent,
 		Rows:   rows,
+		Table:  tableFormat,
 		Format: fmt,
 	}); err != nil {
 		return err

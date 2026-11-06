@@ -52,6 +52,12 @@ other images, and `nimbleterminal.dev/nthtml/typeset` bridges parsed documents
 (or rendered boxes) directly into `nttypeset.Document` with nested section
 decorations and source anchor mappings.
 
+The parsed-document bridge preserves per-cell padding, opaque backgrounds, solid
+borders and left/center/right alignment on rectangular, top-aligned tables with
+separate borders and zero border spacing, using nttypeset v0.3.0. Other table
+forms retain the reading fallback. This is a bounded styling subset, not browser
+table sizing; see [the conformance scope](docs/typeset-subset.md).
+
 ## Task runner
 
 A `Taskfile.yml` follows the neighboring Nimble Terminal projects. With Go Task
