@@ -339,9 +339,14 @@ func (w *blockExtractor) wrapLeaf(idx int, id, parentID string, s style, margin 
 			Bottom:      bottom,
 			Left:        left,
 		})
+		// The section owns the box's margins, padding and background. Always
+		// suppress kind defaults inside it, even when no other box property
+		// was declared; an explicit padding:0 must not change the layout.
+		lineHeight := s.line
 		if w.blocks[idx].Format != nil {
-			w.blocks[idx].Format = &BlockFormat{LineHeight: w.blocks[idx].Format.LineHeight}
+			lineHeight = w.blocks[idx].Format.LineHeight
 		}
+		w.blocks[idx].Format = &BlockFormat{LineHeight: lineHeight}
 		if id != "" {
 			w.blocks[idx].SectionID = id
 		}
@@ -705,7 +710,7 @@ func (w *blockExtractor) walk(n *node, parent style, indent, availW int) error {
 		code := strings.TrimSuffix(strings.TrimPrefix(collectRawText(n), "\n"), "\n")
 		lang := codeLanguage(n)
 		var fmt *BlockFormat
-		if hasPadding || hasBg || s.hasBorder() || s.lineMode != 0 {
+		if hasMarginTop || hasMarginBottom || hasPadding || hasBg || s.hasBorder() || s.lineMode != 0 {
 			fmt = &BlockFormat{
 				LineHeight:  s.line,
 				SpaceBefore: max(0, margin[0]),
@@ -902,7 +907,7 @@ func (w *blockExtractor) walkContainer(n *node, s style, indent, availW int, id,
 
 func (w *blockExtractor) extractList(n *node, s style, indent, availW int, id, parentID string, margin [4]int, pad Insets) error {
 	hasMarginTop, hasMarginBottom, hasPadding, hasBg := hasExplicitBoxDecl(n)
-	wantSection := id != "" || s.hasBorder() || hasPadding || hasBg
+	wantSection := id != "" || s.hasBorder() || hasPadding || hasBg || hasMarginTop || hasMarginBottom
 	startList := len(w.blocks)
 	secIdx := -1
 	if wantSection && w.sectionDepth < 64 && len(w.sections) < maxStyledBlocks {
@@ -967,12 +972,13 @@ func (w *blockExtractor) extractList(n *node, s style, indent, availW int, id, p
 			if len(spans) > 0 {
 				liMargin, liPad := resolveEdges(cs.margin, availW), resolveEdges(cs.padding, availW)
 				liPadInsets := Insets{Top: liPad[0], Right: liPad[1], Bottom: liPad[2], Left: liPad[3]}
+				liTop, liBottom, liPadding, liBackground := hasExplicitBoxDecl(c)
 				var liFmt *BlockFormat
-				if cs.lineMode != 0 || liPadInsets != (Insets{}) || cs.bg.A != 0 {
+				if liTop || liBottom || liPadding || liBackground || cs.lineMode != 0 || liPadInsets != (Insets{}) || cs.bg.A != 0 {
 					liFmt = &BlockFormat{
 						LineHeight:  cs.line,
 						SpaceBefore: max(0, liMargin[0]),
-						SpaceAfter:  max(4, liMargin[2]),
+						SpaceAfter:  max(0, liMargin[2]),
 						Padding:     liPadInsets,
 						Background:  cs.bg,
 					}

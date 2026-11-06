@@ -88,6 +88,38 @@ height to at least the shaped font's ascent plus descent. Zero/tight line height
 mixed inline font sizes and browser-equivalent baseline placement require shared
 layout changes. The supported spacing tests use heights above that minimum.
 
+### Composed box styling probe
+
+The authored `internal/conformance/testdata/authored/callout-boxes.html` fixture
+combines nested heading, paragraph and preformatted blocks, asymmetric padding,
+per-side solid borders and distinct backgrounds. Bordered leaf blocks now leave
+box spacing/decoration to their enclosing section and suppress reading defaults
+inside it. Complete/chunked raster tests verify border/background paint, padding
+ownership and absence of background/padding inheritance.
+
+An independent Chromium check confirms that adding the default `padding:0` to
+its bordered heading/paragraph changes no pixels; the adapter must satisfy the
+same equivalence. This is a focused property test, **not** a claim that the whole
+callout matches Chromium's geometry or fonts. Default margins, collapsed margins,
+width constraints, empty boxes and browser-equivalent chunk fragmentation remain
+separate work. The next useful steps are shared width/image sizing semantics and simple table
+styling; the explicit spacing audit below covers a further adapter gap.
+
+### Explicit vertical spacing
+
+Explicit top/bottom margins now survive extraction for preformatted blocks,
+list containers without IDs/decoration, and simple list items. Zero and small
+list-item bottom margins are no longer replaced with a four-pixel minimum.
+Complete/chunked conversion tests cover longhands and zero-margin shorthand.
+Chromium pixel probes independently check that adding 20px of top/bottom margin
+moves the appropriate text by 20px when collapse is prevented by parent padding
+and adjacent margins are zero.
+
+This verifies explicit spacing, not general CSS margin layout. Margins still
+add rather than collapse; horizontal/auto and negative margins, complex list
+items containing blocks, and default list indentation/markers remain outside
+this change. Width/image sizing is the next planned step.
+
 ## Recurring fix classes
 
 Use these groups to choose small, independently testable changes:

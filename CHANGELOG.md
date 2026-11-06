@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+ * Preserve explicit vertical margins on typeset preformatted blocks, list containers and simple list items, including zero and sub-four-pixel item margins.
+
+ * Remove extra reading-mode spacing inside bordered typeset headings and paragraphs; explicit zero padding no longer changes their layout.
+
  * Keep uncolored typeset headings in the text color, preserve inherited heading line heights, and honor explicit/inherited line spacing in preformatted blocks.
 
  * Honor CSS font-weight on typeset headings and their inline children instead of forcing every heading run bold.
