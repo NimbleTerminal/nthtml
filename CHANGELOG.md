@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Evaluate width media ranges (`width >= 1012px`, reversed comparisons and
+  same-direction chained bounds) with fractional breakpoints. Restore desktop
+  horizontal headers and closed mobile menus; malformed/unsupported ranges
+  remain nonmatching, including under negation.
+
 - Reuse intrinsic widths within each layout using a 2,048-entry cache keyed
   by node, basis and style; retain the existing measurement-work ceiling.
 

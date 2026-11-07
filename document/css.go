@@ -1715,7 +1715,7 @@ func evalMediaFeature(expr string, width int, scheme string) (bool, bool) {
 	inner := strings.TrimSpace(expr[1 : len(expr)-1])
 	name, valStr, ok := strings.Cut(inner, ":")
 	if !ok {
-		return false, false
+		return evalMediaWidthRange(inner, width)
 	}
 	name = strings.ToLower(strings.TrimSpace(name))
 	valStr = strings.TrimSpace(valStr)
