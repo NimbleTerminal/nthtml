@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Match escaped CSS class/ID identifiers, including Tailwind arbitrary-value
+  classes, with bounded Unicode escape decoding and escape-aware rule scanning.
+- Preserve nested flex/grid layouts when blockifying flex and grid items, fixing
+  rows whose labels and links should be separated by `justify-content`.
+- Paint rounded block backgrounds and uniform solid borders with `border-radius`
+  shorthand/longhands, elliptical/percentage radii, and viewport-local masks.
+  Curved nonuniform/dashed borders and rounded descendant clipping remain outside
+  the supported subset. Add a colored-row fixture and pixel/cascade/band tests.
+
 ## v0.5.0 (2026-11-06)
 
 This release improves CSS style and content preservation in the shared

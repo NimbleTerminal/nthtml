@@ -3,6 +3,7 @@ package document
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 func importance(v string) (string, bool) {
@@ -178,23 +179,23 @@ func parseCompoundPart(s string, part *selectorPart, allowPseudoElem bool, depth
 			prefix = s[0]
 			s = s[1:]
 		}
-		end := 0
-		if len(s) > 0 && s[0] == '*' && prefix == 0 {
-			end = 1
-		} else {
-			for end < len(s) && identByte(s[end]) {
-				end++
-			}
+		term, end, valid := cssIdentifier(s)
+		universal := len(s) > 0 && s[0] == '*' && prefix == 0
+		if universal {
+			term, end, valid = "*", 1, true
 		}
-		if end == 0 || (s[0] != '*' && !identStart(s[:end])) || (prefix == 0 && (hasTag || len(part.terms) > 0 || len(part.attrs) > 0 || len(part.pseudos) > 0)) {
+		if !valid || (prefix == 0 && (hasTag || len(part.terms) > 0 || len(part.attrs) > 0 || len(part.pseudos) > 0)) {
 			return 0, 0, "", "", false
 		}
-		term := s[:end]
 		s = s[end:]
+
 		if prefix != 0 {
 			term = string(prefix) + term
 		} else {
 			hasTag = true
+			if !universal {
+				term = "\x00" + term
+			}
 		}
 		part.terms = append(part.terms, term)
 		terms++
@@ -813,7 +814,7 @@ func (p selectorPart) matches(n *node) bool {
 				return false
 			}
 		default:
-			if !strings.EqualFold(n.tag, term) {
+			if !strings.EqualFold(n.tag, strings.TrimPrefix(term, "\x00")) {
 				return false
 			}
 		}
@@ -931,4 +932,68 @@ func identStart(s string) bool {
 		}
 	}
 	return len(s) > 0 && (s[0] == '_' || s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z')
+}
+
+// cssIdentifier consumes CSS escapes before interpreting selector punctuation.
+// Its input is already bounded by the selector's 1024-byte budget.
+func cssIdentifier(s string) (string, int, bool) {
+	var out strings.Builder
+	i := 0
+	for i < len(s) {
+		c := s[i]
+		if c == '\\' {
+			r, n, ok := cssEscape(s[i:])
+			if !ok {
+				return "", 0, false
+			}
+			out.WriteRune(r)
+			i += n
+			continue
+		}
+		if !identByte(c) && c < 128 {
+			break
+		}
+		if i == 0 && c >= '0' && c <= '9' {
+			return "", 0, false
+		}
+		if i == 1 && s[0] == '-' && c >= '0' && c <= '9' {
+			return "", 0, false
+		}
+		r, n := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError && n == 1 {
+			return "", 0, false
+		}
+		out.WriteRune(r)
+		i += n
+	}
+	return out.String(), i, i > 0 && s[:i] != "-"
+}
+
+func cssEscape(s string) (rune, int, bool) {
+	if len(s) < 2 || s[0] != '\\' || s[1] == '\n' || s[1] == '\r' || s[1] == '\f' {
+		return 0, 0, false
+	}
+	i := 1
+	for i < len(s) && i <= 6 && ((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f') || (s[i] >= 'A' && s[i] <= 'F')) {
+		i++
+	}
+	if i > 1 {
+		v, _ := strconv.ParseUint(s[1:i], 16, 32)
+		if i < len(s) && cssSpace(rune(s[i])) {
+			if s[i] == '\r' && i+1 < len(s) && s[i+1] == '\n' {
+				i++
+			}
+			i++
+		}
+		r := rune(v)
+		if r == 0 || r > utf8.MaxRune || r >= 0xd800 && r <= 0xdfff {
+			r = utf8.RuneError
+		}
+		return r, i, true
+	}
+	r, n := utf8.DecodeRuneInString(s[1:])
+	if r == 0 {
+		r = utf8.RuneError
+	}
+	return r, 1 + n, true
 }

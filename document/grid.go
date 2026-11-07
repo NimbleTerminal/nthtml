@@ -373,7 +373,7 @@ func (l *layout) grid(n *node, cx, cy, cw, height int, s style) int {
 			l.queueAbsolute(c, cs, cx, cy)
 			continue
 		}
-		cs.display = "block"
+		cs.display = blockifiedDisplay(cs.display)
 		cs.floatSide = "none"
 		rawItems = append(rawItems, &gridItem{node: c, cs: cs})
 	}

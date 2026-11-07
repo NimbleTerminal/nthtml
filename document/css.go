@@ -27,6 +27,7 @@ type rule struct {
 	pseudo      string
 }
 type style struct {
+	radii                                      [4][2]cssLength
 	lineMode                                   uint8 // 0: document default; 1: absolute; 2: font-size multiplier
 	wordSpacing, letterSpacing                 int
 	zIndex                                     int
@@ -276,6 +277,10 @@ func containsVar(s string) bool {
 func expandVarDeclaration(k, v string, put func(string, string)) {
 	marker := "\x00" + k + ":" + v
 	switch k {
+	case "border-radius":
+		for _, name := range radiusNames {
+			put(name, marker)
+		}
 	case "font":
 		for _, sub := range []string{"font-family", "font-size", "font-style", "font-variant", "font-weight", "line-height"} {
 			put(sub, marker)
@@ -702,6 +707,10 @@ func declarations(s string) map[string]string {
 				}
 			case "word-wrap":
 				put("overflow-wrap", kw)
+			case "border-radius":
+				for _, name := range radiusNames {
+					put(name, kw)
+				}
 			case "background":
 				for _, sub := range []string{"background-color", "background-image", "background-size", "background-position", "background-repeat"} {
 					put(sub, kw)
@@ -711,6 +720,45 @@ func declarations(s string) map[string]string {
 			default:
 				put(k, kw)
 			}
+			continue
+		}
+		if k == "border-radius" {
+			_, ok := radiusValues(v, true)
+			if !ok {
+				continue
+			}
+			parts := strings.Split(v, "/")
+			a, _ := cssTokens(parts[0])
+			b := a
+			if len(parts) == 2 {
+				b, _ = cssTokens(parts[1])
+			}
+			expand := func(t []string) [4]string {
+				switch len(t) {
+				case 1:
+					return [4]string{t[0], t[0], t[0], t[0]}
+				case 2:
+					return [4]string{t[0], t[1], t[0], t[1]}
+				case 3:
+					return [4]string{t[0], t[1], t[2], t[1]}
+				default:
+					return [4]string{t[0], t[1], t[2], t[3]}
+				}
+			}
+			x, y := expand(a), expand(b)
+			for i, name := range radiusNames {
+				put(name, x[i]+" "+y[i])
+			}
+			continue
+		}
+		radiusInvalid := false
+		for _, name := range radiusNames {
+			if k == name {
+				_, ok := radiusValues(v, false)
+				radiusInvalid = !ok
+			}
+		}
+		if radiusInvalid {
 			continue
 		}
 		if k == "color" || k == "background-color" {
@@ -1307,6 +1355,15 @@ func splitSelectorList(s string) ([]string, bool) {
 			}
 			continue
 		}
+		if c == '\\' {
+			_, n, ok := cssEscape(s[i:])
+			if !ok {
+				return nil, false
+			}
+			i += n - 1
+			continue
+		}
+
 		switch c {
 		case '"', '\'':
 			quote = c
@@ -1353,6 +1410,15 @@ func scanPreludeEnd(s string) int {
 			}
 			continue
 		}
+		if c == '\\' {
+			_, n, ok := cssEscape(s[i:])
+			if !ok {
+				return -1
+			}
+			i += n - 1
+			continue
+		}
+
 		switch c {
 		case '"', '\'':
 			quote = c
@@ -1386,6 +1452,15 @@ func scanRuleOpenBrace(s string) int {
 			}
 			continue
 		}
+		if c == '\\' {
+			_, n, ok := cssEscape(s[i:])
+			if !ok {
+				return -1
+			}
+			i += n - 1
+			continue
+		}
+
 		switch c {
 		case '"', '\'':
 			quote = c
@@ -1425,6 +1500,15 @@ func findMatchingBrace(s string) int {
 			}
 			continue
 		}
+		if c == '\\' {
+			_, n, ok := cssEscape(s[i:])
+			if !ok {
+				return -1
+			}
+			i += n - 1
+			continue
+		}
+
 		switch c {
 		case '"', '\'':
 			quote = c
@@ -2221,6 +2305,21 @@ func (d *Document) styled(n *node, parent style) style {
 			}
 		case "color":
 			// Color resolves first so currentColor is independent of key order.
+		case "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius":
+			for i, name := range radiusNames {
+				if k != name {
+					continue
+				}
+				if kw == "inherit" {
+					s.radii[i] = parent.radii[i]
+				} else if kw == "initial" {
+					s.radii[i] = [2]cssLength{}
+				} else if v, ok := radiusValues(v, false); ok {
+					for j := range 2 {
+						s.radii[i][j] = s.computeLen(v[0][j])
+					}
+				}
+			}
 		case "background-color":
 			if kw == "inherit" {
 				s.bg = parent.bg

@@ -106,6 +106,9 @@ func textInk(face font.Face, b Box) image.Rectangle {
 }
 
 func (b *Box) translate(delta image.Point) {
+	if !b.roundInner.Empty() {
+		b.roundInner = b.roundInner.Add(delta)
+	}
 	b.Bounds = b.Bounds.Add(delta)
 	if !b.InkBounds.Empty() {
 		b.InkBounds = b.InkBounds.Add(delta)

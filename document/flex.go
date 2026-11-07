@@ -60,7 +60,7 @@ func (l *layout) flex(n *node, cx, cy, cw, height int, s style) int {
 			l.queueAbsolute(c, cs, cx, cy)
 			continue
 		}
-		cs.display = "block"
+		cs.display = blockifiedDisplay(cs.display)
 		cs.floatSide = "none"
 		items = append(items, &flexItem{node: c, cs: cs})
 	}
@@ -352,4 +352,17 @@ func justifyOffsets(mode string, spare, count int) (int, int) {
 		return step, step
 	}
 	return 0, 0
+}
+
+// Flex and grid items establish block-level outer boxes, but keep their inner
+// layout mode. Flattening a nested flex/grid container loses its child layout.
+func blockifiedDisplay(display string) string {
+	switch display {
+	case "flex", "inline-flex":
+		return "flex"
+	case "grid", "inline-grid":
+		return "grid"
+	default:
+		return "block"
+	}
 }

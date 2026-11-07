@@ -93,6 +93,22 @@ func (l *layout) paint(dst *image.RGBA, ops []operation, area image.Rectangle, s
 			}
 			opDst = dst.SubImage(sub).(*image.RGBA)
 		}
+		if b.radii != ([4][2]float64{}) && b.Text == "" {
+			dr := rect(b.Bounds).Intersect(opDst.Bounds())
+			if dr.Empty() {
+				continue
+			}
+			mask := roundedMask{b: b, area: area, scale: scale, bounds: dr}
+			if b.Color.A > 0 {
+				draw.DrawMask(opDst, dr, image.NewUniform(b.Color), image.Point{}, mask, dr.Min, draw.Over)
+			}
+			if op.source != nil {
+				tmp := image.NewRGBA(dr)
+				xdraw.ApproxBiLinear.Scale(tmp, rect(b.Bounds), op.source, op.source.Bounds(), draw.Src, nil)
+				draw.DrawMask(opDst, dr, tmp, dr.Min, mask, dr.Min, draw.Over)
+			}
+			continue
+		}
 		switch {
 		case op.source != nil:
 			if b.Color.A > 0 {

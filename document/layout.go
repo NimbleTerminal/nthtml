@@ -15,7 +15,9 @@ import (
 // Box describes a painted rectangle or text run in document pixel coordinates.
 // Text and bounds can also be consumed by a host's text renderer (e.g. nttypeset).
 type Box struct {
-	Bounds, Clip image.Rectangle
+	radii, innerRadii [4][2]float64
+	roundInner        image.Rectangle
+	Bounds, Clip      image.Rectangle
 	// Baseline is the font baseline offset from Bounds.Min.Y. InkBounds encloses visible glyph overflow.
 	Baseline, WordSpacing, LetterSpacing int
 	InkBounds                            image.Rectangle
@@ -632,7 +634,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		if srcID == "" {
 			srcID = l.activeSource
 		}
-		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchor, SourceID: srcID, Color: bg, LinkID: s.linkID}
+		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchor, SourceID: srcID, Color: bg, LinkID: s.linkID, radii: s.rounded(image.Rect(x, start, x+w, cy))}
 		if !s.hidden && s.bgImage != "" && s.bgImage != "none" {
 			l.ops[opStart].source = l.renderBackgroundImage(w, cy-start, s)
 		}
@@ -680,6 +682,24 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 
 func (l *layout) paintBorders(r image.Rectangle, s style) {
 	if !s.hasBorder() || r.Empty() {
+		return
+	}
+	radii := s.rounded(r)
+	uniform := true
+	for i := range 4 {
+		if s.bw[i] != s.bw[0] || s.borderColor(i) != s.borderColor(0) || s.borderStyle[i] != "solid" {
+			uniform = false
+		}
+	}
+	if radii != ([4][2]float64{}) && uniform {
+		inner := r.Inset(s.bw[0])
+		ir := radii
+		for i := range 4 {
+			for j := range 2 {
+				ir[i][j] = max(0, ir[i][j]-float64(s.bw[0]))
+			}
+		}
+		l.add(Box{Bounds: r, Color: s.borderColor(0), Tag: "border", radii: radii, roundInner: inner, innerRadii: ir}, nil)
 		return
 	}
 	bTop, bBottom := s.bw[0], s.bw[2]

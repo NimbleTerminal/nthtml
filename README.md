@@ -480,6 +480,20 @@ concurrently. `Options.FontFamilies` (`Default`, `Serif`, `SansSerif`,
 `Options.Colors` (`Background`, `Text`, `Link`) supplies fallback theme colors
 when a page sets neither text nor background colors of its own.
 
+
+CSS selector identifiers accept escaped punctuation and hexadecimal Unicode escapes,
+including Tailwind classes such as `bg-[var(--key)]`. Nested flex/grid items retain
+their inner layout mode.
+
+The CSS painter supports `border-radius` and its four corner longhands on block
+background colors/images and uniform solid borders: lengths, percentages,
+elliptical radii, custom properties, and proportional reduction of overlapping
+corners. Painting remains viewport-local. Rounded clipping of descendants and
+replaced content, ordinary inline fragments, table-specific corner rules, and
+curved dashed/dotted or nonuniform borders are not implemented; those paths keep
+the existing rectangular behavior. TTY and the nttypeset reading adapter do not
+paint rounded boxes.
+
 ## Resource limits
 
 Defaults (`DefaultLimits`): 1 MiB input, 10,000 nodes, depth 64, 256 CSS rules,
