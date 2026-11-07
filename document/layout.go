@@ -67,6 +67,8 @@ type layout struct {
 	diagramCount, diagramPixels int
 	warnings                    []string
 	tableWork                   int
+	intrinsic                   map[intrinsicKey][]intrinsicEntry
+	intrinsicCount              int
 	marginWork                  int
 	ctx                         context.Context
 	d                           *Document
@@ -462,6 +464,10 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			}
 		}
 		w = used
+	} else if s.display == "flex" || s.display == "inline-flex" {
+		cy = l.flex(n, cx, cy, cw, height, s)
+	} else if s.display == "grid" || s.display == "inline-grid" {
+		cy = l.grid(n, cx, cy, cw, height, s)
 	} else if n.tag == "ul" || n.tag == "ol" {
 		index := listStart(n)
 		step := listStep(n)
@@ -493,10 +499,6 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 			}
 			cy = max(cy, markerY+s.line)
 		}
-	} else if s.display == "flex" || s.display == "inline-flex" {
-		cy = l.flex(n, cx, cy, cw, height, s)
-	} else if s.display == "grid" || s.display == "inline-grid" {
-		cy = l.grid(n, cx, cy, cw, height, s)
 	} else if n.tag == "img" {
 		src := l.opts.Images[n.attrs["src"]]
 		if src != nil && !src.Bounds().Empty() {

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Reuse intrinsic widths within each layout using a 2,048-entry cache keyed
+  by node, basis and style; retain the existing measurement-work ceiling.
+
+- Honor flex/grid display on list containers instead of forcing vertical list
+  layout, restoring horizontal component navigation.
+
+- Parse bounded CSS cascade layers with document-wide named/anonymous/nested
+  ordering, conditional media ordering, reversed important precedence and
+  inline-style priority. Preserve rule/work gates; cap layers at 256 and layer
+  declarations at 4,096. Raise the opt-in maximum rule count to 32,768 to admit
+  large component stylesheets whose layer blocks were previously skipped.
+
 - Exclude CSS visibility-hidden boxes from link/source hits, keyboard link
   regions and text search; retain visible descendants and transparent links.
   Clip link hit and focus regions to overflow bounds.

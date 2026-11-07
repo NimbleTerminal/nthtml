@@ -20,6 +20,7 @@ const (
 )
 
 type rule struct {
+	layer       *cssLayer
 	selector    selector
 	decl        map[string]string
 	media       []string
@@ -1232,11 +1233,16 @@ func resolveContent(v string) (string, bool) {
 
 // parseCSS parses style rules and bounded @media blocks from s, counting all
 // parsed rules against budget. Statement at-rules (@import, @charset,
-// @namespace) are skipped up to ';'. Block at-rules other than @media
-// (@font-face, @keyframes, @supports, @layer, @page, and unknown block
+// @namespace) are skipped up to ';'. Cascade layers preserve document-wide
+// order. Block at-rules other than @media and @layer
+// (@font-face, @keyframes, @supports, @page, and unknown block
 // at-rules) are skipped with brace matching; @supports bodies are skipped,
 // not evaluated.
 func parseCSS(s string, budget int) ([]rule, error) {
+	return parseCSSLayers(s, budget, &cssLayers{})
+}
+
+func parseCSSLayers(s string, budget int, layers *cssLayers) ([]rule, error) {
 	for {
 		a := strings.Index(s, "/*")
 		if a < 0 {
@@ -1250,13 +1256,13 @@ func parseCSS(s string, budget int) ([]rule, error) {
 		s = s[:a] + s[a+2+b+2:]
 	}
 	var out []rule
-	if err := parseCSSBlock(s, nil, 0, &out, budget); err != nil {
+	if err := parseCSSBlock(s, nil, 0, &out, budget, layers, nil); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func parseCSSBlock(s string, media []string, depth int, out *[]rule, budget int) error {
+func parseCSSBlock(s string, media []string, depth int, out *[]rule, budget int, layers *cssLayers, layer *cssLayer) error {
 	for {
 		s = strings.TrimLeftFunc(s, cssSpace)
 		if len(s) == 0 {
@@ -1268,6 +1274,23 @@ func parseCSSBlock(s string, media []string, depth int, out *[]rule, budget int)
 				break
 			}
 			if s[idx] == ';' {
+				prelude := strings.TrimSpace(s[1:idx])
+				if len(prelude) > 5 && strings.EqualFold(prelude[:5], "layer") && cssSpace(rune(prelude[5])) && len(prelude) <= maxMediaPreludeBytes {
+					names := strings.Split(strings.TrimSpace(prelude[5:]), ",")
+					valid := true
+					for i, name := range names {
+						var ok bool
+						names[i], ok = layerName(name)
+						valid = valid && ok
+					}
+					if valid {
+						for _, name := range names {
+							if _, err := layers.register(layer, name, media); err != nil {
+								return err
+							}
+						}
+					}
+				}
 				s = s[idx+1:]
 				continue
 			}
@@ -1284,7 +1307,23 @@ func parseCSSBlock(s string, media []string, depth int, out *[]rule, budget int)
 					nextMedia := make([]string, len(media)+1)
 					copy(nextMedia, media)
 					nextMedia[len(media)] = query
-					if err := parseCSSBlock(inner, nextMedia, depth+1, out, budget); err != nil {
+					if err := parseCSSBlock(inner, nextMedia, depth+1, out, budget, layers, layer); err != nil {
+						return err
+					}
+				}
+			}
+			if (strings.EqualFold(prelude, "layer") || len(prelude) > 5 && strings.EqualFold(prelude[:5], "layer") && cssSpace(rune(prelude[5]))) && depth < maxMediaDepth && len(prelude) <= maxMediaPreludeBytes {
+				name := strings.TrimSpace(prelude[5:])
+				valid := name == ""
+				if name != "" {
+					name, valid = layerName(name)
+				}
+				if valid {
+					next, err := layers.register(layer, name, media)
+					if err != nil {
+						return err
+					}
+					if err := parseCSSBlock(inner, media, depth+1, out, budget, layers, next); err != nil {
 						return err
 					}
 				}
@@ -1310,7 +1349,7 @@ func parseCSSBlock(s string, media []string, depth int, out *[]rule, budget int)
 				valid = false
 				break
 			}
-			group = append(group, rule{selector: compiled, media: media, specificity: sp, pseudo: pe})
+			group = append(group, rule{layer: layer, selector: compiled, media: media, specificity: sp, pseudo: pe})
 			if len(*out)+len(group) > budget {
 				return limitError("more CSS rules than the budget")
 			}
@@ -2793,7 +2832,7 @@ func (d *Document) cascadeCandidates(n *node, pseudo string, candidates []int) m
 			values["display"] = "block"
 		}
 	}
-	scores := map[string]int{}
+	scores := map[string]cascadeScore{}
 	w := d.cascadedWidth
 	if w <= 0 {
 		w = 800
@@ -2804,11 +2843,8 @@ func (d *Document) cascadeCandidates(n *node, pseudo string, candidates []int) m
 		if r.pseudo == pseudo && r.matchesMedia(w, scheme) && r.selector.matches(n) {
 			for k, v := range r.decl {
 				v, important := importance(v)
-				score := r.specificity
-				if important {
-					score += 1 << 30
-				}
-				if sc, ok := scores[k]; !ok || score >= sc {
+				score := cascadeScore{important: important, layer: d.layerOrder[r.layer], specificity: r.specificity}
+				if sc, ok := scores[k]; !ok || score.atLeast(sc) {
 					values[k] = v
 					scores[k] = score
 				}
@@ -2818,11 +2854,8 @@ func (d *Document) cascadeCandidates(n *node, pseudo string, candidates []int) m
 	if pseudo == "" {
 		for k, v := range declarations(n.attrs["style"]) {
 			v, important := importance(v)
-			score := 1 << 29
-			if important {
-				score += 1 << 30
-			}
-			if score >= scores[k] {
+			score := cascadeScore{important: important, inline: true}
+			if sc, ok := scores[k]; !ok || score.atLeast(sc) {
 				values[k] = v
 			}
 		}

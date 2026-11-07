@@ -1,6 +1,7 @@
 package document
 
 import (
+	"reflect"
 	"strings"
 	"unicode"
 )
@@ -8,7 +9,37 @@ import (
 // Intrinsic widths track unbroken words across inline nodes and the longest
 // explicit line, rather than summing unrelated paragraphs. Both are capped
 // at the renderer's maximum width; traversal shares the table work budget.
-func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
+type intrinsicKey struct {
+	node  *node
+	basis int
+}
+type intrinsicEntry struct {
+	style              style
+	minimum, preferred int
+}
+
+func (l *layout) preferredCell(n *node, s style, basis int) (minimum, preferred int) {
+	if !l.tableStep() {
+		return 0, 0
+	}
+	key := intrinsicKey{n, basis}
+	for _, entry := range l.intrinsic[key] {
+		if reflect.DeepEqual(entry.style, s) {
+			return entry.minimum, entry.preferred
+		}
+	}
+	minimum, preferred = l.measurePreferredCell(n, s, basis)
+	if l.err == nil && l.intrinsicCount < 2048 && len(l.intrinsic[key]) < 4 {
+		if l.intrinsic == nil {
+			l.intrinsic = map[intrinsicKey][]intrinsicEntry{}
+		}
+		l.intrinsic[key] = append(l.intrinsic[key], intrinsicEntry{s, minimum, preferred})
+		l.intrinsicCount++
+	}
+	return
+}
+
+func (l *layout) measurePreferredCell(n *node, s style, basis int) (int, int) {
 	s = l.controlSize(n, s)
 	line, word, minimum, preferred := 0, 0, 0, 0
 	pending, hasContent := false, false

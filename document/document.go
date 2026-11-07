@@ -38,7 +38,7 @@ var MaxLimits = Limits{
 	Bytes:        16 << 20,
 	Nodes:        200000,
 	Depth:        256,
-	Rules:        16384,
+	Rules:        32768,
 	Pixels:       64 << 20,
 	Height:       262144,
 	LayoutHeight: 1 << 20,
@@ -131,6 +131,8 @@ type Document struct {
 	root            *node
 	rules           []rule
 	ruleIndex       *ruleIndex
+	layers          *cssLayers
+	layerOrder      map[*cssLayer]*cssLayer
 	limits          Limits
 	hasAuthorColors bool
 	hasMedia        bool
@@ -313,6 +315,8 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 		}
 	}
 	d := &Document{root: root, limits: l}
+	layers := &cssLayers{}
+	d.layers = layers
 	var visit func(*node) error
 	visit = func(n *node) error {
 		if n.tag == "style" {
@@ -320,7 +324,7 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			for _, c := range n.children {
 				s.WriteString(c.text)
 			}
-			rs, e := parseCSS(s.String(), l.Rules-len(d.rules))
+			rs, e := parseCSSLayers(s.String(), l.Rules-len(d.rules), layers)
 			if e != nil {
 				return e
 			}
@@ -335,6 +339,11 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 	}
 	if err := visit(root); err != nil {
 		return nil, err
+	}
+	for _, event := range layers.events {
+		if len(event.media) > 0 {
+			d.hasMedia = true
+		}
 	}
 	d.nodeSeq = count
 	for _, r := range d.rules {
@@ -370,6 +379,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 	scheme = normalizeColorScheme(scheme)
 	d.cascadedWidth = width
 	d.cascadedScheme = scheme
+	d.layerOrder = d.layers.order(width, scheme)
 	d.hasAuthorColors = false
 	linkSiblings(d.root)
 	hasBefore, hasAfter, hasFirstLine := false, false, false
