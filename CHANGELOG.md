@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Exclude CSS visibility-hidden boxes from link/source hits, keyboard link
+  regions and text search; retain visible descendants and transparent links.
+  Clip link hit and focus regions to overflow bounds.
+
 - Retain up to 1,024 declarations per rule and 2,048 custom properties per
   computed environment so large theme blocks retain foreground colors.
 - Preserve decorative aria-hidden SVG fallback height without emitting labels.

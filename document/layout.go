@@ -29,6 +29,7 @@ type Box struct {
 	Italic, Underline, Strike            bool
 	Monospace                            bool
 	LinkID                               int
+	hidden                               bool
 	Color                                color.RGBA
 }
 type Result struct {
@@ -61,6 +62,7 @@ type layout struct {
 	canvasNode                  *node
 	canvasBg                    color.RGBA
 	activeSource                string
+	activeHidden                bool
 	absolute                    []absoluteBox
 	diagramCount, diagramPixels int
 	warnings                    []string
@@ -95,6 +97,7 @@ func (l *layout) pageHeightLimit() int {
 }
 
 func (l *layout) add(b Box, src image.Image) {
+	b.hidden = l.activeHidden
 	if l.err != nil {
 		return
 	}
@@ -282,12 +285,15 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 				result.Anchors[b.Anchor] = b.Bounds.Min
 			}
 		}
-		if i, ok := linkIndex[b.LinkID]; ok && b.LinkID != 0 {
+		if i, ok := linkIndex[b.LinkID]; ok && b.LinkID != 0 && !b.hidden {
 			region := b.Bounds
 			if region.Empty() {
 				region = b.InkBounds
 			}
 			region = region.Intersect(page)
+			if !b.Clip.Empty() {
+				region = region.Intersect(b.Clip)
+			}
 			if !region.Empty() {
 				appendLinkRegion(&links[i], region)
 			}
@@ -323,6 +329,9 @@ func (l *layout) block(n *node, x, y, w, parentHeight int, parent style) int {
 
 func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 	s = l.controlSize(n, s)
+	previousHidden := l.activeHidden
+	l.activeHidden = s.visibilityHidden
+	defer func() { l.activeHidden = previousHidden }()
 	if l.err != nil {
 		return y
 	}
@@ -634,7 +643,7 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 		if srcID == "" {
 			srcID = l.activeSource
 		}
-		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchor, SourceID: srcID, Color: bg, LinkID: s.linkID, radii: s.rounded(image.Rect(x, start, x+w, cy))}
+		l.ops[opStart].box = Box{Bounds: image.Rect(x, start, x+w, cy), Tag: n.tag, Anchor: anchor, SourceID: srcID, Color: bg, LinkID: s.linkID, hidden: s.visibilityHidden, radii: s.rounded(image.Rect(x, start, x+w, cy))}
 		if !s.hidden && s.bgImage != "" && s.bgImage != "none" {
 			l.ops[opStart].source = l.renderBackgroundImage(w, cy-start, s)
 		}
@@ -967,9 +976,13 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 			return
 		}
 		st, inlineBg := curContext(parentSpan)
+		previousHidden := l.activeHidden
+		l.activeHidden = st.visibilityHidden
+		defer func() { l.activeHidden = previousHidden }()
 		var computed style
 		if n.tag != "" {
 			computed = l.d.styled(n, st)
+			l.activeHidden = computed.visibilityHidden
 			if computed.display == "none" {
 				return
 			}

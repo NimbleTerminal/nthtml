@@ -167,7 +167,7 @@ func (r *Result) LinkAt(p image.Point) (Link, bool) {
 		// Positioned subtrees can overlap; hit-test link boxes in paint order.
 		for i := len(r.Boxes) - 1; i >= 0; i-- {
 			box := r.Boxes[i]
-			if box.LinkID == 0 || !p.In(box.Bounds) {
+			if box.hidden || box.LinkID == 0 || !p.In(box.Bounds) || (!box.Clip.Empty() && !p.In(box.Clip)) {
 				continue
 			}
 			for _, link := range r.Links {

@@ -64,6 +64,7 @@ type style struct {
 	display, align, family                     string
 	bold, italic, underline, strike, smallCaps bool
 	mono, pre, hidden, explicitFg              bool
+	visibilityHidden                           bool
 	linkID                                     int
 	lineMultiplier                             float64
 	vw, vh                                     int
@@ -1735,7 +1736,7 @@ func (d *Document) styled(n *node, parent style) style {
 	if vh <= 0 {
 		vh = 600
 	}
-	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, cellPadding: parent.cellPadding, hasCellPadding: parent.hasCellPadding, tableCellBorder: parent.tableCellBorder, centerBlock: parent.centerBlock, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.hidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "inline", vw: vw, vh: vh, opacity: parent.effectiveOpacity(), ownOpacity: 1, opacitySet: parent.opacitySet}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, cellPadding: parent.cellPadding, hasCellPadding: parent.hasCellPadding, tableCellBorder: parent.tableCellBorder, centerBlock: parent.centerBlock, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.visibilityHidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "inline", vw: vw, vh: vh, opacity: parent.effectiveOpacity(), ownOpacity: 1, opacitySet: parent.opacitySet}
 	fgInherited := true
 	rawBW := [4]int{3, 3, 3, 3}
 	if n.tag == "svg" {
@@ -2648,7 +2649,7 @@ func (d *Document) styled(n *node, parent style) style {
 			}
 		case "visibility":
 			if kw == "inherit" {
-				s.hidden = parent.hidden
+				s.hidden = parent.visibilityHidden
 			} else if kw == "initial" {
 				s.hidden = false
 			} else {
@@ -2709,6 +2710,7 @@ func (d *Document) styled(n *node, parent style) style {
 			}
 		}
 	}
+	s.visibilityHidden = s.hidden
 	if s.opacitySet {
 		eff := s.effectiveOpacity()
 		if eff <= 0 {

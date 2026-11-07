@@ -216,7 +216,7 @@ func (r *Result) SourceAt(p image.Point) (string, bool) {
 	}
 	for i := len(r.Boxes) - 1; i >= 0; i-- {
 		b := r.Boxes[i]
-		if b.SourceID != "" && p.In(b.Bounds) {
+		if !b.hidden && b.SourceID != "" && p.In(b.Bounds) && (b.Clip.Empty() || p.In(b.Clip)) {
 			return b.SourceID, true
 		}
 	}
@@ -295,7 +295,7 @@ func (r *Result) TextIndex() *TextIndex {
 	}
 	var text strings.Builder
 	for _, b := range r.Boxes {
-		if b.Tag != "text" || b.Text == "" {
+		if b.hidden || b.Tag != "text" || b.Text == "" {
 			continue
 		}
 		if text.Len() > 0 {
