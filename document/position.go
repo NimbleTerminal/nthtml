@@ -98,6 +98,11 @@ func (l *layout) queueAbsolute(n *node, s style, x, y int) {
 	for !scope.containing {
 		scope = scope.parent
 	}
+	// Fixed boxes use the document snapshot root, not an ancestor scope.
+	// Viewport scrolling does not relayout this immutable snapshot.
+	if s.fixed {
+		scope = l.rootFrame
+	}
 	l.absolute = append(l.absolute, absoluteBox{n, s, scope, index})
 }
 func (f *positionFrame) bounds(l *layout) image.Rectangle {

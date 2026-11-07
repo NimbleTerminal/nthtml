@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-// Each rule lives in exactly one bucket selected from a necessary condition on
-// its subject (rightmost compound). Ancestors and functional pseudo arguments
-// are deliberately not indexed: they need not describe the subject itself.
+// Each rule is indexed by necessary conditions on its rightmost subject.
+// Positive functional alternatives contribute a union of subject keys;
+// ancestor keys only eliminate rules when absent from the entire document.
 type ruleKey struct {
 	kind  byte
 	value string
@@ -16,45 +16,72 @@ type ruleIndex struct {
 	buckets   map[ruleKey][]int
 	universal []int
 	terms     []int
+	scanWork  int
 }
 
-func indexRules(rules []rule) *ruleIndex {
+func indexRules(rules []rule, root *node) *ruleIndex {
 	idx := &ruleIndex{buckets: map[ruleKey][]int{}, terms: make([]int, len(rules))}
+	present := map[ruleKey]bool{{'t', "html"}: true, {'r', ""}: true}
+	var scan func(*node)
+	scan = func(n *node) {
+		if n == nil {
+			return
+		}
+		if n.tag != "" && n.pseudo == "" {
+			idx.scanWork += 1 + len(n.attrs) + len(n.attrs["class"])
+			present[ruleKey{'t', strings.ToLower(n.tag)}] = true
+			if id, ok := n.attrs["id"]; ok {
+				present[ruleKey{'#', id}] = true
+			}
+			for _, class := range strings.Fields(n.attrs["class"]) {
+				present[ruleKey{'.', class}] = true
+			}
+			for attr := range n.attrs {
+				present[ruleKey{'[', attr}] = true
+			}
+		}
+		for _, c := range n.children {
+			scan(c)
+		}
+	}
+	scan(root)
 	for i, r := range rules {
 		for _, p := range r.selector {
 			idx.terms[i] += p.termCount()
 		}
-		var key ruleKey
-		if len(r.selector) > 0 {
-			subject := r.selector[len(r.selector)-1]
-			// IDs are generally most selective, followed by classes, attributes, tags.
-			for _, kind := range []byte{'#', '.'} {
-				for _, term := range subject.terms {
-					if term[0] == kind {
-						key = ruleKey{kind, term[1:]}
+		// A necessary key absent everywhere also rules out ancestor/sibling
+		// compounds. This is a conservative prefilter, not an ancestor match.
+		possible := true
+		for _, part := range r.selector {
+			keys := selectorKeys(selector{part})
+			if len(keys) > 0 {
+				found := false
+				for _, key := range keys {
+					if present[key] {
+						found = true
 						break
 					}
 				}
-				if key.kind != 0 {
+				if !found {
+					possible = false
 					break
 				}
 			}
-			if key.kind == 0 && len(subject.attrs) > 0 {
-				key = ruleKey{'[', subject.attrs[0].name}
-			}
-			if key.kind == 0 {
-				for _, term := range subject.terms {
-					if term != "*" && term[0] != '#' && term[0] != '.' {
-						key = ruleKey{'t', strings.ToLower(strings.TrimPrefix(term, "\x00"))}
-						break
-					}
-				}
-			}
 		}
-		if key.kind == 0 {
+		if !possible {
+			continue
+		}
+		keys := selectorKeys(r.selector)
+		if len(keys) == 0 {
 			idx.universal = append(idx.universal, i)
 		} else {
-			idx.buckets[key] = append(idx.buckets[key], i)
+			seen := map[ruleKey]bool{}
+			for _, key := range keys {
+				if !seen[key] {
+					idx.buckets[key] = append(idx.buckets[key], i)
+					seen[key] = true
+				}
+			}
 		}
 	}
 	return idx
@@ -70,8 +97,22 @@ func (d *Document) candidateRules(n *node) []int {
 		return all
 	}
 	result := append([]int(nil), idx.universal...)
-	add := func(k ruleKey) { result = append(result, idx.buckets[k]...) }
+	seenRules := make([]bool, len(d.rules))
+	for _, i := range result {
+		seenRules[i] = true
+	}
+	add := func(k ruleKey) {
+		for _, i := range idx.buckets[k] {
+			if !seenRules[i] {
+				result = append(result, i)
+				seenRules[i] = true
+			}
+		}
+	}
 	add(ruleKey{'t', strings.ToLower(n.tag)})
+	if n.tag == "html" || n.parent != nil && n.parent.tag == "document" {
+		add(ruleKey{'r', ""})
+	}
 	if id, ok := n.attrs["id"]; ok {
 		add(ruleKey{'#', id})
 	}
@@ -97,4 +138,53 @@ func newVariableEntries(decl, vars map[string]string) int {
 		}
 	}
 	return 0
+}
+
+// Positive functional pseudos describe a union of possible subjects. Index the
+// union only when every alternative has a necessary key; otherwise keep the
+// rule universal. Never infer subject keys from :not or :has.
+func selectorKeys(sel selector) []ruleKey {
+	if len(sel) == 0 {
+		return nil
+	}
+	subject := sel[len(sel)-1]
+	for _, kind := range []byte{'#', '.'} {
+		for _, term := range subject.terms {
+			if term[0] == kind {
+				return []ruleKey{{kind, term[1:]}}
+			}
+		}
+	}
+	for _, ps := range subject.pseudos {
+		if ps.name == "root" || ps.name == "scope" {
+			return []ruleKey{{'r', ""}}
+		}
+	}
+	if len(subject.attrs) > 0 {
+		return []ruleKey{{'[', subject.attrs[0].name}}
+	}
+	for _, term := range subject.terms {
+		if term != "*" && term[0] != '#' && term[0] != '.' {
+			return []ruleKey{{'t', strings.ToLower(strings.TrimPrefix(term, "\x00"))}}
+		}
+	}
+	for _, ps := range subject.pseudos {
+		switch ps.name {
+		case "is", "where", "matches", "-webkit-any", "-moz-any":
+			var keys []ruleKey
+			complete := true
+			for _, sub := range ps.subs {
+				k := selectorKeys(sub)
+				if len(k) == 0 {
+					complete = false
+					break
+				}
+				keys = append(keys, k...)
+			}
+			if complete && len(keys) > 0 {
+				return keys
+			}
+		}
+	}
+	return nil
 }

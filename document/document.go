@@ -38,7 +38,7 @@ var MaxLimits = Limits{
 	Bytes:        16 << 20,
 	Nodes:        200000,
 	Depth:        256,
-	Rules:        4096,
+	Rules:        16384,
 	Pixels:       64 << 20,
 	Height:       262144,
 	LayoutHeight: 1 << 20,
@@ -365,7 +365,7 @@ func linkSiblings(n *node) {
 
 func (d *Document) applyCascade(ctx context.Context, width int, scheme string, checkWork bool) error {
 	l := d.limits
-	d.ruleIndex = indexRules(d.rules)
+	d.ruleIndex = indexRules(d.rules, d.root)
 	count := d.nodeSeq
 	scheme = normalizeColorScheme(scheme)
 	d.cascadedWidth = width
@@ -389,7 +389,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 	// Resolve author declarations once per target width. Parent-dependent
 	// computed values still resolve during layout, but selector work cannot
 	// multiply during reflow or nested table measurement.
-	work, entries := 0, 0
+	work, entries := d.ruleIndex.scanWork, 0
 	var cascade func(*node, int, map[string]string) error
 	cascade = func(n *node, depth int, parentVars map[string]string) error {
 		if err := ctx.Err(); err != nil {

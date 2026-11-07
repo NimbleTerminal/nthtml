@@ -159,6 +159,13 @@ func diagramLabel(n *node) string {
 }
 func (l *layout) diagram(n *node, kind, source string, x, y, w, height int, s style) int {
 	fallback := func() int {
+		if kind == "svg" && strings.EqualFold(strings.TrimSpace(n.attrs["aria-hidden"]), "true") {
+			_, h := svgIntrinsicDimensions(source)
+			if height > 0 {
+				h = height
+			}
+			return y + min(h, max(0, l.pageHeightLimit()-y))
+		}
 		text := "[SVG: " + diagramLabel(n) + "]"
 		if kind == "mermaid" {
 			text = source

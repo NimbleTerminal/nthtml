@@ -94,7 +94,7 @@ func TestPositionLimitsAndInvalidValues(t *testing.T) {
 			t.Fatal("expected bounded position", err)
 		}
 	}
-	r := renderCSS(t, `<article style="position:relative;position:fixed;left:10px;left:NaN;top:auto;height:10px"></article>`)
+	r := renderCSS(t, `<article style="position:relative;position:sticky;left:10px;left:NaN;top:auto;height:10px"></article>`)
 	if b := tagged(r, "article"); b.Bounds.Min.X != 10 || b.Bounds.Min.Y != 0 {
 		t.Fatal("invalid declaration fallback", b.Bounds)
 	}
@@ -147,5 +147,15 @@ func TestZIndexStackingOrder(t *testing.T) {
 	}
 	if got := r.Image.RGBAAt(10, 50); got != (color.RGBA{0, 0, 255, 255}) {
 		t.Fatalf("expected higher positive z-index on top (blue), got %v", got)
+	}
+}
+
+func TestFixedSnapshotLeavesNormalFlow(t *testing.T) {
+	r := renderCSS(t, `<article style="position:relative;margin-left:40px;height:20px"><aside style="position:fixed;left:5px;top:7px;width:20px;height:500px;visibility:hidden">menu</aside></article><section style="height:10px">content</section>`)
+	if b := tagged(r, "section"); b.Bounds.Min.Y != 20 {
+		t.Fatal("fixed menu consumed normal flow", b.Bounds)
+	}
+	if b := tagged(r, "aside"); b.Bounds.Min != image.Pt(5, 7) {
+		t.Fatal("fixed snapshot must use root", b.Bounds)
 	}
 }

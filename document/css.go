@@ -14,7 +14,7 @@ const (
 	// TTYWidthPxPerColumn is the CSS pixel width assumed per terminal column when
 	// evaluating @media width queries in TTY and TTYLayout modes (80 cols = 800 px).
 	ttyWidthPxPerColumn = 10
-	maxCustomProps      = 256
+	maxCustomProps      = 2048
 	maxVarSubstDepth    = 16
 	maxVarValueBytes    = 1024
 )
@@ -33,6 +33,7 @@ type style struct {
 	zIndex                                     int
 	floatSide, clear                           string
 	position                                   string
+	fixed                                      bool
 	inset                                      [4]cssLength
 	borderSet                                  [4]bool
 	borderStyle                                [4]string
@@ -621,7 +622,7 @@ func declarations(s string) map[string]string {
 		m[k] = v
 	}
 	for i, p := range splitDeclarations(s) {
-		if i >= 128 {
+		if i >= 1024 {
 			break
 		}
 		rawKey, v, ok := strings.Cut(p, ":")
@@ -780,7 +781,7 @@ func declarations(s string) map[string]string {
 		}
 		if k == "position" {
 			v = strings.ToLower(v)
-			if v != "static" && v != "relative" && v != "absolute" {
+			if v != "static" && v != "relative" && v != "absolute" && v != "fixed" {
 				continue
 			}
 		}
@@ -2464,6 +2465,9 @@ func (d *Document) styled(n *node, parent style) style {
 		case "position":
 			if kw == "inherit" {
 				s.position = parent.position
+				if parent.fixed {
+					s.position = "fixed"
+				}
 			} else if kw == "initial" {
 				s.position = "static"
 			} else {
@@ -2732,6 +2736,10 @@ func (d *Document) styled(n *node, parent style) style {
 	}
 	if s.position == "relative" && s.display == "inline" && n.tag != "img" {
 		s.position = "static"
+	}
+	if s.position == "fixed" {
+		s.fixed = true
+		s.position = "absolute"
 	}
 	if s.position == "absolute" {
 		s.floatSide = "none"

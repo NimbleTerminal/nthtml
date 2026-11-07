@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Retain up to 1,024 declarations per rule and 2,048 custom properties per
+  computed environment so large theme blocks retain foreground colors.
+- Preserve decorative aria-hidden SVG fallback height without emitting labels.
+- Treat fixed-position boxes as root-positioned document snapshots outside
+  normal flow; they do not remain pinned during viewport scrolling.
+
+- Extend indexed CSS matching to root and positive functional selectors, and
+  skip rules with required subject/ancestor keys absent throughout the document.
+  Preserve full-scan cascade results and the matching-work ceiling.
+- Permit hosts to request up to 16,384 CSS rules (default remains 256).
+- Fix recursive intrinsic sizing of anonymous text children in nested flexboxes.
+
 - Index CSS rules by necessary rightmost-subject ID/class/attribute/tag keys,
   preserving source order, specificity, pseudo-elements and media behavior.
   Charge matching work only for candidate rules without raising its ceiling.

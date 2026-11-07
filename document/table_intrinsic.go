@@ -134,6 +134,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 					continue
 				}
 				child = &node{tag: "span", parent: n, children: []*node{child}}
+				cs.display = "block"
 			} else {
 				cs = l.d.styled(child, s)
 			}

@@ -264,7 +264,7 @@ specific subset below works; it does not imply browser-compatible behavior.
 | Feature | Status | What works / current boundary |
 | --- | --- | --- |
 | HTML parsing | Partial | Documents and fragments, entities, explicit start/end tags, and tolerant handling of unmatched tags. Bounded token-stack parser; no browser tree repair or implied paragraph/table closures. |
-| Block and inline flow | Partial | Blocks, paragraphs, `blockquote`, `hr`, `dl`/`dt`/`dd`, inline text spans, inline images (with `vertical-align: baseline \| bottom \| middle`), `display: inline-block` (with shrink-to-fit auto width and baseline alignment), constrained 1D flexbox (`display: flex` / `inline-flex`, `flex-direction`, `flex-wrap`, `gap` / `row-gap` / `column-gap`, `justify-content`, `align-items`, `flex-grow` / `flex-shrink` / `flex-basis`), constrained 2D grid (`display: grid` / `inline-grid`, `grid-template-columns` with fixed/percentage/`calc()` tracks, `fr`, `minmax()`, `repeat()`, `grid-column` / `grid-column-start` / `grid-column-end`, `gap` / `grid-gap`), `overflow: hidden` / `clip`, `text-overflow: ellipsis`, `visibility: visible \| hidden \| collapse`, `opacity`, and `br`. `display: block`, `inline`, `inline-block`, `flex`, `inline-flex`, `grid`, `inline-grid`, and `none`. Constrained relative/absolute positioning with signed `top` / `right` / `bottom` / `left` (and `inset` shorthand) offsets and integer `z-index` stacking. Left/right block floats with percentage or shrink-to-fit width, basic inline text exclusions, and `clear: left/right/both`. No fixed/sticky positioning. |
+| Block and inline flow | Partial | Blocks, paragraphs, `blockquote`, `hr`, `dl`/`dt`/`dd`, inline text spans, inline images (with `vertical-align: baseline \| bottom \| middle`), `display: inline-block` (with shrink-to-fit auto width and baseline alignment), constrained 1D flexbox (`display: flex` / `inline-flex`, `flex-direction`, `flex-wrap`, `gap` / `row-gap` / `column-gap`, `justify-content`, `align-items`, `flex-grow` / `flex-shrink` / `flex-basis`), constrained 2D grid (`display: grid` / `inline-grid`, `grid-template-columns` with fixed/percentage/`calc()` tracks, `fr`, `minmax()`, `repeat()`, `grid-column` / `grid-column-start` / `grid-column-end`, `gap` / `grid-gap`), `overflow: hidden` / `clip`, `text-overflow: ellipsis`, `visibility: visible \| hidden \| collapse`, `opacity`, and `br`. `display: block`, `inline`, `inline-block`, `flex`, `inline-flex`, `grid`, `inline-grid`, and `none`. Constrained relative/absolute positioning with signed `top` / `right` / `bottom` / `left` (and `inset` shorthand) offsets and integer `z-index` stacking. Left/right block floats with percentage or shrink-to-fit width, basic inline text exclusions, and `clear: left/right/both`. Fixed boxes use root-positioned document snapshots; they do not remain pinned during scrolling. No sticky positioning. |
 | Headings and emphasis | Partial | Built-in styles for `h1`–`h6`, bold `b` / `strong` / `th` / `dt`, `small` (~85% font size), `sub` / `sup` (~80% font size with baseline offset), `mark` (highlight background), `u` (underline), `s` / `del` (strikethrough), `em` / `i` (italic), and `code` (monospace). |
 | Whitespace and line breaks | Partial | `white-space: normal`, `nowrap`, `pre`, `pre-wrap`, `pre-line`, and constrained `break-spaces`; `overflow-wrap: normal`, `break-word`, `anywhere` (`word-wrap` alias); `text-overflow: ellipsis` on nowrap clipped lines. Zero-width spaces (`U+200B`) provide break opportunities without rendering `.notdef` glyphs. Tabs expand to four cells. Defaults retain emergency long-word wrapping and soft-wrapped `pre` for documents; explicit `nowrap` / `pre` disable wrapping. No full Unicode line-breaking or hyphenation. |
 | Lists | Partial | Bullets (`disc`, `circle`, `square`), decimal/leading-zero, alphabetic (`lower-alpha`, `upper-alpha`), and Roman (`lower-roman`, `upper-roman`) numbering, `list-style-type` / `list-style` (`none` supported), nested/hanging indentation, `ol start`, `ol reversed`, `type="1\|a\|A\|i\|I"`, and `li value`. No `list-style-image` or CSS counters. |
@@ -482,7 +482,9 @@ when a page sets neither text nor background colors of its own.
 
 
 CSS rule lookup indexes necessary subject IDs/classes/attributes/tags while
-preserving cascade order. Matching-work limits charge the candidate rules;
+preserving cascade order. Root rules, positive selector unions, and absent
+required ancestor keys are also prefiltered. Hosts can request up to 16,384
+rules; the default remains 256. Matching-work limits charge the candidate rules;
 inherited custom-property maps are charged when copied, not on every read.
 The limits remain in place for expensive selectors and locally copied maps.
 
@@ -816,7 +818,7 @@ Run `task demo DEMO=positioning`, or choose **Positioned blocks** in the browser
 
 Absolute percentage sizing uses the containing padding box. Relative vertical percentages require a definite parent height. Without a positioned ancestor, the containing width is the requested document width and its height is the normal-flow document height measured before absolute content is placed. The renderer has no browser viewport-height input.
 
-Positioned subtrees paint after their scope's normal content, in source order; nested positioned scopes are grouped. Link hit regions and fragment anchors follow their painted positions. TTY presents the content in source order without offsets or overlap. This subset excludes `z-index`, fixed/sticky positioning, inline relative positioning, and positioning of list items, captions, table rows/cells/groups, or the HTML root. It does not implement the full browser stacking-context model.
+Positioned subtrees paint after their scope's normal content, in source order; nested positioned scopes are grouped. Link hit regions and fragment anchors follow their painted positions. TTY presents the content in source order without offsets or overlap. This subset excludes `z-index`, viewport-pinned fixed/sticky positioning, inline relative positioning, and positioning of list items, captions, table rows/cells/groups, or the HTML root. It does not implement the full browser stacking-context model.
 
 ![Positioned document blocks](examples/demo/previews/positioning.png)
 
@@ -849,3 +851,12 @@ Part of the [Nimble Terminal](https://nimbleterminal.dev) family alongside [`ntp
 Made with :heart: and :fire: by the team behind [Nimble.Markets](https://nimble.markets).
 
 For CSS-preserving bounded raster residency, see the opt-in [host-painted viewport API](docs/host-painted.md). It keeps full CSS layout and paints requested bands on a host worker.
+
+Large theme blocks retain at most 1,024 declarations per rule and 2,048 custom
+properties per computed environment; the existing total computed-entry and
+matching-work budgets still apply. When diagrams fall back, decorative
+`aria-hidden="true"` SVGs reserve their icon height without a text label.
+Fixed-position boxes leave normal flow and use the document root as their
+containing block. This is a static document snapshot, not viewport pinning;
+scrolling does not reposition them and transformed containing blocks are not
+implemented.
