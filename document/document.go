@@ -130,6 +130,7 @@ type node struct {
 type Document struct {
 	root            *node
 	rules           []rule
+	ruleIndex       *ruleIndex
 	limits          Limits
 	hasAuthorColors bool
 	hasMedia        bool
@@ -364,6 +365,7 @@ func linkSiblings(n *node) {
 
 func (d *Document) applyCascade(ctx context.Context, width int, scheme string, checkWork bool) error {
 	l := d.limits
+	d.ruleIndex = indexRules(d.rules)
 	count := d.nodeSeq
 	scheme = normalizeColorScheme(scheme)
 	d.cascadedWidth = width
@@ -394,28 +396,36 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 			return err
 		}
 		vars := parentVars
+		var candidates []int
 		if n.tag != "" && n.pseudo == "" {
+			candidates = d.candidateRules(n)
 			if checkWork {
-				for _, r := range d.rules {
-					terms := 0
-					for _, part := range r.selector {
-						terms += part.termCount()
-					}
-					work += 1 + depth*terms + len(r.decl) + len(n.attrs["class"])/16
+				// Charge subject-key scanning and conservative selector work for
+				// every candidate, including inactive media/pseudo rules.
+				work += 1 + len(n.attrs) + len(n.attrs["class"])
+				if work > max(8000000, l.Nodes*800) {
+					return limitError("CSS matching work")
+				}
+				for _, ri := range candidates {
+					r := d.rules[ri]
+					work += 1 + depth*d.ruleIndex.terms[ri] + len(r.decl) + len(n.attrs["class"])/16
 					if work > max(8000000, l.Nodes*800) {
 						return limitError("CSS matching work")
 					}
 				}
 			}
-			rawDecl := d.cascade(n)
+			rawDecl := d.cascadeCandidates(n, "", candidates)
 			vars = resolveElementVars(rawDecl, parentVars)
 			n.decl = resolveDeclaredValues(rawDecl, vars)
-			entries += len(n.decl) + len(vars)
+			entries += len(n.decl)
+			// Inheritance reuses the parent's map. Charge only maps actually
+			// copied for local custom-property declarations, not every reader.
+			entries += newVariableEntries(rawDecl, vars)
 			if !strings.Contains(" document script style head meta link title template ", " "+n.tag+" ") && (hasAuthorColorDecl(n.decl) || hasPresentationalColorAttr(n)) {
 				d.hasAuthorColors = true
 			}
 			if hasFirstLine && n.tag != "document" {
-				if fl := d.cascadePseudo(n, "first-line"); len(fl) > 0 {
+				if fl := d.cascadeCandidates(n, "first-line", candidates); len(fl) > 0 {
 					flVars := resolveElementVars(fl, vars)
 					fl = resolveDeclaredValues(fl, flVars)
 					n.firstLineDecl = fl
@@ -437,7 +447,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 		}
 		if n.tag != "" && n.tag != "document" && n.pseudo == "" {
 			if hasBefore || defaultPseudo(n, "before") != "" {
-				if bDecl := d.cascadePseudo(n, "before"); len(bDecl) > 0 {
+				if bDecl := d.cascadeCandidates(n, "before", candidates); len(bDecl) > 0 {
 					bVars := resolveElementVars(bDecl, vars)
 					bDecl = resolveDeclaredValues(bDecl, bVars)
 					if text, ok := resolveContent(bDecl["content"]); ok {
@@ -457,7 +467,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 				}
 			}
 			if hasAfter || defaultPseudo(n, "after") != "" {
-				if aDecl := d.cascadePseudo(n, "after"); len(aDecl) > 0 {
+				if aDecl := d.cascadeCandidates(n, "after", candidates); len(aDecl) > 0 {
 					aVars := resolveElementVars(aDecl, vars)
 					aDecl = resolveDeclaredValues(aDecl, aVars)
 					if text, ok := resolveContent(aDecl["content"]); ok {

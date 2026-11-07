@@ -2773,6 +2773,9 @@ func (d *Document) cascade(n *node) map[string]string {
 }
 
 func (d *Document) cascadePseudo(n *node, pseudo string) map[string]string {
+	return d.cascadeCandidates(n, pseudo, d.candidateRules(n))
+}
+func (d *Document) cascadeCandidates(n *node, pseudo string, candidates []int) map[string]string {
 	values := map[string]string{}
 	if content := defaultPseudo(n, pseudo); content != "" {
 		values["content"] = "\x01" + content
@@ -2786,7 +2789,8 @@ func (d *Document) cascadePseudo(n *node, pseudo string) map[string]string {
 		w = 800
 	}
 	scheme := normalizeColorScheme(d.cascadedScheme)
-	for _, r := range d.rules {
+	for _, ri := range candidates {
+		r := d.rules[ri]
 		if r.pseudo == pseudo && r.matchesMedia(w, scheme) && r.selector.matches(n) {
 			for k, v := range r.decl {
 				v, important := importance(v)

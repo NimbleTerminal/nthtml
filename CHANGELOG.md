@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Index CSS rules by necessary rightmost-subject ID/class/attribute/tag keys,
+  preserving source order, specificity, pseudo-elements and media behavior.
+  Charge matching work only for candidate rules without raising its ceiling.
+- Charge inherited custom-property environments only when a local declaration
+  allocates a copy. Shared inherited maps no longer exhaust the computed-entry
+  budget on large styled pages; local copies remain bounded.
+
 - Measure nested flex rows using their child widths and gaps, and use intrinsic
   SVG icon dimensions instead of a generic diagram width. Footer links and
   icon-bearing slogans no longer wrap despite sufficient available space.

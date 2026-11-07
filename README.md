@@ -481,6 +481,11 @@ concurrently. `Options.FontFamilies` (`Default`, `Serif`, `SansSerif`,
 when a page sets neither text nor background colors of its own.
 
 
+CSS rule lookup indexes necessary subject IDs/classes/attributes/tags while
+preserving cascade order. Matching-work limits charge the candidate rules;
+inherited custom-property maps are charged when copied, not on every read.
+The limits remain in place for expensive selectors and locally copied maps.
+
 CSS selector identifiers accept escaped punctuation and hexadecimal Unicode escapes,
 including Tailwind classes such as `bg-[var(--key)]`. Nested flex/grid items retain
 their inner layout mode.
