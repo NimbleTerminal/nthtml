@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Measure nested flex rows using their child widths and gaps, and use intrinsic
+  SVG icon dimensions instead of a generic diagram width. Footer links and
+  icon-bearing slogans no longer wrap despite sufficient available space.
+- Resolve embedded SVG `currentColor` paint attributes and inline paint styles
+  from the surrounding HTML color and local SVG color overrides, preserving
+  identifiers/references and existing diagram resource gates.
+
 - Match escaped CSS class/ID identifiers, including Tailwind arbitrary-value
   classes, with bounded Unicode escape decoding and escape-aware rule scanning.
 - Preserve nested flex/grid layouts when blockifying flex and grid items, fixing

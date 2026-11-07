@@ -1,6 +1,7 @@
 package document
 
 import (
+	"strings"
 	"unicode"
 )
 
@@ -27,7 +28,7 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 				flushLine()
 				return
 			}
-			if n.tag == "img" || st.display == "inline-block" || st.display == "inline-flex" || st.display == "inline-grid" {
+			if n.svg != "" || n.tag == "img" || st.display == "inline-block" || st.display == "inline-flex" || st.display == "inline-grid" {
 				if n.tag == "img" && !l.imgHasBox(n, st) {
 					return
 				}
@@ -103,6 +104,10 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 	}
 	if kind, _ := diagramSource(n); kind != "" {
 		minimum, preferred = 32, 300
+		if kind == "svg" {
+			w, _ := svgIntrinsicDimensions(n.svg)
+			minimum, preferred = w, w
+		}
 	} else if n.tag == "img" {
 		if src := l.opts.Images[n.attrs["src"]]; src != nil && !src.Bounds().Empty() {
 			iw, _ := imageSizeStyled(n, s, src.Bounds().Size(), s.width.definite(basis), max(1, basis), -1)
@@ -115,6 +120,46 @@ func (l *layout) preferredCell(n *node, s style, basis int) (int, int) {
 			minimum = preferred
 		} else {
 			return 0, 0
+		}
+	} else if s.display == "flex" || s.display == "inline-flex" {
+		column := s.flexDirection == "column" || s.flexDirection == "column-reverse"
+		count := 0
+		for _, child := range displayedChildren(n) {
+			if !l.tableStep() {
+				break
+			}
+			cs := s
+			if child.tag == "" {
+				if strings.TrimSpace(child.text) == "" {
+					continue
+				}
+				child = &node{tag: "span", parent: n, children: []*node{child}}
+			} else {
+				cs = l.d.styled(child, s)
+			}
+			if cs.display == "none" || cs.position == "absolute" {
+				continue
+			}
+			a, b := l.preferredCell(child, cs, basis)
+			if column {
+				minimum = max(minimum, a)
+				preferred = max(preferred, b)
+			} else {
+				preferred = min(4096, preferred+b)
+				if s.flexWrap == "wrap" {
+					minimum = max(minimum, a)
+				} else {
+					minimum = min(4096, minimum+a)
+				}
+			}
+			count++
+		}
+		if !column && count > 1 {
+			gap := s.colGap.resolve(basis, 256) * (count - 1)
+			preferred = min(4096, preferred+gap)
+			if s.flexWrap != "wrap" {
+				minimum = min(4096, minimum+gap)
+			}
 		}
 	} else if n.tag == "table" {
 		rows, cols, err := l.d.collectTable(n, s, l.tableStep)

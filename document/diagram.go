@@ -185,6 +185,18 @@ func (l *layout) diagram(n *node, kind, source string, x, y, w, height int, s st
 		l.err = limitError("diagram pixels")
 		return y
 	}
+	if kind == "svg" {
+		resolved, err := resolveSVGCurrentColor(l.ctx, source, s.fg)
+		if err != nil {
+			if errors.Is(err, ErrLimit) || l.ctx.Err() != nil {
+				l.err = err
+				return y
+			}
+			l.warnings = append(l.warnings, "svg: invalid color source")
+			return fallback()
+		}
+		source = resolved
+	}
 	renderer := l.opts.Diagrams
 	var img image.Image
 	var err error
