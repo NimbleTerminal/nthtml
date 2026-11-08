@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add viewer-owned link hover (cyan) and pressed (amber) outlines, preserving
+  keyboard focus and drag selection. Kitty uses its bounded focus patch without
+  repainting the base band; text mode uses reverse video. Hosts must enable
+  all-motion mouse reporting for hover. This does not evaluate CSS hover/active
+  selectors or dispatch DOM pointer events.
+
 - Evaluate width media ranges (`width >= 1012px`, reversed comparisons and
   same-direction chained bounds) with fractional breakpoints. Restore desktop
   horizontal headers and closed mobile menus; malformed/unsupported ranges

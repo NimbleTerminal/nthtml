@@ -161,7 +161,7 @@ func (m *Model) showLinkFocus() tea.Cmd {
 		return m.viewport()
 	}
 	img := m.paintSearchAndSelectionOverlay()
-	ink := image.NewUniform(color.RGBA{235, 155, 35, 255})
+	ink := image.NewUniform(m.linkFeedbackColor())
 	for _, r := range regions {
 		r = r.Inset(-1)
 		for _, edge := range []image.Rectangle{image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1), image.Rect(r.Min.X, r.Max.Y-1, r.Max.X, r.Max.Y), image.Rect(r.Min.X, r.Min.Y, r.Min.X+1, r.Max.Y), image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y)} {
@@ -215,7 +215,8 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 		cellH = 20
 	}
 	key := focusOverlayKey{
-		focusID:    m.focusID,
+		focusID: m.focusID,
+		hoverID: m.hoverID, pressedID: m.pressedLink,
 		sourceID:   m.focusSourceID,
 		pixels:     pixels,
 		background: color.RGBA64Model.Convert(m.pic.Background()).(color.RGBA64),
@@ -239,7 +240,7 @@ func (m *Model) updateKittyFocusOverlay() tea.Cmd {
 	if m.overlayImg != nil {
 		base = m.overlayImg
 	}
-	patch := paintFocusPatch(base, regions, crop, pagePixels, cellRect, cells, pixels, image.Pt(cellW, cellH), m.pic.Background())
+	patch := paintFocusPatch(base, regions, crop, pagePixels, cellRect, cells, pixels, image.Pt(cellW, cellH), m.pic.Background(), m.linkFeedbackColor())
 	return m.focusPic.Submit(ntpicture.Frame{
 		Image:      patch,
 		Cols:       cellRect.Dx(),
@@ -300,22 +301,29 @@ func focusBandCellsAndPage(regions []image.Rectangle, cells, pixels image.Point,
 type focusRingImage struct {
 	image.Image
 	edges []image.Rectangle
+	ink   color.Color
 }
 
 func (im focusRingImage) At(x, y int) color.Color {
 	for _, edge := range im.edges {
 		if image.Pt(x, y).In(edge) {
+			if im.ink != nil {
+				return im.ink
+			}
 			return color.RGBA{235, 155, 35, 255}
 		}
 	}
 	return im.Image.At(x, y)
 }
 
-func paintFocusPatch(base image.Image, regions []image.Rectangle, crop, pagePixels, cellRect image.Rectangle, cells, pixels, cellSize image.Point, bg color.Color) *image.RGBA {
+func paintFocusPatch(base image.Image, regions []image.Rectangle, crop, pagePixels, cellRect image.Rectangle, cells, pixels, cellSize image.Point, bg color.Color, ink ...color.Color) *image.RGBA {
 	patchRect := image.Rect(cellRect.Min.X*cellSize.X, cellRect.Min.Y*cellSize.Y, cellRect.Max.X*cellSize.X, cellRect.Max.Y*cellSize.Y)
 	patch := image.NewRGBA(patchRect)
 	draw.Draw(patch, patchRect, image.NewUniform(bg), image.Point{}, draw.Src)
 	ring := focusRingImage{Image: base}
+	if len(ink) > 0 {
+		ring.ink = ink[0]
+	}
 	for _, r := range regions {
 		r = r.Inset(-1)
 		ring.edges = append(ring.edges,

@@ -869,3 +869,11 @@ The parser permits at most 256 layers and 4,096 layer declarations; media/layer
 nesting shares the depth-8 bound. Rules inside layers use the normal rule and
 matching-work budgets. `revert-layer`, `@import layer()` and `@supports` remain
 unsupported.
+
+The viewer highlights links under the pointer in cyan and uses amber while
+pressed. Keyboard/source focus remains separate, and dragging selects text
+without activating the link. TTY mode uses reverse-video link text. Hosts should
+request Bubble Tea `MouseModeAllMotion` and forward mouse motion, press and
+release messages; pointer motion alone never activates links. Kitty feedback
+uses the bounded focus patch and leaves the base band ready for input. This is
+viewer feedback, not CSS `:hover`/`:active` evaluation or DOM pointer events.

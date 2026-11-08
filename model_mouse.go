@@ -2,6 +2,7 @@ package nthtml
 
 import (
 	"image"
+	"image/color"
 	"math"
 
 	tea "charm.land/bubbletea/v2"
@@ -116,8 +117,15 @@ func (m *Model) mouseReady() bool {
 	s := m.pic.Status()
 	return m.pic.Visible() && !m.pic.Closed() && s.Err == nil && s.Presented > 0 && s.Presented == s.Generation
 }
-func (m *Model) mousePress(v tea.MouseClickMsg) tea.Cmd {
+func (m *Model) mousePress(v tea.MouseClickMsg) (cmd tea.Cmd) {
+	previous, previousPress := m.hoverID, m.pressedLink
+	defer func() {
+		if previous != m.hoverID || previousPress != m.pressedLink {
+			cmd = tea.Batch(cmd, m.refreshHighlights())
+		}
+	}()
 	m.pressedLink = 0
+	m.hoverID = 0
 	m.mouseDown, m.dragging = false, false
 	if v.Button != tea.MouseLeft || !m.mouseReady() {
 		return nil
@@ -129,11 +137,21 @@ func (m *Model) mousePress(v tea.MouseClickMsg) tea.Cmd {
 	}
 	if link, ok := m.LinkAtCell(image.Pt(v.X, v.Y)); ok {
 		m.pressedLink = link.ID
+		m.hoverID = link.ID
 		m.pressCell = image.Pt(v.X, v.Y)
 	}
 	return nil
 }
-func (m *Model) mouseRelease(v tea.MouseReleaseMsg) tea.Cmd {
+func (m *Model) mouseRelease(v tea.MouseReleaseMsg) (cmd tea.Cmd) {
+	hadPress := m.pressedLink != 0
+	if image.Pt(v.X, v.Y) != m.pressCell {
+		m.hoverID = 0
+	}
+	defer func() {
+		if hadPress {
+			cmd = tea.Batch(cmd, m.refreshHighlights())
+		}
+	}()
 	if m.mouseDown {
 		cmd := m.selectMotion(image.Pt(v.X, v.Y))
 		dragged := m.dragging
@@ -161,4 +179,32 @@ func (m *Model) mouseRelease(v tea.MouseReleaseMsg) tea.Cmd {
 		return tea.Batch(m.refreshHighlights(), m.ActivateLink())
 	}
 	return tea.Batch(m.showLinkFocus(), m.ActivateLink())
+}
+
+func (m *Model) linkFeedbackColor() color.RGBA {
+	if m.hoverID != 0 && m.pressedLink != m.hoverID {
+		return color.RGBA{30, 190, 230, 255}
+	}
+	return color.RGBA{235, 155, 35, 255}
+}
+
+func (m *Model) mouseMotion(v tea.MouseMotionMsg) tea.Cmd {
+	p := image.Pt(v.X, v.Y)
+	oldHover, oldPress := m.hoverID, m.pressedLink
+	cmd := m.selectMotion(p)
+	if p != m.pressCell {
+		m.pressedLink = 0
+	}
+	m.hoverID = 0
+	if !m.dragging && v.Button == tea.MouseNone && m.mouseReady() {
+		if link, ok := m.LinkAtCell(p); ok {
+			m.hoverID = link.ID
+		}
+	} else if m.pressedLink != 0 {
+		m.hoverID = m.pressedLink
+	}
+	if oldHover != m.hoverID || oldPress != m.pressedLink {
+		return tea.Batch(cmd, m.refreshHighlights())
+	}
+	return cmd
 }

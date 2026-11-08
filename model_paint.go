@@ -172,6 +172,7 @@ func (m *Model) SetPaintedResult(frame PaintedResult, keepView bool) (tea.Cmd, e
 	m.clearSelection()
 	m.clearSourceFocus()
 	m.pressedLink = 0
+	m.hoverID = 0
 	m.focusID = 0
 	if !keepView {
 		m.query, m.searchInput = "", ""
@@ -346,7 +347,7 @@ func (m *Model) paintedOverlay(includeFocus bool) image.Image {
 	if includeFocus {
 		for _, r := range m.focusRegions() {
 			r = r.Inset(-1)
-			shade([]image.Rectangle{image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1), image.Rect(r.Min.X, r.Max.Y-1, r.Max.X, r.Max.Y), image.Rect(r.Min.X, r.Min.Y, r.Min.X+1, r.Max.Y), image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y)}, color.RGBA{235, 155, 35, 255})
+			shade([]image.Rectangle{image.Rect(r.Min.X, r.Min.Y, r.Max.X, r.Min.Y+1), image.Rect(r.Min.X, r.Max.Y-1, r.Max.X, r.Max.Y), image.Rect(r.Min.X, r.Min.Y, r.Min.X+1, r.Max.Y), image.Rect(r.Max.X-1, r.Min.Y, r.Max.X, r.Max.Y)}, m.linkFeedbackColor())
 		}
 	}
 	return img

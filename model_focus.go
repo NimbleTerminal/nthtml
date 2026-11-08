@@ -81,6 +81,13 @@ func (m *Model) clearSourceFocus() {
 // Both focus owners feed the same raster overlay; link regions retain their
 // individual line rectangles, while source elements use their full bounds.
 func (m *Model) focusRegions() []image.Rectangle {
+	if m.hoverID != 0 {
+		for _, link := range m.links() {
+			if link.ID == m.hoverID {
+				return link.Regions
+			}
+		}
+	}
 	if m.focusSourceID != "" {
 		return []image.Rectangle{m.sourceFocusBounds}
 	}

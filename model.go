@@ -47,6 +47,7 @@ func cropBandImage(img image.Image, r image.Rectangle) image.Image {
 
 type focusOverlayKey struct {
 	focusID                 int
+	hoverID, pressedID      int
 	sourceID                string
 	pixels                  image.Point
 	background              color.RGBA64
@@ -117,6 +118,7 @@ type Model struct {
 	ttyLines                      []string
 	ttyResult                     *document.TTYResult
 	focusID                       int
+	hoverID                       int
 	focusSourceID                 string
 	sourceFocusBounds             image.Rectangle
 	origin, pressCell             image.Point
@@ -263,6 +265,7 @@ func (m *Model) setResult(result *document.Result, keepView bool) tea.Cmd {
 	m.clearSourceFocus()
 	m.index = nil
 	m.pressedLink = 0
+	m.hoverID = 0
 	m.clearSelection()
 	if !keepView {
 		m.focusID = 0
@@ -338,6 +341,7 @@ func (m *Model) SetLayoutMode(mode LayoutMode) tea.Cmd {
 		return nil
 	}
 	m.pressedLink = 0
+	m.hoverID = 0
 	m.mode = mode
 	m.index = nil
 	m.clearSelection()
@@ -373,6 +377,7 @@ func (m *Model) SetTypesetFit(fit TypesetFit) tea.Cmd {
 	m.zoom, m.x, m.y = 0, 0, 0
 	m.mouseDown, m.dragging = false, false
 	m.pressedLink = 0
+	m.hoverID = 0
 	m.kittyBandActive = false
 	m.focusCellRect = image.Rectangle{}
 	m.focusKey = focusOverlayKey{}
@@ -432,6 +437,7 @@ func (m *Model) Close() tea.Cmd {
 }
 func (m *Model) SetSize(cols, rows int) tea.Cmd {
 	m.pressedLink = 0
+	m.hoverID = 0
 	m.cols = max(1, min(cols, 1000))
 	m.rows = max(1, min(rows, 1000))
 	m.clearSelection()
@@ -500,6 +506,7 @@ func (m *Model) Zoom(delta int) tea.Cmd {
 		return nil
 	}
 	m.pressedLink = 0
+	m.hoverID = 0
 	hadSelection := m.selectStart != m.selectEnd
 	m.clearSelection()
 	if m.mode == LayoutTTY {
@@ -514,6 +521,7 @@ func (m *Model) Zoom(delta int) tea.Cmd {
 func (m *Model) Pan(dx, dy int) tea.Cmd {
 	m.mouseDown, m.dragging = false, false
 	m.pressedLink = 0
+	m.hoverID = 0
 	if m.mode == LayoutTTY {
 		step := dy / 20
 		if step == 0 && dy != 0 {
@@ -524,7 +532,7 @@ func (m *Model) Pan(dx, dy int) tea.Cmd {
 			}
 		}
 		m.scrollTTY(step)
-		return nil
+		return m.refreshHighlights()
 	}
 	if m.typesetFit == TypesetFitContain {
 		return nil
@@ -535,6 +543,7 @@ func (m *Model) Pan(dx, dy int) tea.Cmd {
 }
 func (m *Model) Reset() tea.Cmd {
 	m.pressedLink = 0
+	m.hoverID = 0
 	if m.mode == LayoutTTY {
 		m.ttyTop = 0
 		return nil
@@ -668,6 +677,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		return m.applyPaint(ready)
 	}
 	var cmd tea.Cmd
+	previousHover := m.hoverID
 	switch v := msg.(type) {
 	case tea.PasteMsg:
 		if m.searching {
@@ -683,15 +693,13 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	case tea.MouseReleaseMsg:
 		cmd = m.mouseRelease(v)
 	case tea.MouseMotionMsg:
-		cmd = m.selectMotion(image.Pt(v.X, v.Y))
-		if image.Pt(v.X, v.Y) != m.pressCell {
-			m.pressedLink = 0
-		}
+		cmd = m.mouseMotion(v)
 	case tea.KeyPressMsg:
 		if m.searching {
 			return m.searchKey(v)
 		}
 		m.pressedLink = 0
+		m.hoverID = 0
 		switch v.String() {
 		case "/":
 			m.searching = true
@@ -757,6 +765,9 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		case tea.MouseWheelDown:
 			cmd = m.Pan(0, 40)
 		}
+	}
+	if _, key := msg.(tea.KeyPressMsg); key && previousHover != m.hoverID {
+		cmd = tea.Batch(cmd, m.refreshHighlights())
 	}
 	if m.hostPaint != nil {
 		mode := m.pic.Mode()

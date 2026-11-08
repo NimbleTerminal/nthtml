@@ -192,6 +192,16 @@ func (m *Model) clearSelection() {
 func (m *Model) refreshHighlights() tea.Cmd {
 	if m.mode == LayoutTTY {
 		spans := m.sourceFocusMatches()
+		if m.hoverID != 0 {
+			for _, run := range m.textIndex().Runs {
+				for _, region := range m.focusRegions() {
+					if run.Bounds.Overlaps(region) {
+						spans = append(spans, document.Match{Start: run.Start, End: run.End})
+						break
+					}
+				}
+			}
+		}
 		spans = append(spans, m.matches...)
 		if m.selectStart != m.selectEnd {
 			spans = append(spans, document.Match{Start: m.selectStart, End: m.selectEnd})
