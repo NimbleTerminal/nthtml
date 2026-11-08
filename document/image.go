@@ -405,6 +405,23 @@ func missingImageSpacer(n *node, s style, availW, parentH, maxH int) (int, int, 
 	return iw, ih, true
 }
 
+// altClipBox is the box a missing image's alt text is clipped to: the sized
+// placeholder when both dimensions are known, otherwise a known width with
+// one line of height. Unsized images keep the wrapping alt text flow.
+func altClipBox(n *node, s style, availW, parentH, maxH int) (int, int, bool) {
+	if iw, ih, ok := missingImageSpacer(n, s, availW, parentH, maxH); ok {
+		return max(1, iw), max(1, ih), true
+	}
+	iw, ok := nonnegPixelAttr(n.attrs["width"])
+	if s.width.definite(availW) {
+		iw, ok = s.width.resolve(availW, 16384), true
+	}
+	if !ok {
+		return 0, 0, false
+	}
+	return max(1, min(iw, max(0, availW))), max(1, s.line), true
+}
+
 func (l *layout) imgHasBox(n *node, s style) bool {
 	if src := l.opts.Images[n.attrs["src"]]; src != nil && !src.Bounds().Empty() {
 		return true

@@ -511,7 +511,37 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 				w = min(w, iw+extra)
 			}
 		} else if alt := cleanText(n.attrs["alt"]); alt != "" {
-			cy = l.flow([]*node{{text: "[image: " + alt + "]"}}, cx, cy, cw, s, s)
+			altNode := &node{text: "[image: " + alt + "]"}
+			textStyle := s
+			textStyle.width, textStyle.minWidth, textStyle.maxWidth = cssLength{}, cssLength{}, cssLength{}
+			textStyle.margin, textStyle.padding, textStyle.bw = [4]cssLength{}, [4]cssLength{}, [4]int{}
+			altMin, _ := l.preferredCell(&node{children: []*node{altNode}}, textStyle, cw)
+			if iw, ih, ok := altClipBox(n, s, cw, height, l.d.limits.Height); ok && altMin > iw {
+				// A sized placeholder narrower than its alt text keeps the
+				// image box and clips one line of alt text to it, as browsers
+				// do, instead of stacking characters and growing the line.
+				altStyle := s
+				altStyle.whiteSpace = "nowrap"
+				clip := image.Rect(cx, cy, cx+iw, cy+ih)
+				start := len(l.ops)
+				l.flow([]*node{altNode}, cx, cy, iw, altStyle, altStyle)
+				for i := start; i < len(l.ops); i++ {
+					inter := clip
+					if !l.ops[i].box.Clip.Empty() {
+						inter = l.ops[i].box.Clip.Intersect(clip)
+					}
+					if inter.Empty() {
+						inter = image.Rect(-1, -1, 0, 0)
+					}
+					l.ops[i].box.Clip = inter
+				}
+				cy += ih
+				if !s.width.definite(basisWidth) {
+					w = min(w, iw+extra)
+				}
+			} else {
+				cy = l.flow([]*node{altNode}, cx, cy, cw, s, s)
+			}
 		} else if iw, ih, ok := missingImageSpacer(n, s, cw, height, l.d.limits.Height); ok {
 			l.add(Box{Bounds: image.Rect(cx, cy, cx+iw, cy+ih), Tag: "img", LinkID: s.linkID}, nil)
 			cy += ih

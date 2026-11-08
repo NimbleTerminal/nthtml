@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Size non-replaced, non-table boxes with an absolute `width` at exactly that
+  width when measuring intrinsic contributions, so a fixed-width side pane
+  wrapping long text stays beside a `flex: 1 1 0` main column instead of
+  wrapping below it (GitHub repository sidebar). Tables, cells and replaced
+  elements keep their existing minimum-width semantics.
+
+- Retain up to 4,096 custom properties per computed environment (was 2,048)
+  so pages whose theme tokens exceed the old cap still resolve component
+  variables declared further down the tree; the per-document computed-entry
+  budget still applies.
+
+- Accept `calc()`/`min()`/`max()` values inside width media features
+  (`(width <= calc(48rem - .02px))`), nesting parentheses at most three deep;
+  deeper or malformed expressions remain nonmatching.
+
+- Keep `flex: 1 1 0` items in a column flex container at least as tall as
+  their content (min-height: auto) unless they clip overflow, so narrow page
+  layouts no longer draw later panes over the main column.
+
+- Clip one line of alt text to a missing image's fixed box (flex item or
+  block) when the text is wider than the box, instead of stacking characters
+  and growing the line; inline and unsized images keep flowing their alt text.
+
 - Support host-supplied CSS `:hover` state on the pointed element and ancestors,
   including compound, relational and pseudo-element selectors. Recompute on
   immutable clones so concurrent paints and other hover states remain isolated.
@@ -34,7 +57,8 @@
   Clip link hit and focus regions to overflow bounds.
 
 - Retain up to 1,024 declarations per rule and 2,048 custom properties per
-  computed environment so large theme blocks retain foreground colors.
+  computed environment so large theme blocks retain foreground colors
+  (raised to 4,096 above).
 - Preserve decorative aria-hidden SVG fallback height without emitting labels.
 - Treat fixed-position boxes as root-positioned document snapshots outside
   normal flow; they do not remain pinned during viewport scrolling.

@@ -276,12 +276,26 @@ func (l *layout) flexColumn(items []*flexItem, cx, cy, cw, height, rGap int, isR
 		itemStyle.margin = [4]cssLength{}
 		itemStyle.width = px(itemW)
 		itemStyle.borderBox = true
+		// A definite flex-basis is the item's hypothetical main size, but
+		// min-height:auto keeps a visible-overflow item at least as tall as its
+		// content, so `flex: 1 1 0` never collapses content onto later items.
+		basisH := -1
 		if it.cs.flexBasis.definite(height) {
-			itemStyle.height = it.cs.flexBasis
+			if clipsOverflow(it.cs.overflow) {
+				itemStyle.height = it.cs.flexBasis
+			} else {
+				basisH = it.cs.flexBasis.resolve(max(0, height), 16384)
+			}
 		}
 		it.opStart = len(l.ops)
 		it.innerH = l.blockStyled(it.node, 0, 0, itemW, height, itemStyle)
 		it.opEnd = len(l.ops)
+		if basisH > it.innerH {
+			it.innerH = basisH
+			if it.opStart < it.opEnd {
+				l.ops[it.opStart].box.Bounds.Max.Y = basisH
+			}
+		}
 		totalH += it.innerH + it.margin[0] + it.margin[2]
 		totalGrow += it.cs.flexGrow
 	}
@@ -365,4 +379,14 @@ func blockifiedDisplay(display string) string {
 	default:
 		return "block"
 	}
+}
+
+// clipsOverflow reports whether an overflow value makes a box a scroll or
+// clip container, which removes the automatic minimum size of flex items.
+func clipsOverflow(overflow string) bool {
+	switch overflow {
+	case "hidden", "clip", "scroll", "auto":
+		return true
+	}
+	return false
 }

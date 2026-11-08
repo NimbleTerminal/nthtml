@@ -21,6 +21,10 @@ func TestMediaWidthRanges(t *testing.T) {
 		{"not (width >< 800px)", 800, false}, {"not (400px < width > 800px)", 800, false},
 		{"not (height > 800px)", 800, false}, {"not (width == 800px)", 800, false},
 		{"not (width >=)", 800, false}, {"not (width < width)", 800, false},
+		{"(width<=calc(48rem - .02px))", 767, true}, {"(width<=calc(48rem - .02px))", 768, false},
+		{"(width >= calc(48rem))", 768, true}, {"(min-width: calc(40rem + 128px))", 768, true},
+		{"(width <= calc(max(48rem, 800px)))", 800, true}, {"not (width <= calc(min(max(48rem, (800px)))))", 800, false},
+		{"not (width <= calc(100% - 8px))", 800, false}, {"(width <= calc(48rem - .02px)", 700, false},
 	} {
 		if got := evalMediaQueryList(tt.query, tt.width, "light"); got != tt.want {
 			t.Errorf("%s at %d = %v want %v", tt.query, tt.width, got, tt.want)

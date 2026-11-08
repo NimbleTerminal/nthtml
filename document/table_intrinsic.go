@@ -268,7 +268,15 @@ func (l *layout) measurePreferredCell(n *node, s style, basis int) (int, int) {
 		if !s.borderBox {
 			width += extra
 		}
-		preferred = max(preferred, min(4096, width))
+		if fixedIntrinsicWidth(n, s) {
+			// A non-replaced, non-table box with an absolute width contributes
+			// exactly that width; wider content overflows rather than growing
+			// the box (CSS Sizing 3 §5.1).
+			minimum = min(4096, width)
+			preferred = minimum
+		} else {
+			preferred = max(preferred, min(4096, width))
+		}
 	}
 	if s.maxWidth.definite(basis) {
 		v := s.maxWidth.resolve(basis, 4096)
@@ -287,4 +295,19 @@ func (l *layout) measurePreferredCell(n *node, s style, basis int) (int, int) {
 		preferred = max(preferred, v)
 	}
 	return max(1, min(4096, minimum)), max(1, min(4096, preferred))
+}
+
+// fixedIntrinsicWidth reports whether an absolute width fixes the box's
+// intrinsic contribution. Tables and cells keep HTML's minimum-width
+// semantics; replaced elements size through their own branches above;
+// percentages and percentage calc() stay content-driven.
+func fixedIntrinsicWidth(n *node, s style) bool {
+	switch n.tag {
+	case "table", "td", "th", "img":
+		return false
+	}
+	if n.svg != "" || s.width.unit != lengthPX {
+		return false
+	}
+	return s.width.expr == nil || !s.width.expr.hasPercent()
 }

@@ -14,8 +14,9 @@ const (
 	// TTYWidthPxPerColumn is the CSS pixel width assumed per terminal column when
 	// evaluating @media width queries in TTY and TTYLayout modes (80 cols = 800 px).
 	ttyWidthPxPerColumn = 10
-	maxCustomProps      = 2048
+	maxCustomProps      = 4096
 	maxVarSubstDepth    = 16
+	maxMediaParenDepth  = 3
 	maxVarValueBytes    = 1024
 )
 
@@ -1676,18 +1677,26 @@ func tokenizeMediaQuery(q string) ([]string, bool) {
 			continue
 		}
 		if q[i] == '(' {
-			j := i + 1
-			for j < len(q) && q[j] != ')' {
-				if q[j] == '(' {
-					return nil, false
+			// Allow bounded nesting for math functions in feature values,
+			// e.g. (width <= calc(48rem - .02px)); deeper nesting is rejected.
+			depth, j := 1, i+1
+			for j < len(q) && depth > 0 {
+				switch q[j] {
+				case '(':
+					depth++
+					if depth > maxMediaParenDepth {
+						return nil, false
+					}
+				case ')':
+					depth--
 				}
 				j++
 			}
-			if j >= len(q) {
+			if depth != 0 {
 				return nil, false
 			}
-			tokens = append(tokens, q[i:j+1])
-			i = j + 1
+			tokens = append(tokens, q[i:j])
+			i = j
 			continue
 		}
 		if isMediaIdentChar(q[i]) {
