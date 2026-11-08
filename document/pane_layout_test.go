@@ -107,3 +107,39 @@ func TestColumnFlexBasisZeroKeepsContentHeight(t *testing.T) {
 		}
 	}
 }
+
+// TestGridButtonIntrinsicWidthSumsColumns: a Primer-style button lays out
+// icon, label and icon in a three-column grid; its shrink-to-fit width is the
+// sum of the columns plus margins, so the label is neither clipped nor
+// overlapped by the next button.
+func TestGridButtonIntrinsicWidthSumsColumns(t *testing.T) {
+	icon := `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path d="M0 0h16v16H0z"/></svg>`
+	button := `<div style="display:inline-grid;grid-template-columns:min-content minmax(0,auto) min-content;align-items:center"><span style="margin-right:8px;display:flex">` + icon + `</span><span style="margin-right:8px;white-space:nowrap">Notifications</span><span style="display:flex">` + icon + `</span></div>`
+	r := renderWide(t, `<div style="display:flex"><div style="display:flex">`+button+`</div><div style="display:flex"><div style="display:inline-grid;grid-template-columns:min-content minmax(0,auto)"><span style="margin-right:8px;display:flex">`+icon+`</span><span style="white-space:nowrap">Fork</span></div></div></div>`)
+	var label, fork *Box
+	var firstIcon *Box
+	for i := range r.Boxes {
+		b := &r.Boxes[i]
+		switch {
+		case b.Text == "Notifications":
+			label = b
+		case b.Text == "Fork":
+			fork = b
+		case b.Tag == "svg" && b.Bounds.Dx() == 16 && firstIcon == nil:
+			firstIcon = b
+		}
+	}
+	if label == nil || fork == nil || firstIcon == nil {
+		t.Fatal("boxes missing")
+	}
+	if label.Bounds.Min.X < firstIcon.Bounds.Min.X+16+8 {
+		t.Fatalf("label overlaps the leading icon: label x=%d icon x=%d", label.Bounds.Min.X, firstIcon.Bounds.Min.X)
+	}
+	// Fork's icon starts after Notifications' label, its margin and the trailing icon.
+	if fork.Bounds.Min.X-16-8 < label.Bounds.Max.X+8+16 {
+		t.Fatalf("next button overlaps: fork x=%d label end=%d", fork.Bounds.Min.X, label.Bounds.Max.X)
+	}
+	if label.Bounds.Min.Y != fork.Bounds.Min.Y {
+		t.Fatalf("buttons left the row: %v vs %v", label.Bounds, fork.Bounds)
+	}
+}

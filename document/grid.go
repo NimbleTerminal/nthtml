@@ -15,6 +15,10 @@ type gridTrack struct {
 	fr         float64
 	autoRepeat bool
 	autoFit    bool
+	// content names a content-sized maximum: "auto", "min-content" or
+	// "max-content" ("" for a length or a flexible track). Such a track is
+	// as wide as its items, and an auto track also stretches into free space.
+	content string
 }
 
 type gridItem struct {
@@ -50,7 +54,7 @@ func parseSingleGridTrack(tok string) (gridTrack, bool) {
 	tok = strings.ToLower(strings.TrimSpace(tok))
 	switch tok {
 	case "auto", "min-content", "max-content":
-		return gridTrack{minLen: cssLength{unit: lengthAuto}, maxLen: cssLength{unit: lengthAuto}}, true
+		return gridTrack{minLen: cssLength{unit: lengthAuto}, maxLen: cssLength{unit: lengthAuto}, content: tok}, true
 	}
 	if fr, ok := parseGridFr(tok); ok {
 		return gridTrack{fr: fr}, true
@@ -61,7 +65,7 @@ func parseSingleGridTrack(tok string) (gridTrack, bool) {
 		if !ok {
 			return gridTrack{}, false
 		}
-		return gridTrack{minLen: cssLength{unit: lengthAuto}, maxLen: l}, true
+		return gridTrack{minLen: cssLength{unit: lengthAuto}, maxLen: l, content: "auto"}, true
 	}
 	if strings.HasPrefix(tok, "minmax(") && strings.HasSuffix(tok, ")") {
 		inner := strings.TrimSpace(tok[len("minmax(") : len(tok)-1])
@@ -89,6 +93,7 @@ func parseSingleGridTrack(tok string) (gridTrack, bool) {
 		switch maxStr {
 		case "auto", "min-content", "max-content":
 			tr.maxLen = cssLength{unit: lengthAuto}
+			tr.content = maxStr
 		default:
 			l, ok := parseLength(maxStr, false, false)
 			if !ok {
@@ -262,10 +267,15 @@ func resolveGridItemSpan(cs style, numCols int) (startCol int, span int) {
 	return startCol, max(1, min(numCols, span))
 }
 
+// resolveGridColumns sizes a template without item content: content-sized
+// tracks fall back to their minimums and flexible tracks share the space.
 func resolveGridColumns(tracks []gridTrack, cw, cGap, itemCount int) []int {
-	if len(tracks) == 0 {
-		return []int{max(1, cw)}
-	}
+	return sizeGridTracks(expandGridTracks(tracks, cw, cGap, itemCount), cw, cGap, nil, nil)
+}
+
+// expandGridTracks unrolls auto-repeat tracks for the available width; the
+// result has no auto-repeat entries and at most maxGridTracks tracks.
+func expandGridTracks(tracks []gridTrack, cw, cGap, itemCount int) []gridTrack {
 	expanded := make([]gridTrack, 0, maxGridTracks)
 	for _, tr := range tracks {
 		if tr.autoRepeat {
@@ -294,54 +304,104 @@ func resolveGridColumns(tracks []gridTrack, cw, cGap, itemCount int) []int {
 			expanded = append(expanded, tr)
 		}
 	}
+	return expanded
+}
+
+// sizeGridTracks resolves expanded tracks to pixel widths for the content
+// width cw. contentMin/contentMax, when given, are the min- and max-content
+// contributions of the items starting in each track. Fixed tracks take
+// their length; content-sized tracks start at their min-content (max-content
+// tracks at their maximum) and grow toward their maximum when space allows;
+// flexible tracks start at their automatic minimum and share what is left;
+// with no flexible track, auto tracks stretch. Overflow leaves tracks at
+// their bases, as in CSS.
+func sizeGridTracks(expanded []gridTrack, cw, cGap int, contentMin, contentMax []int) []int {
 	numCols := len(expanded)
 	if numCols == 0 {
 		return []int{max(1, cw)}
 	}
 	widths := make([]int, numCols)
-	minWidths := make([]int, numCols)
-	totalFixed := cGap * (numCols - 1)
+	limits := make([]int, numCols)
+	used := cGap * (numCols - 1)
 	var totalFr float64
 	for i := range expanded {
 		tr := &expanded[i]
+		minW := 0
 		if tr.minLen.definite(cw) {
-			minWidths[i] = tr.minLen.resolve(cw, cw)
+			minW = tr.minLen.resolve(cw, cw)
 		}
-		if tr.fr == 0 && tr.minLen.unit == lengthAuto && tr.maxLen.unit == lengthAuto {
-			tr.fr = 1
+		cmin, cmax := 0, 0
+		if i < len(contentMin) {
+			cmin, cmax = contentMin[i], max(contentMin[i], contentMax[i])
 		}
-		if tr.fr > 0 {
-			widths[i] = minWidths[i]
+		switch {
+		case tr.fr > 0:
+			widths[i] = max(minW, cmin) // the automatic minimum; shares come later
+			limits[i] = widths[i]
 			totalFr += tr.fr
-		} else if tr.maxLen.definite(cw) {
-			widths[i] = max(minWidths[i], tr.maxLen.resolve(cw, cw))
-			totalFixed += widths[i]
-		} else {
-			widths[i] = max(1, minWidths[i])
-			totalFixed += widths[i]
+		case tr.content != "":
+			base := max(minW, cmin)
+			limit := max(base, cmax)
+			if tr.content == "max-content" {
+				base = limit
+			}
+			if tr.maxLen.definite(cw) { // fit-content(len)
+				limit = max(base, min(limit, tr.maxLen.resolve(cw, cw)))
+			}
+			widths[i], limits[i] = base, limit
+		case tr.maxLen.definite(cw):
+			widths[i] = max(minW, tr.maxLen.resolve(cw, cw))
+			limits[i] = widths[i]
+		default:
+			widths[i] = max(1, minW)
+			limits[i] = widths[i]
+		}
+		used += widths[i]
+	}
+	free := cw - used
+	if free > 0 {
+		// Content-sized tracks grow toward their maxima first, pro rata.
+		need := 0
+		for i := range expanded {
+			need += limits[i] - widths[i]
+		}
+		if need > 0 {
+			grant := min(free, need)
+			given := 0
+			for i := range expanded {
+				add := grant * (limits[i] - widths[i]) / need
+				widths[i] += add
+				given += add
+			}
+			free -= given
 		}
 	}
-	free := cw - totalFixed
 	if free > 0 && totalFr > 0 {
-		// Respect minWidths on fr tracks.
-		rem := free
-		acc := 0.0
-		prev := 0
+		acc, prev := 0.0, 0
 		for i, tr := range expanded {
 			if tr.fr <= 0 {
 				continue
 			}
 			acc += tr.fr
 			next := int(float64(free)*acc/totalFr + 0.5)
-			share := max(minWidths[i], next-prev)
-			widths[i] = max(1, min(rem, share))
+			widths[i] += max(0, next-prev)
 			prev = next
-			rem = max(0, rem-widths[i])
 		}
-	} else {
-		for i := range widths {
-			widths[i] = max(1, widths[i])
+	} else if free > 0 {
+		stretch := 0
+		for _, tr := range expanded {
+			if tr.content == "auto" {
+				stretch++
+			}
 		}
+		for i, tr := range expanded {
+			if tr.content == "auto" {
+				widths[i] += free / stretch
+			}
+		}
+	}
+	for i := range widths {
+		widths[i] = max(1, widths[i])
 	}
 	return widths
 }
@@ -383,14 +443,8 @@ func (l *layout) grid(n *node, cx, cy, cw, height int, s style) int {
 
 	rGap := s.rowGap.resolve(max(0, height), 256)
 	cGap := s.colGap.resolve(cw, 256)
-	colWidths := resolveGridColumns(s.gridCols, cw, cGap, len(rawItems))
-	numCols := len(colWidths)
-	colX := make([]int, numCols)
-	accX := cx
-	for i, w := range colWidths {
-		colX[i] = accX
-		accX += w + cGap
-	}
+	expanded := expandGridTracks(s.gridCols, cw, cGap, len(rawItems))
+	numCols := max(1, len(expanded))
 
 	var rows [][]*gridItem
 	var curRow []*gridItem
@@ -423,6 +477,30 @@ func (l *layout) grid(n *node, cx, cy, cw, height int, s style) int {
 	}
 	if len(curRow) > 0 {
 		rows = append(rows, curRow)
+	}
+
+	// Content-sized tracks need the items' intrinsic widths; each item is
+	// charged to the track it starts in (spanning items approximate).
+	var contentMin, contentMax []int
+	if len(expanded) > 0 {
+		contentMin, contentMax = make([]int, numCols), make([]int, numCols)
+		for _, row := range rows {
+			for _, it := range row {
+				if !l.flexStep() {
+					return cy
+				}
+				a, b := l.preferredCell(it.node, it.cs, cw)
+				contentMin[it.colStart] = max(contentMin[it.colStart], a)
+				contentMax[it.colStart] = max(contentMax[it.colStart], b)
+			}
+		}
+	}
+	colWidths := sizeGridTracks(expanded, cw, cGap, contentMin, contentMax)
+	colX := make([]int, numCols)
+	accX := cx
+	for i, w := range colWidths {
+		colX[i] = accX
+		accX += w + cGap
 	}
 
 	rowY := cy

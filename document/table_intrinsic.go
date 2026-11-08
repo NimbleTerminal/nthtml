@@ -193,6 +193,8 @@ func (l *layout) measurePreferredCell(n *node, s style, basis int) (int, int) {
 				minimum = min(4096, minimum+gap)
 			}
 		}
+	} else if s.display == "grid" || s.display == "inline-grid" {
+		minimum, preferred = l.measureGrid(n, s, basis)
 	} else if n.tag == "table" {
 		rows, cols, err := l.d.collectTable(n, s, l.tableStep)
 		if err != nil {
@@ -310,4 +312,100 @@ func fixedIntrinsicWidth(n *node, s style) bool {
 		return false
 	}
 	return s.width.expr == nil || !s.width.expr.hasPercent()
+}
+
+// measureGrid sizes a grid container's content the way its layout places
+// items: columns from the template, items auto-placed with their spans. A
+// fixed track is its length; any other track is as wide as the widest item
+// that starts in it (a spanning item charges its first track). A template
+// without tracks, or with auto-repeat, wraps items onto new rows as needed,
+// so only one item sets the minimum. Primer buttons are three-column grids
+// (icon, label, icon) whose width is the sum, not the widest child.
+func (l *layout) measureGrid(n *node, s style, basis int) (minimum, preferred int) {
+	type gridMeasure struct {
+		cs        style
+		min, pref int
+	}
+	var items []gridMeasure
+	for _, child := range displayedChildren(n) {
+		if !l.tableStep() {
+			break
+		}
+		cs := s
+		if child.tag == "" {
+			if strings.TrimSpace(child.text) == "" {
+				continue
+			}
+			child = &node{tag: "span", parent: n, children: []*node{child}}
+			cs.display = "block"
+		} else {
+			cs = l.d.styled(child, s)
+		}
+		if cs.display == "none" || cs.position == "absolute" {
+			continue
+		}
+		a, b := l.preferredCell(child, cs, basis)
+		items = append(items, gridMeasure{cs: cs, min: a, pref: b})
+	}
+	if len(items) == 0 {
+		return 0, 0
+	}
+	gap := s.colGap.resolve(basis, 256)
+	wraps := len(s.gridCols) == 0
+	for _, tr := range s.gridCols {
+		if tr.autoRepeat {
+			wraps = true
+		}
+	}
+	if wraps {
+		for _, it := range items {
+			minimum = max(minimum, it.min)
+			preferred = min(4096, preferred+it.pref)
+		}
+		return minimum, min(4096, preferred+gap*(len(items)-1))
+	}
+	numCols := len(s.gridCols)
+	colMin, colPref := make([]int, numCols), make([]int, numCols)
+	fixed := make([]bool, numCols)
+	floor := make([]bool, numCols) // a definite minimum (minmax(0, auto)): the track may shrink to it
+	for i, tr := range s.gridCols {
+		if tr.fr == 0 && tr.minLen.definite(basis) && tr.maxLen.definite(basis) {
+			lo, hi := tr.minLen.resolve(basis, 4096), tr.maxLen.resolve(basis, 4096)
+			if lo == hi {
+				colMin[i], colPref[i], fixed[i] = lo, lo, true
+				continue
+			}
+		}
+		if tr.minLen.definite(basis) {
+			colMin[i], floor[i] = tr.minLen.resolve(basis, 4096), true
+		}
+	}
+	cursor := 0
+	for _, it := range items {
+		start, span := resolveGridItemSpan(it.cs, numCols)
+		if start >= 0 {
+			cursor = start
+		} else if cursor+span > numCols {
+			cursor = 0
+		}
+		if cursor >= numCols {
+			cursor = 0
+		}
+		if !fixed[cursor] {
+			if !floor[cursor] {
+				colMin[cursor] = max(colMin[cursor], it.min)
+			}
+			colPref[cursor] = max(colPref[cursor], it.pref)
+		}
+		cursor += max(1, span)
+		if cursor >= numCols {
+			cursor = 0
+		}
+	}
+	for i := range colMin {
+		minimum = min(4096, minimum+colMin[i])
+		preferred = min(4096, preferred+colPref[i])
+	}
+	gaps := gap * (numCols - 1)
+	return min(4096, minimum+gaps), min(4096, preferred+gaps)
 }

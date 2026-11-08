@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Size grid tracks from their items. `auto`, `min-content`, `max-content`,
+  `fit-content()` and `minmax(…, auto)` tracks now start at their items'
+  min-content width (max-content tracks at their maximum), grow toward their
+  maximum when space allows, and only `auto` tracks stretch when no `fr`
+  track is present; `fr` tracks keep an automatic minimum of their content.
+  Intrinsic measurement of grid containers sums the columns the same way
+  (definite minimums such as `minmax(0, auto)` may shrink to that minimum).
+  Primer buttons, a three-column grid of icon, label and icon, previously
+  measured as their widest child and clipped or overlapped their labels.
+
 - Paint nothing for images and inline SVGs inside `visibility: hidden`
   subtrees (their boxes keep their space, as before); hidden diagrams are not
   rendered at all and spend no budget. GitHub's closed mega-menu panels used to
