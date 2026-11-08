@@ -68,6 +68,8 @@ type Colors struct {
 }
 
 type Options struct {
+	// HoverSource is the host-hit-tested element ID; it and its ancestors match :hover.
+	HoverSource string
 	// Fonts defaults to ntfonts.Embedded; missing families fall back to Go fonts.
 	Fonts FaceSource
 	// FallbackFaces are tried in order after CSS families and before bundled
@@ -113,6 +115,7 @@ type Options struct {
 }
 
 type node struct {
+	hovered       bool
 	decl          map[string]string
 	firstLineDecl map[string]string
 	parent        *node
@@ -128,6 +131,8 @@ type node struct {
 
 // Document is immutable and can be rendered concurrently.
 type Document struct {
+	hasHover        bool
+	hoverSource     string
 	root            *node
 	rules           []rule
 	ruleIndex       *ruleIndex
@@ -327,6 +332,9 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			rs, e := parseCSSLayers(s.String(), l.Rules-len(d.rules), layers)
 			if e != nil {
 				return e
+			}
+			for _, r := range rs {
+				d.hasHover = d.hasHover || selectorHasHover(r.selector)
 			}
 			d.rules = append(d.rules, rs...)
 		}
@@ -530,8 +538,15 @@ func (d *Document) forWidth(ctx context.Context, width int) (*Document, error) {
 }
 
 func (d *Document) forMedia(ctx context.Context, width int, scheme string) (*Document, error) {
+	if d == nil {
+		return nil, nil
+	}
+	return d.forInteraction(ctx, width, scheme, d.hoverSource)
+}
+
+func (d *Document) forInteraction(ctx context.Context, width int, scheme, hover string) (*Document, error) {
 	scheme = normalizeColorScheme(scheme)
-	if d == nil || !d.hasMedia || (d.cascadedWidth == width && normalizeColorScheme(d.cascadedScheme) == scheme) {
+	if d == nil || (d.hoverSource == hover && (!d.hasMedia || (d.cascadedWidth == width && normalizeColorScheme(d.cascadedScheme) == scheme))) {
 		return d, nil
 	}
 	var clone func(*node, *node) *node
@@ -556,13 +571,28 @@ func (d *Document) forMedia(ctx context.Context, width int, scheme string) (*Doc
 		return c
 	}
 	cp := &Document{
-		root:     clone(d.root, nil),
+		root:   clone(d.root, nil),
+		layers: d.layers, hoverSource: hover,
 		rules:    d.rules,
 		limits:   d.limits,
 		hasMedia: d.hasMedia,
 		nodeSeq:  d.nodeSeq,
 	}
-	if err := cp.applyCascade(ctx, width, scheme, false); err != nil {
+	if hover != "" {
+		var mark func(*node)
+		mark = func(n *node) {
+			if n.attrs["id"] == hover {
+				for p := n; p != nil; p = p.parent {
+					p.hovered = true
+				}
+			}
+			for _, c := range n.children {
+				mark(c)
+			}
+		}
+		mark(cp.root)
+	}
+	if err := cp.applyCascade(ctx, width, scheme, true); err != nil {
 		return nil, err
 	}
 	return cp, nil

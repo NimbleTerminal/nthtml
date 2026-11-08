@@ -532,6 +532,8 @@ func (a attrSelector) matches(n *node) bool {
 
 func (ps pseudoSelector) matches(n *node) bool {
 	switch ps.name {
+	case "hover":
+		return n.hovered
 	case "root", "scope":
 		if n.tag == "html" {
 			return true
@@ -996,4 +998,20 @@ func cssEscape(s string) (rune, int, bool) {
 		r = utf8.RuneError
 	}
 	return r, 1 + n, true
+}
+
+func selectorHasHover(s selector) bool {
+	for _, part := range s {
+		for _, ps := range part.pseudos {
+			if ps.name == "hover" {
+				return true
+			}
+			for _, sub := range ps.subs {
+				if selectorHasHover(sub) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

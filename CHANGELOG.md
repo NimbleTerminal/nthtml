@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Support host-supplied CSS `:hover` state on the pointed element and ancestors,
+  including compound, relational and pseudo-element selectors. Recompute on
+  immutable clones so concurrent paints and other hover states remain isolated.
+
 - Add viewer-owned link hover (cyan) and pressed (amber) outlines, preserving
   keyboard focus and drag selection. Kitty uses its bounded focus patch without
   repainting the base band; text mode uses reverse video. Hosts must enable

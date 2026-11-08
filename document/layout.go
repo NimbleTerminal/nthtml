@@ -202,7 +202,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		return nil, limitError("width")
 	}
 	origDoc := d
-	d, err := d.forMedia(ctx, o.Width, o.ColorScheme)
+	d, err := d.forInteraction(ctx, o.Width, o.ColorScheme, o.HoverSource)
 	if err != nil {
 		return nil, err
 	}
@@ -1475,3 +1475,6 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 	}
 	return y
 }
+
+// HasHoverStyles reports whether this result's source contains hover rules.
+func (r *Result) HasHoverStyles() bool { return r != nil && r.document != nil && r.document.hasHover }
