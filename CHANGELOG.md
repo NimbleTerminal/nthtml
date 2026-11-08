@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Paint nothing for images and inline SVGs inside `visibility: hidden`
+  subtrees (their boxes keep their space, as before); hidden diagrams are not
+  rendered at all and spend no budget. GitHub's closed mega-menu panels used to
+  leak their icons onto the page.
+
+- Lay out icon-sized inline SVGs as inline replaced boxes and budget them
+  separately. An SVG that declares a size of at most 48×48 px (GitHub pages
+  carry well over a hundred 16 px octicons) flows with its text like an
+  inline-block instead of breaking the line, counts against its own cap of
+  1,024 per render plus the shared pixel budget, and degrades to a blank
+  spacer of its own size past that cap. CSS `inline-block`/`inline-flex`/
+  `inline-grid` SVGs of any size also stay in the line. Full-size diagrams keep
+  the 32-per-render count, and an SVG with only a `viewBox` still counts as a
+  diagram.
+
 - Size non-replaced, non-table boxes with an absolute `width` at exactly that
   width when measuring intrinsic contributions, so a fixed-width side pane
   wrapping long text stays beside a `flex: 1 1 0` main column instead of

@@ -433,7 +433,8 @@ Resource and lifetime boundaries:
   Existing parser defaults and maximums are unchanged. CSS reference width and
   color scheme are fixed at construction; rebuild the source when they change.
 - Styled-block/section and diagram budgets apply **per chunk** (existing 32,768
-  styled-block ceiling, 32 diagrams, and aggregate diagram pixel budget).
+  styled-block ceiling, 32 diagrams plus 1,024 icon-sized SVGs, and aggregate
+  diagram pixel budget).
   All nttypeset block/run/rune/glyph/operation/height/deadline limits still apply
   per layout, raster pixels per raster, and engine caches remain bounded.
   Native renderer height/pixel limits are unchanged; chunking does not call it.
@@ -704,7 +705,11 @@ Unclosed SVG markup is a parse error. Resource-budget violations return
 
 Limits per render: 32 diagrams, up to 1 Mi pixels each and 4 Mi pixels in total
 (or the smaller document pixel budget), maximum raster edge 4096 wide / 2048
-high. Each SVG is limited to 256 KiB, 2,048 elements, depth 32, 16,384 numeric
+high. Icon-sized inline SVGs (declared width and height both at most 48 px)
+are budgeted separately: up to 1,024 per render within the same pixel total,
+flowing inline with their text; past that cap they become blank spacers of
+their declared size. SVGs with `display: inline-block` (or inline-flex/grid)
+also stay in the line at any size. Each SVG is limited to 256 KiB, 2,048 elements, depth 32, 16,384 numeric
 coordinates, and coordinate magnitudes of 32,768. Nonzero stroke widths and dash lengths
 below 0.1 are unsupported; inline SVG styles allow up to 128 declarations. Mermaid source is limited
 to 4 KiB, 65 lines, 512 whitespace-separated tokens, and 256 lexical words/identifiers. Generated SVG passes

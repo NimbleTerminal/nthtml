@@ -281,6 +281,7 @@ type blockExtractor struct {
 	blocks       []StyledBlock
 	sections     []Section
 	diagramCount int
+	iconCount    int
 	diagramPx    int
 }
 
@@ -1207,23 +1208,36 @@ func (w *blockExtractor) extractImage(n *node, s style, indent int, id, parentID
 	return nil
 }
 
+// diagramLabelBlock emits the text stand-in for a diagram that is not
+// rendered: disabled mode, or an icon past the icon cap.
+func (w *blockExtractor) diagramLabelBlock(kind, label string, s style, indent int, id, parentID string, margin [4]int, pad Insets) error {
+	if err := w.addBlock(StyledBlock{
+		Kind:   BlockImage,
+		Size:   max(1, s.size),
+		Indent: indent,
+		Spans:  []Span{{Text: "[" + strings.ToUpper(kind) + ": " + label + "]", Size: max(1, s.size), Italic: true, Color: s.fg, ExplicitColor: s.explicitFg}},
+	}); err != nil {
+		return err
+	}
+	w.wrapLeaf(len(w.blocks)-1, id, parentID, s, margin, pad, nil)
+	return nil
+}
+
 func (w *blockExtractor) extractDiagram(n *node, kind, source string, s style, indent int, id, parentID string, margin [4]int, pad Insets) error {
 	label := diagramLabel(n)
 	if w.opts.DisableDiagrams {
-		if err := w.addBlock(StyledBlock{
-			Kind:   BlockImage,
-			Size:   max(1, s.size),
-			Indent: indent,
-			Spans:  []Span{{Text: "[" + strings.ToUpper(kind) + ": " + label + "]", Size: max(1, s.size), Italic: true, Color: s.fg, ExplicitColor: s.explicitFg}},
-		}); err != nil {
-			return err
-		}
-		w.wrapLeaf(len(w.blocks)-1, id, parentID, s, margin, pad, nil)
-		return nil
+		return w.diagramLabelBlock(kind, label, s, indent, id, parentID, margin, pad)
 	}
-	w.diagramCount++
-	if w.diagramCount > 32 {
-		return limitError("diagram count")
+	if isIconSVG(kind, source) {
+		w.iconCount++
+		if w.iconCount > maxIconSVGs {
+			return w.diagramLabelBlock(kind, label, s, indent, id, parentID, margin, pad)
+		}
+	} else {
+		w.diagramCount++
+		if w.diagramCount > maxDiagrams {
+			return limitError("diagram count")
+		}
 	}
 	availW := max(64, min(4096, w.opts.Width-indent))
 	remaining := min(4<<20, w.d.limits.Pixels) - w.diagramPx

@@ -65,6 +65,7 @@ type layout struct {
 	activeHidden                bool
 	absolute                    []absoluteBox
 	diagramCount, diagramPixels int
+	iconCount                   int
 	warnings                    []string
 	tableWork                   int
 	intrinsic                   map[intrinsicKey][]intrinsicEntry
@@ -100,6 +101,9 @@ func (l *layout) pageHeightLimit() int {
 
 func (l *layout) add(b Box, src image.Image) {
 	b.hidden = l.activeHidden
+	if b.hidden {
+		src = nil // visibility:hidden keeps the box, never its pixels
+	}
 	if l.err != nil {
 		return
 	}
@@ -612,8 +616,12 @@ func (l *layout) blockStyled(n *node, x, y, w, parentHeight int, s style) int {
 				l.floats.place(c, cs, cx, cy, cw, height)
 				continue
 			}
-			kind, _ := diagramSource(c)
-			if kind == "" && (c.tag == "" || cs.display == "inline" || cs.display == "inline-block" || cs.display == "inline-flex" || cs.display == "inline-grid" || c.tag == "br") {
+			if kind, source := diagramSource(c); kind != "" {
+				if inlineLevelDiagram(kind, source, cs.display) {
+					inline = append(inline, c)
+					continue
+				}
+			} else if c.tag == "" || cs.display == "inline" || cs.display == "inline-block" || cs.display == "inline-flex" || cs.display == "inline-grid" || c.tag == "br" {
 				inline = append(inline, c)
 				continue
 			}
@@ -790,6 +798,20 @@ func (l *layout) paintBorders(r image.Rectangle, s style) {
 	paintEdge(2, image.Rect(r.Min.X, r.Max.Y-bBottom, r.Max.X, r.Max.Y), true)
 	paintEdge(3, image.Rect(r.Min.X, r.Min.Y+bTop, r.Min.X+bLeft, r.Max.Y-bBottom), false)
 	paintEdge(1, image.Rect(r.Max.X-bRight, r.Min.Y+bTop, r.Max.X, r.Max.Y-bBottom), false)
+}
+
+// inlineLevelDiagram reports a diagram that flows with surrounding text: a CSS
+// inline-block (GitHub octicons), or an icon-sized SVG left at its default
+// inline display, which browsers lay out as an inline replaced box. A
+// full-size SVG at inline display still breaks the line, as it did before.
+func inlineLevelDiagram(kind, source, display string) bool {
+	switch display {
+	case "inline-block", "inline-flex", "inline-grid":
+		return true
+	case "inline":
+		return isIconSVG(kind, source)
+	}
+	return false
 }
 
 func (l *layout) resolveInlineBlock(n *node, ib style, baseW int) (style, int) {
@@ -1037,21 +1059,29 @@ func (l *layout) flow(nodes []*node, x, y, w int, normalStyle, firstLineStyle st
 			newline()
 			return
 		}
-		if kind, _ := diagramSource(n); kind != "" {
+		if kind, source := diagramSource(n); kind != "" {
 			if computed.display == "none" {
 				return
 			}
-			if hasText {
-				newline()
+			// Inline-level diagrams take the inline-block path below and stay
+			// in the line; everything else breaks it.
+			if inlineLevelDiagram(kind, source, computed.display) {
+				if computed.display == "inline" {
+					computed.display = "inline-block"
+				}
+			} else {
+				if hasText {
+					newline()
+				}
+				y = l.block(n, x, y, w, parentH, st)
+				px = x
+				lineStart = len(l.ops)
+				lineHeight = 0
+				hasText = false
+				pendingSpace = false
+				pendingSpaceBg = color.RGBA{}
+				return
 			}
-			y = l.block(n, x, y, w, parentH, st)
-			px = x
-			lineStart = len(l.ops)
-			lineHeight = 0
-			hasText = false
-			pendingSpace = false
-			pendingSpaceBg = color.RGBA{}
-			return
 		}
 		if n.tag != "" {
 			st = computed

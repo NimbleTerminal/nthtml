@@ -99,6 +99,25 @@ func (r DefaultDiagramRenderer) renderDiagram(ctx context.Context, kind, source 
 	return
 }
 
+// maxDiagrams bounds full-size diagrams per render; maxIconSVGs bounds
+// icon-sized inline SVGs, which cost at most iconSVGEdge² pixels each.
+const (
+	maxDiagrams = 32
+	maxIconSVGs = 1024
+	iconSVGEdge = 48
+)
+
+// isIconSVG reports an inline SVG that declares a size of at most iconSVGEdge
+// pixels on both sides: a glyph-sized icon, not a diagram. A viewBox alone
+// declares no size, so such an SVG stays a diagram however small its units.
+func isIconSVG(kind, source string) bool {
+	if kind != "svg" {
+		return false
+	}
+	w, h := svgDeclaredSize(source)
+	return w > 0 && h > 0 && w <= iconSVGEdge && h <= iconSVGEdge
+}
+
 func diagramSource(n *node) (kind, source string) {
 	if n.svg != "" {
 		return "svg", n.svg
@@ -158,13 +177,18 @@ func diagramLabel(n *node) string {
 	return "diagram"
 }
 func (l *layout) diagram(n *node, kind, source string, x, y, w, height int, s style) int {
+	// spacer keeps the SVG's own height without drawing: decorative icons and
+	// icons past the icon cap, where a label could not fit the box anyway.
+	spacer := func() int {
+		_, h := svgIntrinsicDimensions(source)
+		if height > 0 {
+			h = height
+		}
+		return y + min(h, max(0, l.pageHeightLimit()-y))
+	}
 	fallback := func() int {
 		if kind == "svg" && strings.EqualFold(strings.TrimSpace(n.attrs["aria-hidden"]), "true") {
-			_, h := svgIntrinsicDimensions(source)
-			if height > 0 {
-				h = height
-			}
-			return y + min(h, max(0, l.pageHeightLimit()-y))
+			return spacer()
 		}
 		text := "[SVG: " + diagramLabel(n) + "]"
 		if kind == "mermaid" {
@@ -178,10 +202,26 @@ func (l *layout) diagram(n *node, kind, source string, x, y, w, height int, s st
 	if l.opts.DisableDiagrams {
 		return fallback()
 	}
-	l.diagramCount++
-	if l.diagramCount > 32 {
-		l.err = limitError("diagram count")
-		return y
+	if s.hidden || l.activeHidden {
+		// visibility:hidden (GitHub's closed mega-menu panels): keep the space,
+		// skip the render and spend no budget on pixels nobody sees.
+		return spacer()
+	}
+	if isIconSVG(kind, source) {
+		// Icon-sized SVGs (GitHub pages carry well over a hundred 16 px
+		// octicons) are cheap and bounded by their own count and the shared
+		// pixel budget; past the cap they degrade to labels, never failing the
+		// page. Only full-size diagrams spend the diagram count.
+		l.iconCount++
+		if l.iconCount > maxIconSVGs {
+			return spacer()
+		}
+	} else {
+		l.diagramCount++
+		if l.diagramCount > maxDiagrams {
+			l.err = limitError("diagram count")
+			return y
+		}
 	}
 	remaining := min(4<<20, l.d.limits.Pixels) - l.diagramPixels
 	maxH := min(2048, l.pageHeightLimit()-y, (1<<20)/w, remaining/w)

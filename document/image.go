@@ -28,22 +28,23 @@ type ImageSource struct {
 	Kind string
 }
 
-func svgIntrinsicDimensions(source string) (int, int) {
+// svgSizeAttrs reads the root element's absolute width/height attributes (0
+// when absent or relative) and a positive viewBox size (0 when absent). ok is
+// false when the source has no <svg> root.
+func svgSizeAttrs(source string) (w, h int, vbW, vbH float64, ok bool) {
 	dec := xml.NewDecoder(strings.NewReader(source))
 	for {
 		tok, err := dec.Token()
 		if err != nil {
-			break
+			return 0, 0, 0, 0, false
 		}
-		start, ok := tok.(xml.StartElement)
-		if !ok {
+		start, isStart := tok.(xml.StartElement)
+		if !isStart {
 			continue
 		}
 		if start.Name.Local != "svg" {
-			break
+			return 0, 0, 0, 0, false
 		}
-		var w, h int
-		var vbW, vbH float64
 		for _, a := range start.Attr {
 			switch strings.ToLower(a.Name.Local) {
 			case "width":
@@ -65,6 +66,33 @@ func svgIntrinsicDimensions(source string) (int, int) {
 				}
 			}
 		}
+		return w, h, vbW, vbH, true
+	}
+}
+
+// svgDeclaredSize is the size an SVG declares for itself: both absolute
+// dimensions, or one dimension with the other derived from the viewBox
+// aspect. A viewBox alone declares no size (the box then fills its container)
+// and yields 0, 0.
+func svgDeclaredSize(source string) (int, int) {
+	w, h, vbW, vbH, ok := svgSizeAttrs(source)
+	switch {
+	case !ok || (w <= 0 && h <= 0):
+		return 0, 0
+	case w > 0 && h <= 0 && vbW > 0:
+		h = max(1, min(1024, int(math.Round(float64(w)*vbH/vbW))))
+	case h > 0 && w <= 0 && vbW > 0:
+		w = max(1, min(1024, int(math.Round(float64(h)*vbW/vbH))))
+	}
+	if w <= 0 || h <= 0 {
+		return 0, 0
+	}
+	return w, h
+}
+
+func svgIntrinsicDimensions(source string) (int, int) {
+	w, h, vbW, vbH, ok := svgSizeAttrs(source)
+	if ok {
 		if w <= 0 && h <= 0 {
 			if vbW > 0 && vbH > 0 {
 				w = max(1, min(1024, int(math.Round(vbW))))

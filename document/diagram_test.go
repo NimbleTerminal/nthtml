@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"image"
+	"image/color"
+	"image/draw"
 	"strings"
 	"testing"
 )
@@ -108,6 +110,146 @@ func TestDiagramLimitsAndCancellation(t *testing.T) {
 	_, e := (DefaultDiagramRenderer{}).RenderDiagram(ctx, "svg", "<svg/>", 100, 100)
 	if !errors.Is(e, context.Canceled) {
 		t.Fatal(e)
+	}
+}
+
+// TestIconSVGsDoNotSpendDiagramBudget: a GitHub repository page carries ~140
+// inline 16 px octicons. Icon-sized SVGs render under their own cap and the
+// pixel budget, leaving the diagram count to full-size figures; past the icon
+// cap they fall back to labels instead of failing the render.
+func TestIconSVGsDoNotSpendDiagramBudget(t *testing.T) {
+	icon := `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0Z" fill="currentColor"/></svg>`
+	figure := `<svg width="200" height="100" viewBox="0 0 20 10" aria-label="Figure"><rect width="20" height="10" fill="blue"/></svg>`
+	r, e := Render(context.Background(), strings.NewReader("<div>"+strings.Repeat(icon, 140)+figure+"</div>"), Options{Width: 800})
+	if e != nil {
+		t.Fatalf("icons exhausted the diagram budget: %v", e)
+	}
+	if len(r.Warnings) > 0 {
+		t.Fatal(r.Warnings)
+	}
+	// Full-size SVGs still count: 33 of them exceed the diagram budget.
+	if _, e := Render(context.Background(), strings.NewReader(strings.Repeat(figure, 33)), Options{Width: 800}); !errors.Is(e, ErrLimit) {
+		t.Fatalf("want diagram count limit, got %v", e)
+	}
+	// Past the icon cap the page still renders. The extra icons keep their
+	// box as blank spacers rather than labels no 16 px box could hold: a
+	// rendered icon contributes its element box and its image box, a spacer
+	// only the element box.
+	labelled := strings.Replace(icon, `aria-hidden="true"`, `aria-label="dot"`, 1)
+	r, e = Render(context.Background(), strings.NewReader(`<p>`+strings.Repeat(labelled, maxIconSVGs+3)+"</p>"), Options{Width: 800})
+	if e != nil {
+		t.Fatalf("icon overflow failed the render: %v", e)
+	}
+	svgBoxes, labels := 0, 0
+	for _, box := range r.Boxes {
+		if box.Tag == "svg" {
+			svgBoxes++
+		}
+		if box.Text != "" {
+			labels++
+		}
+	}
+	if svgBoxes != 2*maxIconSVGs+3 || labels != 0 {
+		t.Fatalf("svg boxes %d (want %d), label boxes %d (want 0)", svgBoxes, 2*maxIconSVGs+3, labels)
+	}
+	// Intrinsic size decides: a sized box without both dimensions is a diagram.
+	for _, src := range []string{`<svg viewBox="0 0 16 16"/>`, `<svg viewBox="0 0 10 1"/>`, `<svg width="49" height="16"/>`, `<svg width="16"/>`, `<svg width="100%" height="16"/>`} {
+		if isIconSVG("svg", src) {
+			t.Fatalf("%s classified as an icon", src)
+		}
+	}
+	for _, src := range []string{`<svg width="48" height="12"/>`, `<svg width="16" viewBox="0 0 16 16"/>`, `<svg height="1em" viewBox="0 0 2 1"/>`} {
+		if !isIconSVG("svg", src) {
+			t.Fatalf("%s not classified as an icon", src)
+		}
+	}
+	if isIconSVG("mermaid", `<svg width="1" height="1"/>`) {
+		t.Fatal("mermaid classified as an icon")
+	}
+}
+
+// TestInlineSVGIconsStayInTheLine: an icon-sized SVG, or any inline-block SVG,
+// flows with the surrounding text like an inline replaced box (GitHub's
+// "<octicon> Star" buttons); full-size SVGs without inline display break the
+// line as before.
+func TestInlineSVGIconsStayInTheLine(t *testing.T) {
+	icon := `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0Z"/></svg>`
+	lineOf := func(t *testing.T, html string, text string) (int, int) {
+		t.Helper()
+		r := renderCSS(t, html)
+		textY, svgY := -1, -1
+		for _, box := range r.Boxes {
+			if box.Text == text {
+				textY = box.Bounds.Min.Y
+			}
+			if box.Tag == "svg" && svgY < 0 {
+				svgY = box.Bounds.Min.Y
+			}
+		}
+		if textY < 0 || svgY < 0 {
+			t.Fatalf("missing boxes in %s", html)
+		}
+		return textY, svgY
+	}
+	if textY, svgY := lineOf(t, `<p>Before `+icon+` After</p>`, "After"); svgY >= textY+22 || textY >= svgY+16 {
+		t.Fatalf("inline icon left the line: text y=%d svg y=%d", textY, svgY)
+	}
+	wide := `<svg style="display:inline-block" width="120" height="60" viewBox="0 0 20 10"><rect width="20" height="10"/></svg>`
+	if textY, svgY := lineOf(t, `<p>Before `+wide+` After</p>`, "After"); textY > svgY+60 || svgY > textY+22 {
+		t.Fatalf("inline-block diagram left the line: text y=%d svg y=%d", textY, svgY)
+	}
+	block := `<svg width="120" height="60" viewBox="0 0 20 10"><rect width="20" height="10"/></svg>`
+	if textY, svgY := lineOf(t, `<p>Before `+block+` After</p>`, "After"); textY < svgY+60 {
+		t.Fatalf("full-size diagram should break the line: text y=%d svg y=%d", textY, svgY)
+	}
+	// Two icons and their labels share one line and advance horizontally.
+	r := renderCSS(t, `<p>`+icon+` Star `+icon+` Fork</p>`)
+	var xs []int
+	for _, box := range r.Boxes {
+		if box.Tag == "svg" && box.Bounds.Dx() == 16 {
+			xs = append(xs, box.Bounds.Min.X)
+		}
+	}
+	if len(xs) < 2 || xs[len(xs)-1] <= xs[0]+16 {
+		t.Fatalf("icons did not advance along the line: %v", xs)
+	}
+}
+
+// TestHiddenDiagramsAndImagesAreNotPainted: visibility:hidden subtrees keep
+// their layout space but paint nothing, images included. GitHub's closed
+// mega-menu panels are visibility:hidden and used to leak their icons.
+func TestHiddenDiagramsAndImagesAreNotPainted(t *testing.T) {
+	renderer := &testDiagramRenderer{}
+	icon := `<svg width="16" height="16" viewBox="0 0 16 16" aria-label="dot"><path d="M0 0h16v16H0z"/></svg>`
+	red := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	draw.Draw(red, red.Bounds(), image.NewUniform(color.RGBA{255, 0, 0, 255}), image.Point{}, draw.Src)
+	html := `<div style="visibility:hidden">` + icon + `<img src="red.png" width="16" height="16"></div><p>after</p>`
+	r, e := Render(context.Background(), strings.NewReader(html), Options{Width: 200, Diagrams: renderer, Images: map[string]image.Image{"red.png": red}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if renderer.calls != 0 {
+		t.Fatalf("hidden diagram rendered %d times", renderer.calls)
+	}
+	afterY := -1
+	for _, box := range r.Boxes {
+		if box.Text == "after" {
+			afterY = box.Bounds.Min.Y
+		}
+	}
+	if afterY < 16 {
+		t.Fatalf("hidden content lost its space: after at y=%d", afterY)
+	}
+	for y := 0; y < afterY; y++ {
+		for x := 0; x < 200; x++ {
+			if c := r.Image.At(x, y); c == (color.RGBA{255, 0, 0, 255}) {
+				t.Fatalf("hidden image painted at %d,%d", x, y)
+			}
+		}
+	}
+	// The same icon stays visible, and rendered, outside the hidden subtree.
+	if _, e := Render(context.Background(), strings.NewReader(icon), Options{Width: 200, Diagrams: renderer}); e != nil || renderer.calls != 1 {
+		t.Fatalf("visible icon not rendered: calls %d err %v", renderer.calls, e)
 	}
 }
 
