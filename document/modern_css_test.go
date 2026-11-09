@@ -270,3 +270,34 @@ func TestSVGPrologIsTolerated(t *testing.T) {
 		}
 	}
 }
+
+// A modular type scale built from nested custom-property calc() chains
+// resolves inside clamp(): --s4 is four calc() levels deep once substituted.
+func TestNestedCalcScaleInsideClamp(t *testing.T) {
+	r := render(t, `<style>:root { --ratio: 1.25; --s0: 1rem; --s1: calc(var(--s0) * var(--ratio)); --s2: calc(var(--s1) * var(--ratio)); --s3: calc(var(--s2) * var(--ratio)); --s4: calc(var(--s3) * var(--ratio)); --s5: calc(var(--s4) * var(--ratio)) }
+		h1 { font-size: clamp(var(--s2), 50vw, var(--s5)); margin: 0 } h2 { font-size: var(--s4); margin: 0 }</style><body><h1>A</h1><h2>B</h2></body>`)
+	sizes := map[string]int{}
+	for _, b := range r.Boxes {
+		if b.Text != "" {
+			sizes[b.Text] = b.FontSize
+		}
+	}
+	if sizes["A"] != 48 || sizes["B"] != 39 {
+		t.Fatalf("font sizes %v, want A=48 (s5, 48.8px) and B=39 (s4)", sizes)
+	}
+}
+
+// line-height: normal follows a font size the cascade sets, instead of keeping
+// the body's absolute line as a floor: 7pt table text sits in a short line.
+func TestNormalLineHeightFollowsCSSFontSize(t *testing.T) {
+	r := render(t, `<style>body{margin:0} .small{font-size:9px} .big{font-size:30px}</style><body><p class="small">s</p><p class="big">b</p><p>n</p></body>`)
+	heights := map[string]int{}
+	for _, b := range r.Boxes {
+		if b.Text != "" {
+			heights[b.Text] = b.Bounds.Dy()
+		}
+	}
+	if heights["s"] != 12 || heights["b"] != 41 || heights["n"] != 22 {
+		t.Fatalf("line boxes %v, want s=12 (9px), b=41 (30px), n=22 (default 16px)", heights)
+	}
+}

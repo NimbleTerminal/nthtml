@@ -2305,17 +2305,21 @@ func (d *Document) styled(n *node, parent style) style {
 		s.explicitFg = true
 		fgInherited = !strings.EqualFold(strings.TrimSpace(cv), "currentcolor")
 	}
+	cssSized := false // font-size set by the cascade: line-height: normal follows the new size
 	if fsv := values["font-size"]; isCSSKeyword(fsv) {
 		if resolveCSSKeyword("font-size", fsv) == "inherit" {
 			s.size = parent.size
 		} else {
 			s.size = 16
+			cssSized = true
 		}
 	} else if sz, ok := fontSizeKeyword(fsv, parent.size); ok {
 		s.size = sz
+		cssSized = true
 	} else if value, ok := parseLength(fsv, false, false); ok {
 		value = value.computedViewport(parent.size, s.rootSize, s.vw, s.vh)
 		s.size = value.resolve(parent.size, 128)
+		cssSized = true
 	}
 	if n.tag == "html" {
 		s.rootSize = s.size
@@ -3094,13 +3098,26 @@ func (d *Document) styled(n *node, parent style) style {
 	}
 
 	if s.lineMode == 0 {
-		if s.size == 0 {
+		switch {
+		case s.size == 0:
 			s.line = 0
-		} else {
+		case cssSized:
+			// line-height: normal follows the element's own size, as a
+			// browser's does; the inherited absolute line was computed
+			// for the parent's size (Hacker News' 7pt subtext rows kept
+			// the body's 22px lines).
+			s.line = normalLine(s.size)
+		default:
 			s.line = max(s.line, s.size+2)
 		}
 	}
 	return s
+}
+
+// normalLine is the renderer's line-height: normal, the 22px-at-16px ratio
+// of the document default, never under the glyph height plus leading.
+func normalLine(size int) int {
+	return max(size+2, (size*11+4)/8)
 }
 
 func (d *Document) cascade(n *node) map[string]string {

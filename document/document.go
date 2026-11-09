@@ -446,13 +446,13 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 				// Charge subject-key scanning and conservative selector work for
 				// every candidate, including inactive media/pseudo rules.
 				work += 1 + len(n.attrs) + len(n.attrs["class"])
-				if work > max(8000000, l.Nodes*800) {
+				if work > d.matchingWorkCap(l) {
 					return limitError("CSS matching work")
 				}
 				for _, ri := range candidates {
 					r := d.rules[ri]
 					work += 1 + depth*d.ruleIndex.terms[ri] + len(r.decl) + len(n.attrs["class"])/16
-					if work > max(8000000, l.Nodes*800) {
+					if work > d.matchingWorkCap(l) {
 						return limitError("CSS matching work")
 					}
 				}
@@ -754,4 +754,12 @@ func closesParagraph(tag string) bool {
 // scope, so a paragraph outside a table cell or button is left alone.
 func paragraphScopeBoundary(tag string) bool {
 	return strings.Contains(" html table td th caption applet marquee object template button ", " "+tag+" ")
+}
+
+// matchingWorkCap bounds selector matching for one cascade. It scales with
+// the node limit and, since every candidate rule is charged per node, with
+// the rule budget too: github.com's 27,000 rules need 11 million units at
+// 1220 px, past the fixed 8 million floor.
+func (d *Document) matchingWorkCap(l Limits) int {
+	return max(8000000, l.Nodes*800, l.Rules*512)
 }

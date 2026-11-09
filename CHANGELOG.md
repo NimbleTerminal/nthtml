@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Let `line-height: normal` follow a font size the cascade sets (the
+  22px-at-16px document ratio) instead of keeping the inherited absolute line
+  as a floor. Hacker News' 7pt subtext rows sat in the body's 22px lines, so
+  every story took 40% more height than in a browser.
+
+- Scale the selector-matching work cap with the rule budget (512 units per
+  rule beside the 8 million floor and 800 per node). github.com's 27,000
+  rules need 11 million units at 1220 px and lost every stylesheet to "CSS
+  matching work" once nested rules counted in full.
+
+- Allow math functions to nest 24 levels (was 8; a nested `calc()` costs
+  two). Design-token scales such as `--s4: calc(var(--s3) * var(--ratio))`
+  substitute to four or five nested `calc()` calls inside a `clamp()` and
+  silently fell back to the default size: fallthrough.fm's heading and body
+  type rendered at 32 px and 16 px instead of 49 px and 20 px.
+
 - Accept the XML declaration and a plain DOCTYPE at the top of an SVG image
   (both dropped before rendering); a DOCTYPE with an internal subset and
   other processing instructions are still refused. delta.com's exported

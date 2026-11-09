@@ -239,8 +239,15 @@ func parseMathLength(s string) (cssLength, bool) {
 	return cssLength{unit: u, expr: node}, true
 }
 
+// maxMathDepth bounds nested math: each calc(), min(), max() or clamp()
+// level costs two. Design-token scales such as
+// --s4: calc(var(--s3) * var(--ratio)) substitute to four or five nested
+// calc() calls inside a clamp(), which the old cap of 8 rejected; the node
+// budget still bounds the work.
+const maxMathDepth = 24
+
 func parseMathFuncCall(fn, inner string, depth int, nodes *int) (*cssMathNode, uint8, bool) {
-	if depth > 8 {
+	if depth > maxMathDepth {
 		return nil, calcTypeInvalid, false
 	}
 	*nodes++
@@ -299,7 +306,7 @@ type calcParser struct {
 }
 
 func parseCalcSum(s string, depth int, nodes *int) (*cssMathNode, uint8, bool) {
-	if depth > 8 {
+	if depth > maxMathDepth {
 		return nil, calcTypeInvalid, false
 	}
 	p := &calcParser{s: strings.TrimSpace(s), depth: depth, nodes: nodes}
