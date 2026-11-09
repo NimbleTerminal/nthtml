@@ -6,6 +6,7 @@ package document
 import (
 	"context"
 	"image/color"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -194,5 +195,28 @@ func TestBlockStartTagClosesOpenParagraph(t *testing.T) {
 				t.Fatalf("%q lost its paragraph: %v", b.Text, b.Bounds)
 			}
 		}
+	}
+}
+
+// A utility reset that declares many custom properties on every element stays
+// within the declaration budget: identical inherited values share the parent's
+// map and the budget scales with the node limit.
+func TestUniversalCustomPropertiesFitTheDeclarationBudget(t *testing.T) {
+	var css strings.Builder
+	css.WriteString("*, ::before, ::after {")
+	for i := 0; i < 100; i++ {
+		css.WriteString("--tw-" + strings.Repeat("x", i%7+1) + strconv.Itoa(i) + ": 0;")
+	}
+	css.WriteString("}")
+	var body strings.Builder
+	for i := 0; i < 2000; i++ {
+		body.WriteString("<span>s</span>")
+	}
+	r, err := Render(context.Background(), strings.NewReader("<style>"+css.String()+"</style><body>"+body.String()+"</body>"), Options{Width: 400})
+	if err != nil {
+		t.Fatalf("2000 elements under a 100-property reset: %v", err)
+	}
+	if len(r.Boxes) < 2000 {
+		t.Fatalf("%d boxes", len(r.Boxes))
 	}
 }

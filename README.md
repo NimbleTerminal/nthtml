@@ -790,7 +790,7 @@ Run `task demo DEMO=reports`, or select **Reports & merged tables** in the brows
 
 ![Report with merged headers and row spans](examples/demo/previews/reports.png)
 
-Selector matching is cached during parsing and capped at 8 million work units and 100,000 resolved declarations. Tables are limited to 256 logical columns and 100,000 grid slots, in addition to the existing cumulative work and output budgets. Row spans stop at row-group boundaries; malformed overlaps shift a cell to the next free range. On narrow terminals, stacked records emit each source cell once. Cell content is wrapped to the allocated TTY cell width even if it requests nowrap; standalone nowrap text can exceed the terminal width.
+Selector matching is cached during parsing and capped at 8 million work units and max(100,000, 128 × `Limits.Nodes`) resolved declarations (children whose custom properties repeat the parent's values share its map). Tables are limited to 256 logical columns and 100,000 grid slots, in addition to the existing cumulative work and output budgets. Row spans stop at row-group boundaries; malformed overlaps shift a cell to the next free range. On narrow terminals, stacked records emit each source cell once. Cell content is wrapped to the allocated TTY cell width even if it requests nowrap; standalone nowrap text can exceed the terminal width.
 
 ### Length units and color values
 

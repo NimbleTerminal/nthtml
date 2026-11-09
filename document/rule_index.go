@@ -131,15 +131,6 @@ func (d *Document) candidateRules(n *node) []int {
 	return result
 }
 
-func newVariableEntries(decl, vars map[string]string) int {
-	for k := range decl {
-		if strings.HasPrefix(k, "--") {
-			return len(vars)
-		}
-	}
-	return 0
-}
-
 // Positive functional pseudos describe a union of possible subjects. Index the
 // union only when every alternative has a necessary key; otherwise keep the
 // rule universal. Never infer subject keys from :not or :has.

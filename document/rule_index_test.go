@@ -85,11 +85,23 @@ func TestInheritedVariablesChargedOnce(t *testing.T) {
 	if _, err := Parse(context.Background(), strings.NewReader(css.String()+body+"</body></html>"), Limits{}); err != nil {
 		t.Fatalf("shared inherited variables: %v", err)
 	}
-	// Local overrides copy the environment; these must still consume the budget.
+	// A local override layers one entry over the shared scope instead of
+	// copying the inherited set, so a thousand of them stay within budget.
 	body = strings.Repeat(`<p style="--local:blue">text</p>`, 1000)
-	_, err := Parse(context.Background(), strings.NewReader(css.String()+body+"</body></html>"), Limits{})
+	if _, err := Parse(context.Background(), strings.NewReader(css.String()+body+"</body></html>"), Limits{}); err != nil {
+		t.Fatalf("local overrides charged as full copies: %v", err)
+	}
+	// Genuinely new properties are still charged: 1000 elements declaring
+	// 300 distinct values each (300,000 entries) exceed the budget of a
+	// document limited to 2,100 nodes (128 per node, 268,800).
+	var local strings.Builder
+	for i := range 300 {
+		fmt.Fprintf(&local, "--a%d:1;", i)
+	}
+	body = strings.Repeat(`<p style="`+local.String()+`">text</p>`, 1000)
+	_, err := Parse(context.Background(), strings.NewReader(css.String()+body+"</body></html>"), Limits{Bytes: 4 << 20, Nodes: 2100})
 	if !errors.Is(err, ErrLimit) || !strings.Contains(err.Error(), "computed declarations") {
-		t.Fatalf("copied environments escaped budget: %v", err)
+		t.Fatalf("own declarations escaped budget: %v", err)
 	}
 }
 

@@ -444,7 +444,38 @@ func expandVarDeclaration(k, v string, put func(string, string)) {
 	}
 }
 
-func resolveElementVars(decl map[string]string, parentVars map[string]string) map[string]string {
+// varScope is one element's custom properties layered over its ancestors'.
+// Children that declare their own properties share the ancestor scopes
+// instead of copying them, so a utility reset that sets dozens of
+// properties on every element costs one small map per element rather than
+// the whole inherited set each time (yahoo.com needed 1.25 million copied
+// entries for 1,280 elements). Lookups walk the chain, bounded by the
+// document's depth limit.
+type varScope struct {
+	own    map[string]string // this element's declarations; varUnset records --x: initial
+	parent *varScope
+}
+
+const varUnset = "\x00unset"
+
+func (s *varScope) lookup(k string) (string, bool) {
+	for ; s != nil; s = s.parent {
+		if v, ok := s.own[k]; ok {
+			if v == varUnset {
+				return "", false
+			}
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// resolveElementVars returns the scope for an element whose cascaded
+// declarations are decl: the parent's scope when it declares no custom
+// property, or none that differs from an inherited value, else a new scope
+// holding only the differing ones with var() references inside them
+// resolved against the new scope. An invalid reference unsets the property.
+func resolveElementVars(decl map[string]string, parent *varScope) *varScope {
 	var customKeys []string
 	for k := range decl {
 		if strings.HasPrefix(k, "--") {
@@ -452,59 +483,49 @@ func resolveElementVars(decl map[string]string, parentVars map[string]string) ma
 		}
 	}
 	if len(customKeys) == 0 {
-		return parentVars
+		return parent
 	}
 	sort.Strings(customKeys)
-	vars := make(map[string]string, min(maxCustomProps, len(parentVars)+len(customKeys)))
-	for k, v := range parentVars {
-		if len(vars) >= maxCustomProps {
+	own := map[string]string{}
+	for _, k := range customKeys {
+		if len(own) >= maxCustomProps {
 			break
 		}
-		vars[k] = v
-	}
-	for _, k := range customKeys {
 		v := decl[k]
+		pv, inherited := parent.lookup(k)
 		if isCSSKeyword(v) {
-			kw := strings.ToLower(strings.TrimSpace(v))
-			if kw == "initial" {
-				delete(vars, k)
-			} else if pv, ok := parentVars[k]; ok {
-				if _, exists := vars[k]; exists || len(vars) < maxCustomProps {
-					vars[k] = pv
-				}
-			} else {
-				delete(vars, k)
+			if strings.ToLower(strings.TrimSpace(v)) == "initial" && inherited {
+				own[k] = varUnset
 			}
+			continue // inherit, unset and revert keep the inherited value
+		}
+		if inherited && pv == v {
 			continue
 		}
-		if _, exists := vars[k]; exists || len(vars) < maxCustomProps {
-			vars[k] = v
-		}
+		own[k] = v
 	}
+	if len(own) == 0 {
+		return parent
+	}
+	scope := &varScope{own: own, parent: parent}
 	var resolved map[string]string
-	for _, k := range customKeys {
-		v, ok := vars[k]
-		if !ok || !containsVar(v) {
+	for k, v := range own {
+		if v == varUnset || !containsVar(v) {
 			continue
 		}
 		if resolved == nil {
-			resolved = make(map[string]string, len(customKeys))
+			resolved = map[string]string{}
 		}
-		sub, valid := substituteVars(v, vars, 0)
-		if valid && !containsVar(sub) {
+		if sub, valid := substituteVars(v, scope, 0); valid && !containsVar(sub) {
 			resolved[k] = sub
 		} else {
-			resolved[k] = "\x00invalid"
+			resolved[k] = varUnset
 		}
 	}
 	for k, v := range resolved {
-		if v == "\x00invalid" {
-			delete(vars, k)
-		} else {
-			vars[k] = v
-		}
+		own[k] = v
 	}
-	return vars
+	return scope
 }
 
 // resolveDeclaredValues substitutes custom properties into an element's
@@ -512,7 +533,7 @@ func resolveElementVars(decl map[string]string, parentVars map[string]string) ma
 // before each value is parsed, so a token such as
 // --rule: light-dark(#c6cec8, #39443d) is a plain colour by the time a border
 // shorthand validates it.
-func resolveDeclaredValues(decl map[string]string, vars map[string]string, scheme string) map[string]string {
+func resolveDeclaredValues(decl map[string]string, vars *varScope, scheme string) map[string]string {
 	needsResolve := false
 	for k, v := range decl {
 		if strings.HasPrefix(k, "--") || strings.HasPrefix(v, "\x00") || containsVar(v) || strings.Contains(v, lightDarkFn) {
@@ -570,7 +591,7 @@ func resolveDeclaredValues(decl map[string]string, vars map[string]string, schem
 	return out
 }
 
-func substituteVars(s string, vars map[string]string, depth int) (string, bool) {
+func substituteVars(s string, vars *varScope, depth int) (string, bool) {
 	if depth > maxVarSubstDepth {
 		return "", false
 	}
@@ -610,7 +631,7 @@ func substituteVars(s string, vars map[string]string, depth int) (string, bool) 
 		if !isCustomPropertyName(name) {
 			return "", false
 		}
-		val, exists := vars[name]
+		val, exists := vars.lookup(name)
 		if exists && containsVar(val) {
 			resolvedVal, ok := substituteVars(val, vars, depth+1)
 			if !ok {

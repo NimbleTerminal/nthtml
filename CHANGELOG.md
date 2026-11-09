@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Layer each element's custom properties over its ancestors' scope instead
+  of copying the inherited set per element, and scale the
+  computed-declaration budget with the node limit (128 per node, floor
+  100,000, was 10 per node). Utility frameworks that reset dozens of custom
+  properties on every element (yahoo.com's front page copied 1.25 million
+  entries for 1,280 elements) previously exceeded the budget and lost all
+  their stylesheets.
+
 - Parse CSS Nesting: a style rule may contain nested rules (`& .x`, `> p`,
   bare `.x`, nested `@media`), expanded against each parent selector up to
   the media nesting depth and 64 selectors per level, and the declarations

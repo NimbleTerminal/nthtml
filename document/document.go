@@ -433,8 +433,8 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 	// computed values still resolve during layout, but selector work cannot
 	// multiply during reflow or nested table measurement.
 	work, entries := d.ruleIndex.scanWork, 0
-	var cascade func(*node, int, map[string]string, string) error
-	cascade = func(n *node, depth int, parentVars map[string]string, scheme string) error {
+	var cascade func(*node, int, *varScope, string) error
+	cascade = func(n *node, depth int, parentVars *varScope, scheme string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -462,9 +462,11 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 			scheme = declaredScheme(rawDecl, scheme)
 			n.decl = resolveDeclaredValues(rawDecl, vars, d.usedScheme(scheme))
 			entries += len(n.decl)
-			// Inheritance reuses the parent's map. Charge only maps actually
-			// copied for local custom-property declarations, not every reader.
-			entries += newVariableEntries(rawDecl, vars)
+			// Inheritance shares the parent's scope; only an element's own
+			// differing custom properties are new entries.
+			if vars != parentVars {
+				entries += len(vars.own)
+			}
 			if !strings.Contains(" document script style head meta link title template ", " "+n.tag+" ") && (hasAuthorColorDecl(n.decl) || hasPresentationalColorAttr(n)) {
 				d.hasAuthorColors = true
 			}
@@ -479,7 +481,10 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 					}
 				}
 			}
-			if entries > max(100000, l.Nodes*10) {
+			// Utility frameworks declare dozens of custom properties on every
+			// element, so the budget scales with the node limit; the maps
+			// share strings with their rules and cost tens of bytes an entry.
+			if entries > max(100000, l.Nodes*128) {
 				return limitError("computed declarations")
 			}
 		}
@@ -552,7 +557,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 			break
 		}
 	}
-	var rootVars map[string]string
+	var rootVars *varScope
 	if !hasHTML {
 		rootVars = resolveElementVars(d.cascade(&node{tag: "html", parent: d.root}), nil)
 	}
