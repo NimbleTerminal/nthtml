@@ -317,8 +317,27 @@ func rewriteSVGWithImages(ctx context.Context, source string, images map[string]
 			return "", nil, err
 		}
 		switch t := token.(type) {
-		case xml.Directive, xml.ProcInst:
-			return "", nil, fmt.Errorf("SVG directives are unsupported")
+		case xml.ProcInst:
+			// The XML declaration is dropped; any other processing
+			// instruction (xml-stylesheet and the like) is refused.
+			if t.Target != "xml" {
+				return "", nil, fmt.Errorf("SVG directives are unsupported")
+			}
+			if dropDepth == 0 {
+				out.WriteString(source[keepFrom:start])
+				keepFrom = int(dec.InputOffset())
+			}
+		case xml.Directive:
+			// A plain DOCTYPE is dropped; an internal subset could declare
+			// entities, so it and every other directive are refused.
+			d := strings.TrimSpace(string(t))
+			if len(d) < 7 || !strings.EqualFold(d[:7], "DOCTYPE") || strings.Contains(d, "[") {
+				return "", nil, fmt.Errorf("SVG directives are unsupported")
+			}
+			if dropDepth == 0 {
+				out.WriteString(source[keepFrom:start])
+				keepFrom = int(dec.InputOffset())
+			}
 		case xml.StartElement:
 			depth++
 			elements++

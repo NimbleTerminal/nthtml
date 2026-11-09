@@ -250,3 +250,23 @@ func TestCSSFillReachesInlineSVG(t *testing.T) {
 		t.Fatalf("fill: currentColor: %v", got)
 	}
 }
+
+// An SVG that starts with the XML declaration and a plain DOCTYPE, as
+// exported files do, renders; a DOCTYPE with an internal subset or another
+// processing instruction is still refused.
+func TestSVGPrologIsTolerated(t *testing.T) {
+	prolog := `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n`
+	body := `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="#ff0000"/></svg>`
+	out, _, err := rewriteSVG(context.Background(), prolog+body)
+	if err != nil || strings.Contains(out, "<?xml") || strings.Contains(out, "DOCTYPE") || !strings.Contains(out, "<rect") {
+		t.Fatalf("prolog: %v %q", err, out)
+	}
+	for _, bad := range []string{
+		`<!DOCTYPE svg [<!ENTITY a "aaaa">]>` + body,
+		`<?xml-stylesheet href="x.css" type="text/css"?>` + body,
+	} {
+		if _, _, err := rewriteSVG(context.Background(), bad); err == nil {
+			t.Fatalf("accepted %q", bad[:30])
+		}
+	}
+}

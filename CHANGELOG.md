@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Accept the XML declaration and a plain DOCTYPE at the top of an SVG image
+  (both dropped before rendering); a DOCTYPE with an internal subset and
+  other processing instructions are still refused. delta.com's exported
+  brand graphics were rejected as "SVG directives are unsupported".
+
 - Apply CSS `fill` and `stroke` to an inline SVG's root before rendering, so
   a Tailwind `fill-white` icon declared with `fill="none"` paints, and
   `fill: currentColor` takes the element's colour; descendants with their

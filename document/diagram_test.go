@@ -428,7 +428,6 @@ func TestSVGRewritePreservesSource(t *testing.T) {
 	}
 	for _, source := range []string{
 		`<g><rect/></g>`,
-		`<!DOCTYPE svg><svg/>`,
 		`<svg><unknown><?test value?></unknown></svg>`,
 		`<svg><unknown></svg>`,
 	} {
