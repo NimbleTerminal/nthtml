@@ -47,6 +47,7 @@ type style struct {
 	overflow, textOverflow                     string
 	flexDirection, flexWrap                    string
 	justifyContent, alignItems                 string
+	justifyItems, justifySelf                  string // grid inline-axis alignment
 	flexGrow, flexShrink                       float64
 	flexBasis, rowGap, colGap                  cssLength
 	spacing                                    [2]int
@@ -249,6 +250,88 @@ func splitDeclarations(s string) []string {
 	return out
 }
 
+// logicalAliases maps the CSS logical properties the renderer does not model
+// separately onto their physical equivalents for horizontal-tb, left-to-right
+// writing: inline is horizontal and block is vertical. Two-sided shorthands
+// expand to both physical sides. margin/padding logical properties keep their
+// own value handling further on.
+func logicalAliases(k string) []string {
+	switch k {
+	case "inline-size":
+		return []string{"width"}
+	case "block-size":
+		return []string{"height"}
+	case "min-inline-size":
+		return []string{"min-width"}
+	case "max-inline-size":
+		return []string{"max-width"}
+	case "min-block-size":
+		return []string{"min-height"}
+	case "max-block-size":
+		return []string{"max-height"}
+	case "inset-block-start":
+		return []string{"top"}
+	case "inset-block-end":
+		return []string{"bottom"}
+	case "inset-inline-start":
+		return []string{"left"}
+	case "inset-inline-end":
+		return []string{"right"}
+	case "inset-block":
+		return []string{"top", "bottom"}
+	case "inset-inline":
+		return []string{"left", "right"}
+	}
+	for _, m := range [...]struct{ logical, physical string }{{"border-block-start", "border-top"}, {"border-block-end", "border-bottom"}, {"border-inline-start", "border-left"}, {"border-inline-end", "border-right"}} {
+		if rest, ok := strings.CutPrefix(k, m.logical); ok && (rest == "" || rest == "-width" || rest == "-style" || rest == "-color") {
+			return []string{m.physical + rest}
+		}
+	}
+	for _, m := range [...]struct {
+		logical  string
+		physical [2]string
+	}{{"border-block", [2]string{"border-top", "border-bottom"}}, {"border-inline", [2]string{"border-left", "border-right"}}} {
+		if rest, ok := strings.CutPrefix(k, m.logical); ok && (rest == "" || rest == "-width" || rest == "-style" || rest == "-color") {
+			return []string{m.physical[0] + rest, m.physical[1] + rest}
+		}
+	}
+	return nil
+}
+
+// expandLogicalDeclarations rewrites logical-property declarations as their
+// physical equivalents before the usual parsing. A two-sided inset shorthand
+// with two values gives the first to the start side and the second to the end.
+func expandLogicalDeclarations(parts []string) []string {
+	out := parts[:0:0]
+	for _, p := range parts {
+		rawKey, v, ok := strings.Cut(p, ":")
+		if !ok {
+			out = append(out, p)
+			continue
+		}
+		phys := logicalAliases(strings.ToLower(strings.TrimSpace(rawKey)))
+		if phys == nil {
+			out = append(out, p)
+			continue
+		}
+		if len(phys) == 2 && strings.HasPrefix(strings.TrimSpace(strings.ToLower(rawKey)), "inset-") {
+			val, imp := importance(strings.TrimSpace(v))
+			if toks, ok := cssTokens(val); ok && len(toks) == 2 {
+				suffix := ""
+				if imp {
+					suffix = " !important"
+				}
+				out = append(out, phys[0]+":"+toks[0]+suffix, phys[1]+":"+toks[1]+suffix)
+				continue
+			}
+		}
+		for _, k := range phys {
+			out = append(out, k+":"+v)
+		}
+	}
+	return out
+}
+
 func isCustomPropertyName(s string) bool {
 	if len(s) < 3 || !strings.HasPrefix(s, "--") || len(s) > 128 {
 		return false
@@ -424,10 +507,15 @@ func resolveElementVars(decl map[string]string, parentVars map[string]string) ma
 	return vars
 }
 
-func resolveDeclaredValues(decl map[string]string, vars map[string]string) map[string]string {
+// resolveDeclaredValues substitutes custom properties into an element's
+// declarations and resolves light-dark() for the element's used color scheme
+// before each value is parsed, so a token such as
+// --rule: light-dark(#c6cec8, #39443d) is a plain colour by the time a border
+// shorthand validates it.
+func resolveDeclaredValues(decl map[string]string, vars map[string]string, scheme string) map[string]string {
 	needsResolve := false
 	for k, v := range decl {
-		if strings.HasPrefix(k, "--") || strings.HasPrefix(v, "\x00") || containsVar(v) {
+		if strings.HasPrefix(k, "--") || strings.HasPrefix(v, "\x00") || containsVar(v) || strings.Contains(v, lightDarkFn) {
 			needsResolve = true
 			break
 		}
@@ -454,17 +542,23 @@ func resolveDeclaredValues(decl map[string]string, vars map[string]string) map[s
 			if !ok || containsVar(resolved) {
 				continue
 			}
+			resolved = resolveLightDarkValue(resolved, scheme)
 			parsed := declarations(origProp + ":" + resolved)
 			if pv, ok := parsed[k]; ok && !strings.HasPrefix(pv, "\x00") {
 				out[k] = pv
 			}
 			continue
 		}
-		if containsVar(v) {
-			resolved, ok := substituteVars(v, vars, 0)
-			if !ok || containsVar(resolved) {
-				continue
+		if containsVar(v) || strings.Contains(v, lightDarkFn) {
+			resolved := v
+			if containsVar(v) {
+				var ok bool
+				resolved, ok = substituteVars(v, vars, 0)
+				if !ok || containsVar(resolved) {
+					continue
+				}
 			}
+			resolved = resolveLightDarkValue(resolved, scheme)
 			parsed := declarations(k + ":" + resolved)
 			if pv, ok := parsed[k]; ok && !strings.HasPrefix(pv, "\x00") {
 				out[k] = pv
@@ -624,7 +718,7 @@ func declarations(s string) map[string]string {
 		}
 		m[k] = v
 	}
-	for i, p := range splitDeclarations(s) {
+	for i, p := range expandLogicalDeclarations(splitDeclarations(s)) {
 		if i >= 1024 {
 			break
 		}
@@ -641,7 +735,9 @@ func declarations(s string) map[string]string {
 			continue
 		}
 		k := strings.ToLower(rawKey)
-		if containsVar(v) {
+		if containsVar(v) || strings.Contains(v, lightDarkFn) {
+			// Deferred to the element: var() needs its custom properties and
+			// light-dark() the element's colour scheme before parsing.
 			if len(v) <= maxVarValueBytes {
 				expandVarDeclaration(k, v, put)
 			}
@@ -766,7 +862,7 @@ func declarations(s string) map[string]string {
 			continue
 		}
 		if k == "color" || k == "background-color" {
-			if _, ok := cssColor(v, color.RGBA{}); !ok {
+			if _, ok := cssColor(v, color.RGBA{}); !ok && !strings.Contains(v, "light-dark(") {
 				continue
 			}
 		}
@@ -1342,31 +1438,152 @@ func parseCSSBlock(s string, media []string, depth int, out *[]rule, budget int,
 		sel := s[:openIdx]
 		body := s[openIdx+1 : openIdx+closeRel]
 		s = s[openIdx+closeRel+1:]
-		var group []rule
 		selList, valid := splitSelectorList(sel)
-		for _, v := range selList {
-			compiled, sp, pe, ok := parseSelectorWithPseudo(strings.TrimSpace(v))
-			if !ok {
-				valid = false
-				break
-			}
-			group = append(group, rule{layer: layer, selector: compiled, media: media, specificity: sp, pseudo: pe})
-			if len(*out)+len(group) > budget {
-				return limitError("more CSS rules than the budget")
-			}
+		if !valid {
+			continue
 		}
-		if valid {
-			decl := declarations(body)
-			for _, r := range group {
-				r.decl = decl
-				*out = append(*out, r)
-			}
-			if len(*out) > budget {
-				return limitError("more CSS rules than the budget")
-			}
+		if err := emitStyleRule(selList, body, media, depth, out, budget, layers, layer); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// Nesting is bounded like media nesting: a style rule may hold nested rules
+// maxMediaDepth deep, each nesting level expands to at most
+// maxNestedSelectors selectors, and every expanded rule counts against the
+// stylesheet's rule budget.
+const (
+	maxNestedRules     = 256
+	maxNestedSelectors = 64
+)
+
+type nestedRule struct{ prelude, body string }
+
+// emitStyleRule compiles one style rule, its declarations and the rules nested
+// inside it (CSS Nesting). A nested selector with & substitutes each parent
+// selector for it; one without is a descendant of each parent. A nested
+// @media block applies its declarations to the parent selectors under the
+// extra query. Other nested at-rules are skipped, and declarations after a
+// nested block still belong to the parent, which is how design tokens are
+// commonly declared.
+func emitStyleRule(selList []string, body string, media []string, depth int, out *[]rule, budget int, layers *cssLayers, layer *cssLayer) error {
+	declText, nested := splitNestedRules(body)
+	var group []rule
+	for _, v := range selList {
+		compiled, sp, pe, ok := parseSelectorWithPseudo(strings.TrimSpace(v))
+		if !ok {
+			return nil // an unparsable selector drops the rule and everything nested in it
+		}
+		group = append(group, rule{layer: layer, selector: compiled, media: media, specificity: sp, pseudo: pe})
+		if len(*out)+len(group) > budget {
+			return limitError("more CSS rules than the budget")
+		}
+	}
+	decl := declarations(declText)
+	for _, r := range group {
+		r.decl = decl
+		*out = append(*out, r)
+	}
+	if len(*out) > budget {
+		return limitError("more CSS rules than the budget")
+	}
+	if depth >= maxMediaDepth {
+		return nil
+	}
+	for _, nr := range nested {
+		if strings.HasPrefix(nr.prelude, "@") {
+			prelude := strings.TrimSpace(nr.prelude[1:])
+			if isMediaAtRule(prelude) && len(prelude) <= maxMediaPreludeBytes {
+				next := make([]string, len(media)+1)
+				copy(next, media)
+				next[len(media)] = strings.TrimSpace(prelude[5:])
+				if err := emitStyleRule(selList, nr.body, next, depth+1, out, budget, layers, layer); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		parts, ok := splitSelectorList(nr.prelude)
+		if !ok {
+			continue
+		}
+		var expanded []string
+		for _, p := range selList {
+			p = strings.TrimSpace(p)
+			for _, q := range parts {
+				q = strings.TrimSpace(q)
+				if len(expanded) >= maxNestedSelectors {
+					break
+				}
+				if strings.Contains(q, "&") {
+					expanded = append(expanded, strings.ReplaceAll(q, "&", p))
+				} else {
+					expanded = append(expanded, p+" "+q)
+				}
+			}
+		}
+		if err := emitStyleRule(expanded, nr.body, media, depth+1, out, budget, layers, layer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// splitNestedRules separates a rule body into its declarations and the rules
+// nested in it: a brace outside quotes and parentheses opens a nested rule
+// whose prelude is the text since the previous declaration. The declarations
+// before and after nested blocks are returned joined.
+func splitNestedRules(body string) (string, []nestedRule) {
+	var nested []nestedRule
+	var decls strings.Builder
+	parenDepth := 0
+	var quote byte
+	segStart := 0
+	for i := 0; i < len(body); i++ {
+		c := body[i]
+		if quote != 0 {
+			if c == '\\' && i+1 < len(body) {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '(':
+			parenDepth++
+		case ')':
+			if parenDepth > 0 {
+				parenDepth--
+			}
+		case ';':
+			if parenDepth == 0 {
+				decls.WriteString(body[segStart : i+1])
+				segStart = i + 1
+			}
+		case '{':
+			if parenDepth != 0 {
+				continue
+			}
+			closeRel := findMatchingBrace(body[i:])
+			if closeRel < 0 {
+				decls.WriteString(body[segStart:i])
+				return decls.String(), nested
+			}
+			if len(nested) < maxNestedRules {
+				nested = append(nested, nestedRule{prelude: strings.TrimSpace(body[segStart:i]), body: body[i+1 : i+closeRel]})
+			}
+			i += closeRel
+			segStart = i + 1
+		}
+	}
+	decls.WriteString(body[segStart:])
+	return decls.String(), nested
 }
 
 func isMediaAtRule(prelude string) bool {
@@ -2272,6 +2489,25 @@ func (d *Document) styled(n *node, parent style) style {
 					s.justifyContent = strings.ToLower(v)
 				}
 			}
+		case "justify-items", "justify-self":
+			target := &s.justifyItems
+			if k == "justify-self" {
+				target = &s.justifySelf
+			}
+			if kw == "inherit" {
+				if k == "justify-self" {
+					*target = parent.justifySelf
+				} else {
+					*target = parent.justifyItems
+				}
+			} else if kw == "initial" {
+				*target = ""
+			} else {
+				switch strings.ToLower(v) {
+				case "start", "end", "center", "stretch", "left", "right", "flex-start", "flex-end", "self-start", "self-end", "normal", "auto":
+					*target = strings.ToLower(v)
+				}
+			}
 		case "align-items":
 			if kw == "inherit" {
 				s.alignItems = parent.alignItems
@@ -2735,6 +2971,9 @@ func (d *Document) styled(n *node, parent style) style {
 						rawBW[i] = 3
 					} else if l, ok := borderWidth(v); ok {
 						rawBW[i] = s.computeLen(l).resolve(0, 256)
+						if rawBW[i] == 0 && l.value > 0 {
+							rawBW[i] = 1 // a hairline: browsers never draw a positive width as nothing
+						}
 					}
 				}
 				if k == "border-"+side+"-style" {

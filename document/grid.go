@@ -336,7 +336,12 @@ func sizeGridTracks(expanded []gridTrack, cw, cGap int, contentMin, contentMax [
 		}
 		switch {
 		case tr.fr > 0:
-			widths[i] = max(minW, cmin) // the automatic minimum; shares come later
+			// A definite minimum (minmax(18rem, 1fr), minmax(0, 1fr)) is the
+			// base size; only an auto minimum (1fr) takes the content's.
+			widths[i] = cmin
+			if tr.minLen.definite(cw) {
+				widths[i] = minW
+			}
 			limits[i] = widths[i]
 			totalFr += tr.fr
 		case tr.content != "":
@@ -377,15 +382,44 @@ func sizeGridTracks(expanded []gridTrack, cw, cGap int, contentMin, contentMax [
 		}
 	}
 	if free > 0 && totalFr > 0 {
-		acc, prev := 0.0, 0
+		// Flexible tracks share the space left after the inflexible ones:
+		// each gets fr × its factor, never less than its base size. A track
+		// whose base already exceeds its share is treated as inflexible and
+		// the fr size is found again without it (CSS Grid §12.7.1), so
+		// minmax(18rem, .82fr) beside minmax(0, 1fr) splits 0.82:1, not
+		// "18rem plus a share".
+		space := free
+		flexible := make([]bool, numCols)
+		factor := totalFr
 		for i, tr := range expanded {
-			if tr.fr <= 0 {
-				continue
+			if tr.fr > 0 {
+				flexible[i] = true
+				space += widths[i]
 			}
-			acc += tr.fr
-			next := int(float64(free)*acc/totalFr + 0.5)
-			widths[i] += max(0, next-prev)
-			prev = next
+		}
+		for changed := true; changed && factor > 0; {
+			changed = false
+			fr := float64(space) / factor
+			for i, tr := range expanded {
+				if flexible[i] && float64(widths[i]) > fr*tr.fr+0.5 {
+					flexible[i] = false
+					space -= widths[i]
+					factor -= tr.fr
+					changed = true
+				}
+			}
+		}
+		if factor > 0 {
+			acc, prev := 0.0, 0
+			for i, tr := range expanded {
+				if !flexible[i] {
+					continue
+				}
+				acc += tr.fr
+				next := int(float64(space)*acc/factor + 0.5)
+				widths[i] = max(widths[i], next-prev)
+				prev = next
+			}
 		}
 	} else if free > 0 {
 		stretch := 0
@@ -543,8 +577,28 @@ func (l *layout) grid(n *node, cx, cy, cw, height int, s style) int {
 				}
 				itemW = max(itemW, mw)
 			}
+			// justify-self (else the container's justify-items) places an
+			// item that does not stretch across its slot at its own width.
+			justify := it.cs.justifySelf
+			if justify == "" || justify == "auto" {
+				justify = s.justifyItems
+			}
+			avail := max(1, slotW-it.margin[1]-it.margin[3])
+			switch justify {
+			case "start", "end", "center", "left", "right", "flex-start", "flex-end", "self-start", "self-end":
+				if !it.cs.width.definite(slotW) {
+					_, pref := l.preferredCell(it.node, it.cs, avail)
+					itemW = max(1, min(itemW, pref))
+				}
+			}
 			it.finalW = itemW
 			it.itemX = colX[it.colStart] + it.margin[3]
+			switch justify {
+			case "end", "right", "flex-end", "self-end":
+				it.itemX += max(0, avail-itemW)
+			case "center":
+				it.itemX += max(0, avail-itemW) / 2
+			}
 			itemStyle := it.cs
 			itemStyle.margin = [4]cssLength{}
 			itemStyle.width = px(itemW)

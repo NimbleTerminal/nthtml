@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- Parse CSS Nesting: a style rule may contain nested rules (`& .x`, `> p`,
+  bare `.x`, nested `@media`), expanded against each parent selector up to
+  the media nesting depth and 64 selectors per level, and the declarations
+  after a nested block still belong to the parent. Design tokens declared
+  after a nested `.dark { color-scheme: dark }` block were previously lost,
+  which left fallthrough.fm without its theme.
+
+- Resolve `light-dark(a, b)` from the preferred scheme (`Options.ColorScheme`)
+  or an ancestor's single-valued `color-scheme`, after `var()` substitution
+  and before shorthand validation; such stylesheets re-cascade per scheme
+  like media queries.
+
+- Map logical properties to their physical sides for horizontal-tb,
+  left-to-right writing: `inline-size`, `block-size` and their min/max
+  forms, `border-block-*`, `border-inline-*` (with `-width`/`-style`/
+  `-color`), `inset-block-*` and `inset-inline-*`.
+
+- Paint a positive border width under one pixel as a hairline instead of
+  nothing; honour `justify-self` and `justify-items` for grid items; size
+  flexible grid tracks from the leftover space per CSS Grid §12.7.1 (a
+  track with a definite minimum keeps it as its base size and `minmax(18rem,
+  .82fr)` beside `minmax(0, 1fr)` splits 0.82:1); hide the disclosure
+  triangle for `summary { list-style: none }`; close an open `<p>` when a
+  block-level start tag follows it, as HTML parsing does.
+
 - Hand the host-painted picture a band of exactly the Kitty raster's size:
   rounding excess (the band is painted at `ceil(Area.Size*Scale)`) is cropped
   as a sub-image and a last band short of the grid is stretched once with a

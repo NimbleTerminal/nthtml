@@ -258,6 +258,20 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			if count > l.Nodes {
 				return nil, limitError(fmt.Sprintf("more than %d nodes", l.Nodes))
 			}
+			if closesParagraph(t.Data) {
+				// HTML's implied </p>: <p>text<h2>… ends the paragraph before
+				// the heading instead of nesting the heading inside it.
+				for i := len(stack) - 1; i > 0; i-- {
+					if stack[i].tag == "p" {
+						stack = stack[:i]
+						parent = stack[len(stack)-1]
+						break
+					}
+					if paragraphScopeBoundary(stack[i].tag) {
+						break
+					}
+				}
+			}
 			n := &node{parent: parent, id: count, tag: t.Data, attrs: map[string]string{}}
 			for _, a := range t.Attr {
 				n.attrs[a.Key] = a.Val
@@ -359,6 +373,17 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			d.hasMedia = true
 			break
 		}
+		// light-dark() and color-scheme make the cascade depend on the
+		// preferred scheme the same way a media query does.
+		for k, v := range r.decl {
+			if k == "color-scheme" || strings.Contains(v, lightDarkFn) {
+				d.hasMedia = true
+				break
+			}
+		}
+		if d.hasMedia {
+			break
+		}
 	}
 	if err := d.applyCascade(ctx, 800, "light", true); err != nil {
 		return nil, err
@@ -408,8 +433,8 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 	// computed values still resolve during layout, but selector work cannot
 	// multiply during reflow or nested table measurement.
 	work, entries := d.ruleIndex.scanWork, 0
-	var cascade func(*node, int, map[string]string) error
-	cascade = func(n *node, depth int, parentVars map[string]string) error {
+	var cascade func(*node, int, map[string]string, string) error
+	cascade = func(n *node, depth int, parentVars map[string]string, scheme string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -434,7 +459,8 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 			}
 			rawDecl := d.cascadeCandidates(n, "", candidates)
 			vars = resolveElementVars(rawDecl, parentVars)
-			n.decl = resolveDeclaredValues(rawDecl, vars)
+			scheme = declaredScheme(rawDecl, scheme)
+			n.decl = resolveDeclaredValues(rawDecl, vars, d.usedScheme(scheme))
 			entries += len(n.decl)
 			// Inheritance reuses the parent's map. Charge only maps actually
 			// copied for local custom-property declarations, not every reader.
@@ -445,7 +471,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 			if hasFirstLine && n.tag != "document" {
 				if fl := d.cascadeCandidates(n, "first-line", candidates); len(fl) > 0 {
 					flVars := resolveElementVars(fl, vars)
-					fl = resolveDeclaredValues(fl, flVars)
+					fl = resolveDeclaredValues(fl, flVars, d.usedScheme(scheme))
 					n.firstLineDecl = fl
 					entries += len(fl)
 					if hasAuthorColorDecl(fl) {
@@ -459,7 +485,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 		}
 		origChildren := n.children
 		for _, child := range origChildren {
-			if err := cascade(child, depth+1, vars); err != nil {
+			if err := cascade(child, depth+1, vars, scheme); err != nil {
 				return err
 			}
 		}
@@ -467,7 +493,10 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 			if hasBefore || defaultPseudo(n, "before") != "" {
 				if bDecl := d.cascadeCandidates(n, "before", candidates); len(bDecl) > 0 {
 					bVars := resolveElementVars(bDecl, vars)
-					bDecl = resolveDeclaredValues(bDecl, bVars)
+					bDecl = resolveDeclaredValues(bDecl, bVars, d.usedScheme(scheme))
+					if n.tag == "summary" && strings.HasPrefix(bDecl["content"], "\x01") && markerHidden(n.decl) {
+						delete(bDecl, "content") // summary { list-style: none } hides the disclosure triangle, as in browsers
+					}
 					if text, ok := resolveContent(bDecl["content"]); ok {
 						count++
 						if count > l.Nodes {
@@ -487,7 +516,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 			if hasAfter || defaultPseudo(n, "after") != "" {
 				if aDecl := d.cascadeCandidates(n, "after", candidates); len(aDecl) > 0 {
 					aVars := resolveElementVars(aDecl, vars)
-					aDecl = resolveDeclaredValues(aDecl, aVars)
+					aDecl = resolveDeclaredValues(aDecl, aVars, d.usedScheme(scheme))
 					if text, ok := resolveContent(aDecl["content"]); ok {
 						count++
 						if count > l.Nodes {
@@ -527,7 +556,7 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 	if !hasHTML {
 		rootVars = resolveElementVars(d.cascade(&node{tag: "html", parent: d.root}), nil)
 	}
-	return cascade(d.root, 0, rootVars)
+	return cascade(d.root, 0, rootVars, "")
 }
 
 func (d *Document) forWidth(ctx context.Context, width int) (*Document, error) {
@@ -607,3 +636,117 @@ func Render(ctx context.Context, r io.Reader, o Options) (*Result, error) {
 	return d.Render(ctx, o)
 }
 func limitError(what string) error { return fmt.Errorf("%w: %s", ErrLimit, what) }
+
+// declaredScheme is the color scheme an element's color-scheme declaration
+// pins, "light" or "dark", else the inherited one. "light dark", "normal" and
+// unknown values leave the choice to the rendering preference.
+func declaredScheme(decl map[string]string, inherited string) string {
+	v, ok := decl["color-scheme"]
+	if !ok {
+		return inherited
+	}
+	light, dark := false, false
+	for _, f := range strings.Fields(strings.ToLower(v)) {
+		switch f {
+		case "light":
+			light = true
+		case "dark":
+			dark = true
+		case "inherit":
+			return inherited
+		case "initial", "normal":
+			return ""
+		}
+	}
+	if light != dark {
+		if light {
+			return "light"
+		}
+		return "dark"
+	}
+	return ""
+}
+
+// usedScheme is the scheme light-dark() picks from: the pinned one, else the
+// preference the document was cascaded for.
+func (d *Document) usedScheme(pinned string) string {
+	if pinned == "light" || pinned == "dark" {
+		return pinned
+	}
+	return normalizeColorScheme(d.cascadedScheme)
+}
+
+const lightDarkFn = "light-dark("
+
+// resolveLightDarkValue replaces light-dark(light, dark) in a declared value
+// with the argument for the used scheme, innermost call first, so tokens such
+// as --ink: light-dark(#1c2421, #e9eee9) render the page's dark theme.
+func resolveLightDarkValue(v, scheme string) string {
+	for pass := 0; pass < 8 && strings.Contains(v, lightDarkFn); pass++ {
+		i := strings.LastIndex(v, lightDarkFn)
+		end := closingParen(v, i+len(lightDarkFn)-1)
+		if end < 0 {
+			break
+		}
+		a, b, ok := splitVarArgs(v[i+len(lightDarkFn) : end])
+		if !ok {
+			break
+		}
+		pick := strings.TrimSpace(a)
+		if scheme == "dark" {
+			pick = strings.TrimSpace(b)
+		}
+		v = v[:i] + pick + v[end+1:]
+	}
+	return v
+}
+
+// markerHidden reports a summary whose own list-style-type is none.
+func markerHidden(decl map[string]string) bool {
+	v, _ := importance(decl["list-style-type"])
+	return strings.EqualFold(strings.TrimSpace(v), "none")
+}
+
+// closingParen returns the index of the parenthesis closing the one at open,
+// skipping quoted text, or -1.
+func closingParen(s string, open int) int {
+	depth := 0
+	var quote byte
+	for i := open; i < len(s); i++ {
+		c := s[i]
+		if quote != 0 {
+			if c == '\\' && i+1 < len(s) {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// closesParagraph reports a start tag that ends an open <p>, the block-level
+// tags of HTML's "close a p element" rule.
+func closesParagraph(tag string) bool {
+	return strings.Contains(" address article aside blockquote details dialog div dl fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 header hgroup hr main menu nav ol p pre search section table ul ", " "+tag+" ")
+}
+
+// paragraphScopeBoundary bounds the search for an open <p> to its button
+// scope, so a paragraph outside a table cell or button is left alone.
+func paragraphScopeBoundary(tag string) bool {
+	return strings.Contains(" html table td th caption applet marquee object template button ", " "+tag+" ")
+}
