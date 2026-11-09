@@ -14,6 +14,15 @@ import (
 	"golang.org/x/net/html"
 )
 
+// MinWidth and MaxWidth bound Options.Width in CSS pixels. MaxWidth covers a
+// terminal of the Kitty placeholder grid's 297 columns at HiDPI cells; it is a
+// layout bound only, since band and page allocations stay under Limits.Pixels
+// and the LayoutHeight and Height limits.
+const (
+	MinWidth = 32
+	MaxWidth = 8192
+)
+
 // Limits are resource ceilings; zero fields use DefaultLimits. Callers may
 // lower any field or raise fields up to MaxLimits.
 type Limits struct {

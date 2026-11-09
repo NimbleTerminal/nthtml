@@ -327,9 +327,36 @@ func (m *Model) View() string {
 	}
 	base := m.pic.View()
 	if (m.kittyViewportMode() || m.hostKitty()) && !m.focusCellRect.Empty() && m.focusPic != nil {
-		return m.spliceFocusOverlay(base)
+		base = m.spliceFocusOverlay(base)
 	}
-	return base
+	return m.padView(base)
+}
+
+// padView extends a presented view shorter than the model's bounds to its
+// full height with rows of the page's canvas colour, as a browser paints the
+// canvas below a short page: the host's chrome under the viewer stays where
+// it is, and the rows carry no placeholder, so they show no image. An empty
+// view (nothing presented yet) stays empty; the host decides what to show.
+func (m *Model) padView(view string) string {
+	if view == "" || m.rows <= 0 || m.cols <= 0 {
+		return view
+	}
+	have := strings.Count(view, "\n") + 1
+	if have >= m.rows {
+		return view
+	}
+	bg := m.result.Background()
+	row := "\x1b[48;2;" + strconv.Itoa(int(bg.R)) + ";" + strconv.Itoa(int(bg.G)) + ";" + strconv.Itoa(int(bg.B)) + "m" + strings.Repeat(" ", m.cols) + "\x1b[0m"
+	var b strings.Builder
+	b.Grow(len(view) + (m.rows-have)*(len(row)+1))
+	b.WriteString(view)
+	for i := have; i < m.rows; i++ {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(row)
+	}
+	return b.String()
 }
 func (m *Model) LayoutMode() LayoutMode { return m.mode }
 func (m *Model) Err() error             { return m.err }

@@ -383,8 +383,10 @@ func (m *Model) presentPainted(force, overlays bool) tea.Cmd {
 	h := m.hostPaint
 	p := h.plan
 	// Resize the retained band immediately, even while a new paint is pending.
-	// Keep its CSS extent and map hits through this actual presentation grid.
-	p.Cols = m.cols
+	// Keep its CSS extent and map hits through this actual presentation grid,
+	// which never exceeds the Kitty placeholder grid: a wider band is cropped
+	// to the columns the terminal can address rather than refused whole.
+	p.Cols = m.kittyCols()
 	p.Viewport = p.viewport()
 	force = force || h.presentedRevision != h.revision
 	resize := h.presentedPlan.Cols != p.Cols || h.presentedPlan.BandRows != p.BandRows

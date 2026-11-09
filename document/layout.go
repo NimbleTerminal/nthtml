@@ -202,7 +202,7 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 	if o.Width == 0 {
 		o.Width = 800
 	}
-	if o.Width < 32 || o.Width > 4096 {
+	if o.Width < MinWidth || o.Width > MaxWidth {
 		return nil, limitError("width")
 	}
 	origDoc := d

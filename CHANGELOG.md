@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Keep a host-painted presentation within the Kitty Unicode-placeholder grid:
+  `MaxKittyPlaceholderCells` (297, from the protocol's diacritic table) is
+  exported, the viewer presents at most that many columns (a wider band is
+  cropped, not refused, so a 300-column terminal no longer shows a blank
+  page), and `document.MinWidth`/`document.MaxWidth` (32 and 8192 CSS px,
+  up from 4096) bound `Options.Width` so such a terminal at HiDPI cells is
+  laid out at its real width. The typeset `View` pads a page shorter than
+  the bounds with rows of the canvas colour, so a host's status line stays
+  at the bottom of the terminal under a short page.
+
 - Paint no background for an element with `mask-image` (or `-webkit-mask-image`,
   `mask`): the colour is the icon's fill and the mask is not applied, so
   Wikipedia's Codex icons rendered as solid squares.

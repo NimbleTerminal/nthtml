@@ -69,8 +69,13 @@ is clamped to 1/16..16; transport resampling handles remaining glyph reduction
 or zoom up to 64x. The host-painted picture fills the planned cell grid, absorbing
 subpixel raster rounding without scale-dependent letterboxes; the viewer hands it
 a band of exactly the raster's size (rounding excess cropped, a short last band
-stretched once) so the transport copies rather than resamples. Source pixels,
-transport pixels, and CSS hit-test coordinates remain distinct.
+stretched once) so the transport copies rather than resamples. The presented
+grid never exceeds `MaxKittyPlaceholderCells` columns (the protocol's 297
+row/column diacritics); a host that lays out at the terminal's width should
+size the viewer no wider, so the band matches the raster cell for cell. A page
+shorter than the bounds is followed by rows of the canvas colour in `View`,
+never by a shorter view. Source pixels, transport pixels, and CSS hit-test
+coordinates remain distinct.
 
 Search and selection copy only the resident band. Kitty focus uses a separate
 band-local patch. Cached scrolling reuses the image and stable Kitty ID.

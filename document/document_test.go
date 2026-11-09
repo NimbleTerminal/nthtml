@@ -171,3 +171,16 @@ func FuzzRender(f *testing.F) {
 		}
 	})
 }
+
+// Options.Width is bounded by MinWidth and MaxWidth; a page at MaxWidth lays
+// out when no whole-page image is allocated.
+func TestWidthBounds(t *testing.T) {
+	if _, err := Render(context.Background(), strings.NewReader("<p>wide</p>"), Options{Width: MaxWidth, NoImage: true, Fonts: MinimalFonts}); err != nil {
+		t.Fatalf("MaxWidth %d rejected: %v", MaxWidth, err)
+	}
+	for _, w := range []int{MinWidth - 1, MaxWidth + 1} {
+		if _, err := Render(context.Background(), strings.NewReader("<p>x</p>"), Options{Width: w, NoImage: true, Fonts: MinimalFonts}); !errors.Is(err, ErrLimit) {
+			t.Fatalf("width %d: %v, want ErrLimit", w, err)
+		}
+	}
+}
