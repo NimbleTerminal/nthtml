@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Paint text at a scale other than 1 at the layout's glyph positions: each
+  glyph is placed at the 1x face's hinted advance times the scale, instead of
+  the scaled face's own hinted advances, which differ by up to a pixel per
+  glyph and ran words together at 2x ("Humanswill") and drifted 20 px per
+  word at 1.5x and 3x. `document.Options.Width` is bounded by the exported
+  `MinWidth`/`MaxWidth`.
+
 - Keep a host-painted presentation within the Kitty Unicode-placeholder grid:
   `MaxKittyPlaceholderCells` (297, from the protocol's diacritic table) is
   exported, the viewer presents at most that many columns (a wider band is

@@ -65,7 +65,8 @@ on an otherwise current, fully presented old band.
 Bands use the existing 283-row ceiling and respect the document pixel limit,
 `ntpicture.MaxImagePixels`, and transport `MaxRasterPixels`. If a viewport is too
 large for its budget, only the bounded number of rows is presented. Paint scale
-is clamped to 1/16..16; transport resampling handles remaining glyph reduction
+is clamped to 1/16..16, and text painted at any scale keeps the 1x layout's
+glyph advances (scaled), so word boxes and their glyphs agree; transport resampling handles remaining glyph reduction
 or zoom up to 64x. The host-painted picture fills the planned cell grid, absorbing
 subpixel raster rounding without scale-dependent letterboxes; the viewer hands it
 a band of exactly the raster's size (rounding excess cropped, a short last band

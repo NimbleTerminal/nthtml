@@ -106,6 +106,41 @@ func (l *layout) cssFamilies(k faceKey) []faceKey {
 	}
 	return out
 }
+func faceHinting(k faceKey) font.Hinting {
+	if strings.Contains(strings.ToLower(k.family), "ahem") {
+		return font.HintingNone
+	}
+	return font.HintingFull
+}
+
+// layoutFace is the face the 1x layout measured f's run with: f itself unless
+// this layout paints at a scale, in which case a face of the same font and
+// size at 72 dpi, so painted glyph positions can follow the layout's hinted
+// advances instead of the scaled face's own rounding.
+func (l *layout) layoutFace(f font.Face) font.Face {
+	if l.scale == 0 || l.scale == 1 {
+		return f
+	}
+	rec, ok := l.faceInfo[f]
+	if !ok || rec.parsed == nil {
+		return f
+	}
+	if m := l.layoutFaces[rec.key]; m != nil {
+		return m
+	}
+	m, err := opentype.NewFace(rec.parsed, &opentype.FaceOptions{Size: float64(rec.key.size), DPI: 72, Hinting: faceHinting(rec.key)})
+	if err != nil {
+		return f
+	}
+	if l.layoutFaces == nil {
+		l.layoutFaces = map[faceKey]font.Face{}
+	}
+	if len(l.layoutFaces) < 256 {
+		l.layoutFaces[rec.key] = m
+	}
+	return m
+}
+
 func (l *layout) face(s style) font.Face {
 	k := l.fontKey(s)
 	if l.primary == nil {
@@ -228,11 +263,7 @@ func (l *layout) loadFace(k faceKey, fallback bool) font.Face {
 	if parsed == nil {
 		return nil
 	}
-	hinting := font.HintingFull
-	if strings.Contains(strings.ToLower(k.family), "ahem") {
-		hinting = font.HintingNone
-	}
-	f, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: float64(k.size), DPI: 72 * cmp.Or(l.scale, 1), Hinting: hinting})
+	f, err := opentype.NewFace(parsed, &opentype.FaceOptions{Size: float64(k.size), DPI: 72 * cmp.Or(l.scale, 1), Hinting: faceHinting(k)})
 	if err != nil {
 		if !fallback {
 			l.err = err

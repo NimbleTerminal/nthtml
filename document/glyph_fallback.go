@@ -3,6 +3,7 @@ package document
 import (
 	"cmp"
 	"image"
+	"math"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -330,7 +331,18 @@ func (l *layout) runsInk(runs []glyphRun, b Box) image.Rectangle {
 	}
 	return ink
 }
+
+// drawRuns paints runs at dr.Dot. spacing and letterSpacing are the layout's
+// CSS-pixel values; at a paint scale other than 1 every glyph is placed at the
+// layout's advance (measured with the 1x face, as runsAdvance did) times the
+// scale, so a word is exactly as wide as the layout made room for. The scaled
+// face's own hinted advances differ from the 1x advances by up to a pixel per
+// glyph, which ran words into the next at 2x and more.
 func (l *layout) drawRuns(dr *font.Drawer, runs []glyphRun, spacing, letterSpacing int, smallCaps bool) {
+	if l.scale != 0 && l.scale != 1 {
+		l.drawRunsScaled(dr, runs, spacing, letterSpacing, smallCaps)
+		return
+	}
 	for _, run := range runs {
 		dr.Face = l.runFace(run)
 		// Small caps retain the existing unkerned per-character advances.
@@ -344,6 +356,39 @@ func (l *layout) drawRuns(dr *font.Drawer, runs []glyphRun, spacing, letterSpaci
 			drawTextWithLetter(dr, nil, run.text, spacing, letterSpacing)
 		}
 	}
+}
+
+func (l *layout) drawRunsScaled(dr *font.Drawer, runs []glyphRun, spacing, letterSpacing int, smallCaps bool) {
+	origin := dr.Dot.X
+	var advance fixed.Int26_6 // the layout's advance so far, in CSS pixels
+	place := func() { dr.Dot.X = origin + fixed.Int26_6(math.Round(float64(advance)*l.scale)) }
+	for _, run := range runs {
+		dr.Face = l.runFace(run)
+		measure := l.layoutFace(dr.Face)
+		kerned := spacing == 0 && letterSpacing == 0 && !smallCaps // runsAdvance used font.MeasureString
+		prev := rune(-1)
+		for _, r := range run.text {
+			if zeroWidth(r) {
+				continue
+			}
+			if kerned && prev >= 0 {
+				advance += measure.Kern(prev, r)
+			}
+			place()
+			dr.DrawString(string(r))
+			if kerned {
+				a, ok := measure.GlyphAdvance(r)
+				if !ok {
+					a, _ = measure.GlyphAdvance('\ufffd')
+				}
+				advance += a
+				prev = r
+			} else {
+				advance += fixed.I(glyphAdvanceWithLetter(measure, r, spacing, letterSpacing))
+			}
+		}
+	}
+	place()
 }
 
 func clusterSpace(text string) bool { r, _ := utf8.DecodeRuneInString(text); return cssSpace(r) }

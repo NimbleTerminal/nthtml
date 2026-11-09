@@ -129,7 +129,7 @@ func (l *layout) paint(dst *image.RGBA, ops []operation, area image.Rectangle, s
 				dot.Y += f.Metrics().Ascent - fixed.I(f.Metrics().Ascent.Ceil())
 			}
 			dr := font.Drawer{Dst: opDst, Src: image.NewUniform(b.Color), Face: f, Dot: dot}
-			l.drawRuns(&dr, op.runs, int(math.Round(float64(b.WordSpacing)*scale)), int(math.Round(float64(b.LetterSpacing)*scale)), b.SmallCaps)
+			l.drawRuns(&dr, op.runs, b.WordSpacing, b.LetterSpacing, b.SmallCaps)
 			if b.Strike {
 				// A third of the ascent above the baseline, in CSS pixels.
 				yy := b.Bounds.Min.Y + b.Baseline - int(math.Round(float64(f.Metrics().Ascent.Ceil()/3)/scale))

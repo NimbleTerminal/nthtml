@@ -79,6 +79,7 @@ type layout struct {
 	ops                         []operation
 	primary                     map[faceKey]font.Face
 	faceInfo                    map[font.Face]faceRecord
+	layoutFaces                 map[faceKey]font.Face // 1x faces a scaled paint measures with, keyed like faces
 	textFallbacks               map[textFallbackKey][]faceKey
 	coverage                    map[coverageKey]bool
 	splits                      map[splitKey][]glyphRun
