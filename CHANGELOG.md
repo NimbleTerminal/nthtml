@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Apply CSS `fill` and `stroke` to an inline SVG's root before rendering, so
+  a Tailwind `fill-white` icon declared with `fill="none"` paints, and
+  `fill: currentColor` takes the element's colour; descendants with their
+  own paint keep it. yahoo.com's search button showed no magnifier.
+
 - Layer each element's custom properties over its ancestors' scope instead
   of copying the inherited set per element, and scale the
   computed-declaration budget with the node limit (128 per node, floor

@@ -125,6 +125,83 @@ func resolveSVGCurrentColor(ctx context.Context, source string, root color.RGBA)
 	return out.String(), nil
 }
 
+// svgPaintValue accepts the paints CSS may hand an SVG root: a colour, none
+// or currentColor. Paint servers (url(#id)) are not injected into the source.
+func svgPaintValue(v string) bool {
+	if strings.EqualFold(v, "none") || strings.EqualFold(v, "currentcolor") {
+		return true
+	}
+	_, ok := cssColor(v, color.RGBA{})
+	return ok
+}
+
+// resolveSVGColors applies the element's cascaded CSS fill and stroke to the
+// root <svg> start tag, where they override the presentation attributes and
+// are inherited by descendants without their own, then resolves currentColor
+// against the inherited HTML colour.
+func resolveSVGColors(ctx context.Context, source string, root color.RGBA, fill, stroke string) (string, error) {
+	source = svgRootPaint(source, "fill", fill)
+	source = svgRootPaint(source, "stroke", stroke)
+	return resolveSVGCurrentColor(ctx, source, root)
+}
+
+// svgRootPaint sets one paint attribute on the first <svg> start tag.
+func svgRootPaint(source, attr, value string) string {
+	if value == "" || len(source) > maxSVGBytes {
+		return source
+	}
+	lower := strings.ToLower(source)
+	i := strings.Index(lower, "<svg")
+	if i < 0 || (len(source) > i+4 && !strings.ContainsRune(" \t\r\n/>", rune(source[i+4]))) {
+		return source
+	}
+	// The start tag ends at the first '>' outside quotes.
+	end := -1
+	var quote byte
+	for j := i + 4; j < len(source); j++ {
+		c := source[j]
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		if c == '"' || c == '\'' {
+			quote = c
+		} else if c == '>' {
+			end = j
+			break
+		}
+	}
+	if end < 0 {
+		return source
+	}
+	tag := source[i:end]
+	selfClose := strings.HasSuffix(tag, "/")
+	if selfClose {
+		tag = tag[:len(tag)-1]
+	}
+	var escaped strings.Builder
+	_ = xml.EscapeText(&escaped, []byte(value))
+	injected := " " + attr + `="` + escaped.String() + `"`
+	replaced := false
+	tag = svgAttribute.ReplaceAllStringFunc(tag, func(a string) string {
+		key, _, _ := strings.Cut(a, "=")
+		if strings.EqualFold(strings.TrimSpace(key), attr) {
+			replaced = true
+			return strings.TrimSpace(injected)
+		}
+		return a
+	})
+	if !replaced {
+		tag += injected
+	}
+	if selfClose {
+		tag += "/"
+	}
+	return source[:i] + tag + source[end:]
+}
+
 func svgPaintProperty(name string) bool {
 	switch name {
 	case "fill", "stroke", "stop-color", "flood-color", "lighting-color":

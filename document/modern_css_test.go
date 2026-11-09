@@ -220,3 +220,33 @@ func TestUniversalCustomPropertiesFitTheDeclarationBudget(t *testing.T) {
 		t.Fatalf("%d boxes", len(r.Boxes))
 	}
 }
+
+// CSS fill and stroke on an inline SVG reach its root: a Tailwind fill-white
+// icon declared with fill="none" paints white, and fill: currentColor takes the
+// element's colour.
+func TestCSSFillReachesInlineSVG(t *testing.T) {
+	r := render(t, `<style>body{margin:0;background:#000} .w{fill:#ff0000} .c{fill:currentColor;color:#00ff00}</style>
+		<body><div><svg class="w" width="20" height="20" fill="none" viewBox="0 0 20 20"><rect width="20" height="20"/></svg><svg class="c" width="20" height="20" viewBox="0 0 20 20"><rect width="20" height="20" fill="#123456"/></svg><svg class="c" width="20" height="20" viewBox="0 0 20 20"><rect width="20" height="20"/></svg></div></body>`)
+	img, err := r.Paint(context.Background(), r.Bounds(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var xs []int
+	for _, b := range r.Boxes {
+		if b.Tag == "svg" && (len(xs) == 0 || xs[len(xs)-1] != b.Bounds.Min.X) { // element and image boxes share a position
+			xs = append(xs, b.Bounds.Min.X)
+		}
+	}
+	if len(xs) < 3 {
+		t.Fatalf("svg boxes %v", xs)
+	}
+	if got := img.RGBAAt(xs[0]+10, 10); got != (color.RGBA{255, 0, 0, 255}) {
+		t.Fatalf("CSS fill over fill=none: %v", got)
+	}
+	if got := img.RGBAAt(xs[1]+10, 10); got != (color.RGBA{0x12, 0x34, 0x56, 255}) {
+		t.Fatalf("a descendant's own fill must survive: %v", got)
+	}
+	if got := img.RGBAAt(xs[2]+10, 10); got != (color.RGBA{0, 255, 0, 255}) {
+		t.Fatalf("fill: currentColor: %v", got)
+	}
+}

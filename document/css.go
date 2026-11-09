@@ -48,6 +48,7 @@ type style struct {
 	flexDirection, flexWrap                    string
 	justifyContent, alignItems                 string
 	justifyItems, justifySelf                  string // grid inline-axis alignment
+	svgFill, svgStroke                         string // CSS fill/stroke, inherited; applied to an inline SVG's root
 	flexGrow, flexShrink                       float64
 	flexBasis, rowGap, colGap                  cssLength
 	spacing                                    [2]int
@@ -2022,7 +2023,7 @@ func (d *Document) styled(n *node, parent style) style {
 	if vh <= 0 {
 		vh = 600
 	}
-	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, cellPadding: parent.cellPadding, hasCellPadding: parent.hasCellPadding, tableCellBorder: parent.tableCellBorder, centerBlock: parent.centerBlock, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.visibilityHidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "inline", vw: vw, vh: vh, opacity: parent.effectiveOpacity(), ownOpacity: 1, opacitySet: parent.opacitySet}
+	s := style{lineMode: parent.lineMode, wordSpacing: parent.wordSpacing, letterSpacing: parent.letterSpacing, textIndent: parent.textIndent, textTransform: parent.textTransform, smallCaps: parent.smallCaps, listStyleType: parent.listStyleType, captionSide: parent.captionSide, rootSize: parent.rootSize, whiteSpace: parent.whiteSpace, overflowWrap: parent.overflowWrap, spacing: parent.spacing, cellPadding: parent.cellPadding, hasCellPadding: parent.hasCellPadding, tableCellBorder: parent.tableCellBorder, centerBlock: parent.centerBlock, collapse: parent.collapse, family: parent.family, italic: parent.italic, underline: parent.underline, strike: parent.strike, lineMultiplier: parent.lineMultiplier, mono: parent.mono, pre: parent.pre, hidden: parent.visibilityHidden, explicitFg: parent.explicitFg, linkID: parent.linkID, size: parent.size, line: parent.line, fg: parent.fg, defaultFg: parent.defaultFg, defaultLink: parent.defaultLink, bold: parent.bold, align: parent.align, flexShrink: 1, display: "inline", vw: vw, vh: vh, opacity: parent.effectiveOpacity(), ownOpacity: 1, opacitySet: parent.opacitySet, svgFill: parent.svgFill, svgStroke: parent.svgStroke}
 	fgInherited := true
 	rawBW := [4]int{3, 3, 3, 3}
 	if n.tag == "svg" {
@@ -2915,6 +2916,22 @@ func (d *Document) styled(n *node, parent style) style {
 				s.aspectRatio = 0
 			} else if ar, ok := parseAspectRatio(v); ok {
 				s.aspectRatio = ar
+			}
+		case "fill", "stroke":
+			// SVG paint set from CSS (Tailwind's fill-white on an <svg
+			// fill="none">) wins over the presentation attribute and is
+			// inherited by descendants without their own, as in a browser.
+			target := &s.svgFill
+			inherited := parent.svgFill
+			if k == "stroke" {
+				target, inherited = &s.svgStroke, parent.svgStroke
+			}
+			if kw == "inherit" {
+				*target = inherited
+			} else if kw == "initial" {
+				*target = ""
+			} else if paint := strings.TrimSpace(v); svgPaintValue(paint) {
+				*target = paint
 			}
 		case "object-fit":
 			if kw == "inherit" {

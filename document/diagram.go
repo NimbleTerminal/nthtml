@@ -233,7 +233,7 @@ func (l *layout) diagram(n *node, kind, source string, x, y, w, height int, s st
 		return y
 	}
 	if kind == "svg" {
-		resolved, err := resolveSVGCurrentColor(l.ctx, source, s.fg)
+		resolved, err := resolveSVGColors(l.ctx, source, s.fg, s.svgFill, s.svgStroke)
 		if err != nil {
 			if errors.Is(err, ErrLimit) || l.ctx.Err() != nil {
 				l.err = err
