@@ -49,6 +49,9 @@ type style struct {
 	justifyContent, alignItems                 string
 	justifyItems, justifySelf                  string // grid inline-axis alignment
 	svgFill, svgStroke                         string // CSS fill/stroke, inherited; applied to an inline SVG's root
+	lineClamp                                  int    // -webkit-line-clamp: lines shown before the block is cut
+	offCanvas                                  bool   // transform moves the box fully out of view
+	masked                                     bool   // mask-image set: the background is the mask's fill, not a box
 	flexGrow, flexShrink                       float64
 	flexBasis, rowGap, colGap                  cssLength
 	spacing                                    [2]int
@@ -2382,7 +2385,7 @@ func (d *Document) styled(n *node, parent style) style {
 				s.bold = true
 			} else if strings.EqualFold(v, "normal") || strings.EqualFold(v, "lighter") {
 				s.bold = false
-			} else if weight, e := strconv.Atoi(v); e == nil && weight >= 100 && weight <= 900 {
+			} else if weight, e := strconv.Atoi(v); e == nil && weight >= 1 && weight <= 1000 {
 				s.bold = weight >= 600
 			}
 		case "line-height":
@@ -2819,7 +2822,21 @@ func (d *Document) styled(n *node, parent style) style {
 				s.display = "inline"
 			} else if v == "none" || v == "block" || v == "inline" || v == "inline-block" || v == "flex" || v == "inline-flex" || v == "grid" || v == "inline-grid" {
 				s.display = v
+			} else if v == "-webkit-box" {
+				s.display = "block" // the legacy flexbox used only as a line-clamp container
+			} else if v == "-webkit-inline-box" {
+				s.display = "inline-block"
 			}
+		case "-webkit-line-clamp", "line-clamp":
+			if kw != "" {
+				s.lineClamp = 0
+			} else if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+				s.lineClamp = min(n, 64)
+			}
+		case "transform":
+			s.offCanvas = offCanvasTransform(v)
+		case "mask-image", "-webkit-mask-image", "mask", "-webkit-mask":
+			s.masked = kw == "" && !strings.EqualFold(strings.TrimSpace(v), "none")
 		case "grid-template-columns":
 			if kw == "inherit" {
 				if len(parent.gridCols) > 0 {
@@ -3097,6 +3114,27 @@ func (d *Document) styled(n *node, parent style) style {
 		s.line = min(256, int(float64(s.size)*s.lineMultiplier))
 	}
 
+	if s.lineClamp > 0 && s.line > 0 {
+		// -webkit-line-clamp: the block shows at most that many lines.
+		// Approximated as a maximum height with hidden overflow; the
+		// ellipsis is not drawn.
+		s.maxHeight = px(s.lineClamp * s.line)
+		s.overflow = "hidden"
+	}
+	if s.masked {
+		// A masked element's background colour is the icon's fill, shaped by
+		// a mask the renderer does not apply; painting it unmasked gives a
+		// solid square (Wikipedia's Codex icons). Paint nothing instead.
+		s.bg = color.RGBA{}
+		s.bgImage = ""
+	}
+	if s.offCanvas && (s.position == "fixed" || s.position == "absolute") && s.display != "none" {
+		// An off-canvas drawer: positioned and translated fully out of
+		// view until a script or :checked state brings it back. The
+		// renderer has no transforms, so it would otherwise paint the
+		// drawer open on top of the page (duckduckgo.com's side menu).
+		s.display = "none"
+	}
 	if s.lineMode == 0 {
 		switch {
 		case s.size == 0:
@@ -3112,6 +3150,39 @@ func (d *Document) styled(n *node, parent style) style {
 		}
 	}
 	return s
+}
+
+// offCanvasTransform reports a translate() that moves the box by at least
+// its own size, or the viewport, along one axis: translate(100%),
+// translateX(-100%), translate3d(0, 100%, 0), translateY(100vh).
+func offCanvasTransform(v string) bool {
+	v = strings.ToLower(v)
+	for _, fn := range []string{"translate3d(", "translatex(", "translatey(", "translate("} {
+		i := strings.Index(v, fn)
+		if i < 0 {
+			continue
+		}
+		end := strings.Index(v[i:], ")")
+		if end < 0 {
+			return false
+		}
+		args := strings.Split(v[i+len(fn):i+end], ",")
+		axes := args
+		if fn == "translate3d(" && len(args) >= 2 {
+			axes = args[:2]
+		}
+		for _, a := range axes {
+			a = strings.TrimSpace(a)
+			for _, unit := range []string{"%", "vw", "vh"} {
+				if n, ok := strings.CutSuffix(a, unit); ok {
+					if f, err := strconv.ParseFloat(strings.TrimSpace(n), 64); err == nil && (f >= 100 || f <= -100) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 // normalLine is the renderer's line-height: normal, the 22px-at-16px ratio

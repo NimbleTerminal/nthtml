@@ -2,15 +2,29 @@
 
 ## Unreleased
 
+- Paint no background for an element with `mask-image` (or `-webkit-mask-image`,
+  `mask`): the colour is the icon's fill and the mask is not applied, so
+  Wikipedia's Codex icons rendered as solid squares.
+
+- Approximate `-webkit-line-clamp: N` (with `display: -webkit-box`, now a
+  block) as a maximum height of N lines with hidden overflow, without the
+  ellipsis; news cards no longer spill their headlines over the next row.
+  A `position: fixed` or `absolute` element whose `transform` translates it
+  by at least 100% or 100vw/vh along an axis is treated as off-canvas and
+  not painted, so a closed drawer (duckduckgo.com's side menu) no longer
+  renders open; transforms are otherwise still ignored.
+
 - Let `line-height: normal` follow a font size the cascade sets (the
   22px-at-16px document ratio) instead of keeping the inherited absolute line
   as a floor. Hacker News' 7pt subtext rows sat in the body's 22px lines, so
   every story took 40% more height than in a browser.
 
-- Scale the selector-matching work cap with the rule budget (512 units per
-  rule beside the 8 million floor and 800 per node). github.com's 27,000
-  rules need 11 million units at 1220 px and lost every stylesheet to "CSS
-  matching work" once nested rules counted in full.
+- Scale the selector-matching work cap with the rule budget (1,024 units per
+  rule beside the 8 million floor and 800 per node) and the table
+  measurement budget to 50 steps per node (was 20). github.com's 27,000
+  rules need 22 million units and 200,000 table steps for its repository
+  page and lost every stylesheet to "CSS matching work" and "table
+  measurement".
 
 - Allow math functions to nest 24 levels (was 8; a nested `calc()` costs
   two). Design-token scales such as `--s4: calc(var(--s3) * var(--ratio))`

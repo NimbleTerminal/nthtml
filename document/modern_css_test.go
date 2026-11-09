@@ -301,3 +301,68 @@ func TestNormalLineHeightFollowsCSSFontSize(t *testing.T) {
 		t.Fatalf("line boxes %v, want s=12 (9px), b=41 (30px), n=22 (default 16px)", heights)
 	}
 }
+
+// -webkit-line-clamp cuts a block after N lines, and a positioned element
+// translated fully off-canvas is not painted; an unpositioned translate is.
+func TestLineClampAndOffCanvasTransform(t *testing.T) {
+	r := render(t, `<style>body{margin:0;font-size:16px} .c{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;width:60px}
+		.drawer{position:fixed;top:0;right:0;width:100px;transform:translate(100%)} .shift{transform:translateX(100%)}</style>
+		<body><p class="c">one two three four five six seven eight nine ten</p><nav class="drawer">menu</nav><p class="shift">shown</p></body>`)
+	var clamp, drawer, shown int
+	for _, b := range r.Boxes {
+		switch b.Text {
+		case "one":
+			clamp = 1
+		case "menu":
+			drawer++
+		case "shown":
+			shown++
+		}
+		if b.Tag == "p" && b.Bounds.Dx() == 60 && b.Bounds.Dy() != 44 {
+			t.Fatalf("clamped block %v, want two 22px lines", b.Bounds)
+		}
+	}
+	if clamp == 0 || drawer != 0 || shown == 0 {
+		t.Fatalf("clamp=%d drawer=%d shown=%d", clamp, drawer, shown)
+	}
+}
+
+// A mask-image icon paints no background box: the renderer cannot shape the
+// colour by the mask, and a blank beats a solid square.
+func TestMaskedBackgroundIsNotPainted(t *testing.T) {
+	r := render(t, `<style>body{margin:0;background:#fff} span{display:inline-block;width:20px;height:20px;background-color:#000}
+		.m{mask-image:url(/icon.svg)} .w{-webkit-mask-image:url(/icon.svg)}</style><body><span class="m"></span><span class="w"></span><span></span></body>`)
+	img, err := r.Paint(context.Background(), r.Bounds(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := img.RGBAAt(10, 10); got != (color.RGBA{255, 255, 255, 255}) {
+		t.Fatalf("masked span painted %v", got)
+	}
+	if got := img.RGBAAt(30, 10); got != (color.RGBA{255, 255, 255, 255}) {
+		t.Fatalf("-webkit-masked span painted %v", got)
+	}
+	if got := img.RGBAAt(50, 10); got != (color.RGBA{0, 0, 0, 255}) {
+		t.Fatalf("plain span lost its background: %v", got)
+	}
+}
+
+// The font shorthand takes a math-function size, a unitless line height and
+// any weight from 1 to 1000, as variable fonts use (fallthrough.fm's
+// headings are `font: 560 clamp(2.8rem, 6vw, 5.75rem)/.91 serif`).
+func TestFontShorthandWithClampAndVariableWeight(t *testing.T) {
+	r, err := Render(context.Background(), strings.NewReader(`<style>h1{font: 560 clamp(2.8rem, 6vw, 5.75rem)/.91 Georgia, serif; margin:0} p{font: 300 clamp(1.06rem, 1.35vw, 1.25rem)/1.55 serif; margin:0}</style><body><h1>H</h1><p>P</p></body>`), Options{Width: 1280})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sizes := map[string]int{}
+	bold := map[string]bool{}
+	for _, b := range r.Boxes {
+		if b.Text != "" {
+			sizes[b.Text], bold[b.Text] = b.FontSize, b.Bold
+		}
+	}
+	if sizes["H"] != 76 || sizes["P"] != 17 || bold["H"] || bold["P"] {
+		t.Fatalf("sizes %v bold %v, want H=76 (6vw) and P=17 (1.35vw), both under the bold threshold", sizes, bold)
+	}
+}

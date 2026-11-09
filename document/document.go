@@ -758,8 +758,8 @@ func paragraphScopeBoundary(tag string) bool {
 
 // matchingWorkCap bounds selector matching for one cascade. It scales with
 // the node limit and, since every candidate rule is charged per node, with
-// the rule budget too: github.com's 27,000 rules need 11 million units at
-// 1220 px, past the fixed 8 million floor.
+// the rule budget too: github.com's 27,000 rules need 22 million units for
+// its 8,200-node repository page, past the fixed 8 million floor.
 func (d *Document) matchingWorkCap(l Limits) int {
-	return max(8000000, l.Nodes*800, l.Rules*512)
+	return max(8000000, l.Nodes*800, l.Rules*1024)
 }

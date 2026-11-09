@@ -26,7 +26,10 @@ func (l *layout) tableStep() bool {
 		return false
 	}
 	l.tableWork++
-	if l.tableWork > max(100000, l.d.limits.Nodes*20) {
+	// Intrinsic measurement charges every cell per pass, and grid containers
+	// measure through the same budget; github.com's repository page needs
+	// just over 200,000 steps.
+	if l.tableWork > max(100000, l.d.limits.Nodes*50) {
 		l.err = limitError("table measurement")
 		return false
 	}

@@ -107,7 +107,7 @@ func fontValues(value string) (map[string]string, bool) {
 			result["font-weight"] = t
 		default:
 			n, err := strconv.Atoi(t)
-			if err != nil || n < 100 || n > 900 || n%100 != 0 || weightSet {
+			if err != nil || n < 1 || n > 1000 || weightSet { // CSS Fonts 4: any weight 1..1000 (variable fonts use 560)
 				return nil, false
 			}
 			weightSet = true
