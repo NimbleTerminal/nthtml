@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Hand the host-painted picture a band of exactly the Kitty raster's size:
+  rounding excess (the band is painted at `ceil(Area.Size*Scale)`) is cropped
+  as a sub-image and a last band short of the grid is stretched once with a
+  bilinear filter. ntpicture passes an equal-sized opaque image through but
+  resamples any other size with a kernel scaler whose scratch buffer is 32
+  bytes per pixel, hundreds of MiB per frame on a HiDPI full screen.
+
 - Size grid tracks from their items. `auto`, `min-content`, `max-content`,
   `fit-content()` and `minmax(…, auto)` tracks now start at their items'
   min-content width (max-content tracks at their maximum), grow toward their

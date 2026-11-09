@@ -9,6 +9,7 @@ import (
 	"math"
 
 	tea "charm.land/bubbletea/v2"
+	xdraw "golang.org/x/image/draw"
 	"nimbleterminal.dev/nthtml/document"
 	"nimbleterminal.dev/ntpicture"
 )
@@ -353,6 +354,31 @@ func (m *Model) paintedOverlay(includeFocus bool) image.Image {
 	return img
 }
 
+// fitBand returns the band at exactly the Kitty raster's size. The host paints
+// ceil(Area.Size*Scale) pixels, a pixel or two more than the cell grid they
+// fill, and the page's last band falls short of the grid by under a row.
+// ntpicture uses an equal-sized opaque image as it is, but resamples any other
+// size with a kernel scaler whose scratch is 32 bytes per destination column
+// per source row: hundreds of MiB and two filter passes for a full-screen band,
+// per frame. Rounding excess is cropped without a copy; a shortfall is
+// stretched once with a bilinear filter, the same mapping the transport's fill
+// would apply, so cell coordinates still land where the plan says.
+func fitBand(band image.Image, target image.Point) image.Image {
+	if band == nil || target.X <= 0 || target.Y <= 0 {
+		return band
+	}
+	b := band.Bounds()
+	if b.Dx() == target.X && b.Dy() == target.Y {
+		return band
+	}
+	if b.Dx() >= target.X && b.Dy() >= target.Y {
+		return cropBandImage(band, image.Rect(b.Min.X, b.Min.Y, b.Min.X+target.X, b.Min.Y+target.Y))
+	}
+	out := image.NewRGBA(image.Rect(0, 0, target.X, target.Y))
+	xdraw.ApproxBiLinear.Scale(out, out.Bounds(), band, b, draw.Src, nil)
+	return out
+}
+
 func (m *Model) presentPainted(force, overlays bool) tea.Cmd {
 	h := m.hostPaint
 	p := h.plan
@@ -377,6 +403,9 @@ func (m *Model) presentPainted(force, overlays bool) tea.Cmd {
 		if wantOverlay {
 			m.overlayImg = m.paintedOverlay(!m.hostKitty())
 			source = m.overlayImg
+		}
+		if m.hostKitty() {
+			source = fitBand(source, m.pic.RasterGeometry().Pixels)
 		}
 		imageCmd = m.pic.SetImageImmutableCropped(source, image.Rectangle{})
 	}

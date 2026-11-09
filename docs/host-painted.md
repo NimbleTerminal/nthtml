@@ -67,7 +67,9 @@ Bands use the existing 283-row ceiling and respect the document pixel limit,
 large for its budget, only the bounded number of rows is presented. Paint scale
 is clamped to 1/16..16; transport resampling handles remaining glyph reduction
 or zoom up to 64x. The host-painted picture fills the planned cell grid, absorbing
-subpixel raster rounding without scale-dependent letterboxes. Source pixels,
+subpixel raster rounding without scale-dependent letterboxes; the viewer hands it
+a band of exactly the raster's size (rounding excess cropped, a short last band
+stretched once) so the transport copies rather than resamples. Source pixels,
 transport pixels, and CSS hit-test coordinates remain distinct.
 
 Search and selection copy only the resident band. Kitty focus uses a separate
