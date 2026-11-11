@@ -2,6 +2,51 @@
 
 ## Unreleased
 
+## v0.6.0 (2026-11-10)
+
+This release makes the CSS page renderer hold up on large real-world sites:
+modern CSS syntax, grid and flex sizing, inline SVG icons, and budgets that
+scale with the page instead of dropping its stylesheets.
+
+**Adoption:** No API was removed. Hosts that paint through Kitty placeholders
+should bound their width with `MaxKittyPlaceholderCells`; `document.MaxWidth`
+is now 8192 CSS px (was 4096). CSS `:hover` needs the host to pass the pointed
+element and enable all-motion mouse reporting.
+
+**Limits:** This is still a subset, not CSS conformance. Transforms other than
+an off-canvas translate are ignored, `mask-image` is not applied, line clamps
+have no ellipsis, fixed-position boxes do not stay pinned while scrolling, and
+logical properties assume horizontal left-to-right writing.
+
+ * **Modern CSS syntax:** CSS Nesting, cascade layers (`@layer`), `light-dark()`,
+   logical properties, width range media queries (`width >= 1012px`), `calc()`
+   inside media features, and escaped class names such as Tailwind's
+   arbitrary-value classes.
+ * **Layout:** grid tracks are sized from their items (`auto`, `min-content`,
+   `max-content`, `fit-content()`, `fr`), with `justify-self`/`justify-items`;
+   nested flex and grid layouts survive blockification; fixed-width side panes
+   stay beside flexible columns; `line-height: normal` follows the font size.
+ * **Painting:** rounded backgrounds and borders (`border-radius`), hairline
+   borders under one pixel, `-webkit-line-clamp` as a height limit, closed
+   off-canvas drawers stay closed, and nothing is painted inside
+   `visibility: hidden` subtrees.
+ * **Inline SVG:** icon-sized SVGs flow in the line under their own budget, take
+   CSS `fill`/`stroke` and `currentColor`, and SVG files with an XML declaration
+   or plain DOCTYPE are accepted.
+ * **Hover and links:** host-driven CSS `:hover`, viewer link hover and pressed
+   outlines, and link hits that respect hidden and clipped regions.
+ * **Large pages:** rule matching is indexed, and the matching, declaration,
+   custom-property and table budgets scale with the page; hosts may request up
+   to 32,768 rules. Pages such as github.com and yahoo.com keep their
+   stylesheets.
+ * **Scaled and wide output:** text painted at 2x and other scales uses the
+   layout's glyph positions (no run-together words), the viewer stays within
+   the Kitty placeholder grid on very wide terminals, and a host-painted band
+   matches the raster size exactly so no kernel resampling is needed.
+
+<details>
+<summary>Full change notes</summary>
+
 - Paint text at a scale other than 1 at the layout's glyph positions: each
   glyph is placed at the 1x face's hinted advance times the scale, instead of
   the scaled face's own hinted advances, which differ by up to a pixel per
@@ -213,6 +258,8 @@
   shorthand/longhands, elliptical/percentage radii, and viewport-local masks.
   Curved nonuniform/dashed borders and rounded descendant clipping remain outside
   the supported subset. Add a colored-row fixture and pixel/cascade/band tests.
+
+</details>
 
 ## v0.5.0 (2026-11-06)
 
