@@ -237,3 +237,19 @@ func (l *layout) paintRadio(r image.Rectangle, n *node, s style) {
 		}
 	}
 }
+
+// Text and raster paths use the same normalization and clamping.
+func controlBar(n *node, width int) string {
+	size := min(10, max(0, width-2))
+	if n.tag == "progress" && !hasAttr(n, "value") {
+		return "[" + strings.Repeat("?", size) + "]"
+	}
+	fraction := controlFraction(n)
+	filled := int(math.Round(float64(size) * fraction))
+	bar := "[" + strings.Repeat("#", filled) + strings.Repeat("-", size-filled) + "]"
+	label := " " + strconv.Itoa(int(math.Round(fraction*100))) + "%"
+	if len(bar)+len(label) <= width {
+		bar += label
+	}
+	return bar
+}

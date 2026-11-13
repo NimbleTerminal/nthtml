@@ -135,6 +135,12 @@ func (d *Document) tty(ctx context.Context, width int, styles *ttyStyles) (strin
 		if s.display == "none" {
 			return nil
 		}
+		if n.tag == "progress" || n.tag == "meter" {
+			if !s.hidden {
+				b.WriteString(styles.mark(controlBar(n, f.width), s))
+			}
+			return nil
+		}
 		marker, endMarker := "", ""
 		if anchorName(n) != "" {
 			marker = anchorMarker(n.id)
@@ -452,7 +458,11 @@ func (r *Result) TTY(ctx context.Context, width int) (string, error) {
 	if r == nil {
 		return "", nil
 	}
-	return r.document.TTY(ctx, width)
+	d, err := r.document.forInteraction(ctx, max(2, min(1000, width))*ttyWidthPxPerColumn, r.opts.ColorScheme, r.opts.HoverSource, r.opts.State)
+	if err != nil {
+		return "", err
+	}
+	return d.TTY(ctx, width)
 }
 
 // TTY preserves explicit no-wrap modes; the widget can pan long lines.

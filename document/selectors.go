@@ -532,6 +532,10 @@ func (a attrSelector) matches(n *node) bool {
 
 func (ps pseudoSelector) matches(n *node) bool {
 	switch ps.name {
+	case "open":
+		return (n.tag == "details" || n.tag == "dialog") && hasAttr(n, "open")
+	case "popover-open":
+		return n.popoverOpen
 	case "hover":
 		return n.hovered
 	case "root", "scope":

@@ -124,7 +124,7 @@ type layerEvent struct {
 	media []string
 }
 
-func (ls *cssLayers) order(width int, scheme string) map[*cssLayer]*cssLayer {
+func (ls *cssLayers) order(width int, scheme string, preferences ...MediaPreferences) map[*cssLayer]*cssLayer {
 	out := map[*cssLayer]*cssLayer{}
 	if ls == nil {
 		return out
@@ -149,7 +149,7 @@ func (ls *cssLayers) order(width int, scheme string) map[*cssLayer]*cssLayer {
 		return next
 	}
 	for _, event := range ls.events {
-		if (rule{media: event.media}).matchesMedia(width, scheme) {
+		if (rule{media: event.media}).matchesMedia(width, scheme, preferences...) {
 			add(event.layer)
 		}
 	}

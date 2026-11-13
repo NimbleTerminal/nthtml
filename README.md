@@ -268,7 +268,7 @@ specific subset below works; it does not imply browser-compatible behavior.
 | Headings and emphasis | Partial | Built-in styles for `h1`–`h6`, bold `b` / `strong` / `th` / `dt`, `small` (~85% font size), `sub` / `sup` (~80% font size with baseline offset), `mark` (highlight background), `u` (underline), `s` / `del` (strikethrough), `em` / `i` (italic), and `code` (monospace). |
 | Whitespace and line breaks | Partial | `white-space: normal`, `nowrap`, `pre`, `pre-wrap`, `pre-line`, and constrained `break-spaces`; `overflow-wrap: normal`, `break-word`, `anywhere` (`word-wrap` alias); `text-overflow: ellipsis` on nowrap clipped lines. Zero-width spaces (`U+200B`) provide break opportunities without rendering `.notdef` glyphs. Tabs expand to four cells. Defaults retain emergency long-word wrapping and soft-wrapped `pre` for documents; explicit `nowrap` / `pre` disable wrapping. No full Unicode line-breaking or hyphenation. |
 | Lists | Partial | Bullets (`disc`, `circle`, `square`), decimal/leading-zero, alphabetic (`lower-alpha`, `upper-alpha`), and Roman (`lower-roman`, `upper-roman`) numbering, `list-style-type` / `list-style` (`none` supported), nested/hanging indentation, `ol start`, `ol reversed`, `type="1\|a\|A\|i\|I"`, and `li value`. No `list-style-image` or CSS counters. |
-| Stylesheet sources | Partial | Embedded `<style>` and inline `style` attributes. CSS custom properties (`--name: value`, inherited down the DOM tree) and `var(--name[, fallback])` substitution across properties. CSS Nesting (`&`, relative and bare nested selectors, nested `@media`; expanded per parent selector within the media depth bound). `light-dark(a, b)` resolved from `Options.ColorScheme` or an ancestor's single-valued `color-scheme`. CSS `fill` and `stroke` (colours, `none`, `currentColor`; inherited) are applied to an inline SVG's root ahead of its presentation attributes. SVG images may start with the XML declaration and a plain DOCTYPE (both dropped); an internal DTD subset or any other processing instruction is refused. `-webkit-line-clamp: N` on a `-webkit-box` block is approximated as N lines of maximum height with hidden overflow (no ellipsis). A positioned element translated by 100% or more along an axis (`transform: translate(100%)`, an off-canvas drawer) is not painted; other transforms are ignored. `@media` blocks (nested up to depth 8, prelude up to 1,024 bytes) are evaluated against the render width in CSS px (`columns * 10` px in TTY mode) and `Options.ColorScheme` (`"light"` or `"dark"`, default `"light"`) for `screen`/`all`, `not`, `only`, `and`, comma-separated OR lists, `width`/`min-width`/`max-width`, width range comparisons (`<`, `<=`, `=`, `>=`, `>` with `width` on either side, or same-direction chained bounds, with `calc()`/`min()`/`max()` values nested at most three parentheses deep), and `prefers-color-scheme: light \| dark`; all rules inside `@media` count toward `Limits.Rules` at parse time. Statement at-rules (`@import`, `@charset`, `@namespace`) are skipped up to `;`; other block at-rules (`@font-face`, `@keyframes`, `@supports`, `@page`, and unknown block at-rules) are skipped with brace matching (`@supports` bodies are skipped, not evaluated). No external stylesheet fetching. |
+| Stylesheet sources | Partial | Embedded `<style>` and inline `style` attributes. CSS custom properties (`--name: value`, inherited down the DOM tree) and `var(--name[, fallback])` substitution across properties. CSS Nesting (`&`, relative and bare nested selectors, nested `@media`/`@supports`; expanded per parent selector within the media depth bound). `light-dark(a, b)` resolved from `Options.ColorScheme` or an ancestor's single-valued `color-scheme`. CSS `fill` and `stroke` (colours, `none`, `currentColor`; inherited) are applied to an inline SVG's root ahead of its presentation attributes. SVG images may start with the XML declaration and a plain DOCTYPE (both dropped); an internal DTD subset or any other processing instruction is refused. `-webkit-line-clamp: N` on a `-webkit-box` block is approximated as N lines of maximum height with hidden overflow (no ellipsis). A positioned element translated by 100% or more along an axis (`transform: translate(100%)`, an off-canvas drawer) is not painted; other transforms are ignored. `@media` blocks (nested up to depth 8, prelude up to 1,024 bytes) are evaluated against the render width in CSS px (`columns * 10` px in TTY mode) and `Options.ColorScheme` (`"light"` or `"dark"`, default `"light"`) for `screen`/`all`, `not`, `only`, `and`, comma-separated OR lists, `width`/`min-width`/`max-width`, width range comparisons (`<`, `<=`, `=`, `>=`, `>` with `width` on either side, or same-direction chained bounds, with `calc()`/`min()`/`max()` values nested at most three parentheses deep), and `prefers-color-scheme: light \| dark`; all rules inside `@media` count toward `Limits.Rules` at parse time. Statement at-rules (`@import`, `@charset`, `@namespace`) are skipped up to `;`; `@supports` evaluates bounded declaration, selector, and boolean conditions against renderer capabilities, including nested style rules. Other block at-rules (`@font-face`, `@keyframes`, `@page`, and unknown block at-rules) are skipped with brace matching. No external stylesheet fetching. |
 | Selectors and cascade | Partial | Tag, `.class`, `#id`, `*`, attribute selectors (`[attr]`, `=`, `~=`, `\|=`, `^=`, `$=`, `*=` with `i`/`s` flags), structural pseudo-classes (`:root`, `:first-child`, `:last-child`, `:only-child`, `:empty`, `:first-of-type`, `:last-of-type`, `:only-of-type`, `:nth-child`, `:nth-last-child`, `:nth-of-type`, `:nth-last-of-type`, `:link`, `:any-link`, `:lang(...)`), functional selector-list pseudo-classes (`:is(...)`, `:where(...)` with zero specificity, `:not(...)` with selector lists, `:has(...)` with relative child/descendant/sibling selectors), static form-state pseudo-classes (`:checked`, `:disabled`, `:enabled`, `:required`, `:optional`, `:read-only`, `:read-write`, `:indeterminate`, `:placeholder-shown`), dynamic/interactive pseudo-classes (`:visited`, `:active`, `:focus`, `:focus-visible`, `:focus-within`, `:target`, which parse in selector lists and never match), pseudo-elements (`::before`, `::after` with bounded `content` strings, `:first-line` scoped to the first formatted line; `::placeholder`, `::marker`, `::selection`, `::backdrop`, and `::-webkit-*`/`::-moz-*` parse without error and are ignored), compounds such as `table.invoice.active`, descendant, child (`>`), adjacent sibling (`+`), and general sibling (`~`) combinators, and comma-separated lists. Specificity, source order, inline styles, author `!important` precedence, HTML presentational hints below author rules, and CSS-wide keywords (`inherit`, `initial`, `unset`), including supported shorthand expansion. ASCII identifiers; selectors capped at 1,024 bytes / 64 terms. Escaped selector identifiers and bounded cascade layers are supported; no full shorthand grammar. |
 | HTML presentational attributes | Partial | Mapped as author-level presentational hints (§15.3) with lower precedence than any author CSS rule (including specificity `0,0,0`): `bgcolor` on `body`, `table`, `thead`, `tbody`, `tfoot`, `tr`, `td`, `th` (including legacy 3/6-hex without `#`); `align` on `div`, `p`, `h1`–`h6`, `td`, `th`, `tr`, `thead`, `tbody`, `tfoot`, `caption` (`text-align`) and `table` (horizontal auto margins); `valign` on `td`, `th`, `tr`, `thead`, `tbody`, `tfoot` (`vertical-align`); `cellpadding` and `cellspacing` on `table`; `width`/`height` on `table`, `td`, `th`, `tr` (`px` or `%`); `border="N"` (`N > 0`) on `table` (1px solid border on table and cells); `<center>` (centers inline text and block/table children via auto margins); `<font color/size/face>`; and `<body text/link>`. |
 | Box spacing and sizing | Partial | One-to-four-value `margin` / `padding`, per-side and logical (`margin-block`, `margin-inline`, `padding-block`, `padding-inline`, and `-start`/`-end`) overrides, `width`, `min-width`, `max-width` (and the logical `inline-size`, `block-size`, `min-/max-inline-size`, `min-/max-block-size`, `border-block-*`, `border-inline-*`, `inset-block-*`, `inset-inline-*` mapped for horizontal-tb left-to-right writing), ordinary-block `height` / `min-height` / `max-height`, and `aspect-ratio` (`<number>` or `<w> / <h>`), with visible or `hidden`/`clip` overflow; table heights remain minimums. Inline elements support horizontal `margin` / `padding` / `border`, full four-side inline borders across line wraps, and `background-color`. `box-sizing` applies to these constraints. Nonnegative `px`, `%`, `em`, `rem`, `vw`, `vh`, `vmin`, `vmax` (against `Options.Width` and `Options.ViewportHeight`), `in`, `cm`, `mm`, `q`, `pt`, and `pc` (signed up to ±256px for `margin`), plus `calc()`, `clamp()`, `min()`, and `max()` math functions combining lengths and percentages; unitless lengths still mean pixels. Horizontal auto margins center or align constrained boxes. Percentage heights require a definite parent height. Available width constrains boxes; spacing is capped at 256px per side. Min wins over max, subject to the containing-width/resource caps. Adjoining vertical margins (positive and negative) collapse between block siblings, through empty blocks, and across eligible parent/child edges (`maxPositive + minNegative`). Borders, padding, inline lines, height constraints, root boxes, flex/grid containers, and table cells keep their layout boundaries. List interiors retain marker-specific spacing. Clearance and floats bound parent/child margin collapse. No `ex` / `ch`. |
@@ -288,7 +288,7 @@ specific subset below works; it does not imply browser-compatible behavior.
 Unknown elements generally flow as blocks. Unsupported properties and selectors
 have no supported effect; invalid values are not guaranteed to fall back as they
 would in a browser. Inline spans carry text styles, not independent painted boxes.
-The supported CSS properties are exactly those named in the table above, plus
+The supported CSS properties include those named in the table above, plus
 `color`. This is an experimental document renderer, not a standards-conformant
 HTML engine.
 
@@ -872,8 +872,7 @@ media queries. Layer order precedes specificity, reverses for `!important`, and
 preserves inline-style precedence as defined by [CSS Cascade Level 5](https://www.w3.org/TR/css-cascade-5/#layer-order).
 The parser permits at most 256 layers and 4,096 layer declarations; media/layer
 nesting shares the depth-8 bound. Rules inside layers use the normal rule and
-matching-work budgets. `revert-layer`, `@import layer()` and `@supports` remain
-unsupported.
+matching-work budgets. `revert-layer` and `@import layer()` remain unsupported.
 
 The viewer highlights links under the pointer in cyan and uses amber while
 pressed. Keyboard/source focus remains separate, and dragging selects text
@@ -887,3 +886,40 @@ on the hit-tested element and its ancestors. This state is immutable per render;
 CSS `:hover` matches the host-supplied target and its ancestors, including inside
 `:is()`, `:not()` and `:has()`. The host supplies an element ID through
 `Options.HoverSource`; an empty or absent ID clears hover.
+
+### Declarative platform state
+
+`@supports` and `document.Supports(condition)` use the renderer's bounded
+capability evaluator: declaration values reuse layout parsers, selectors use
+the CSS selector parser, and boolean conditions support `not`, `and`, and `or`
+with parentheses. Invalid conditions are rejected, including under `not`.
+Prelude, parentheses, nesting, and rule budgets remain enforced. Unsupported
+anchor positioning, container queries, animation, transforms, and masks report
+false so fallback branches can apply. This is renderer feature detection, not
+a claim of full browser conformance; fixed positioning remains a static
+snapshot, and font weights retain the renderer's normal/bold approximation.
+
+`Options.State` supplies host-owned `document.RenderState`. Its `Media` fields
+are `ReducedMotion` (`reduce` or `no-preference`), `Hover` (`none` or `hover`,
+also used by `any-hover`), and `Scripting` (`none`, `initial-only`, or `enabled`).
+Empty/unknown values choose standalone defaults: `reduce`, `none`, and `none`.
+These inputs only select CSS branches; they enable no scripts or input devices.
+Embedders must pass values consistent with their JavaScript `matchMedia` state.
+Color scheme continues to use `Options.ColorScheme`. Standalone TTY callers can
+use `Document.WithRenderState(ctx, state)` before `TTY`/`TTYLayout`; result TTY
+methods retain the render options. State changes create immutable snapshots.
+
+`RenderState.OpenPopovers` lists the HTML ids of shown popovers, copied and
+bounded by document node/byte limits. Hosts should supply unique serialized ids.
+Author attributes cannot create this state. `[popover]` is hidden by default
+unless shown or also an open dialog; normal author display rules still cascade.
+`:popover-open` matches host-shown popovers; `:open` matches open details/dialogs,
+not arbitrary popovers. Shown popovers have an in-flow bordered presentation.
+There is no top layer, focus management, light dismissal, modal dialog behavior,
+or button activation in the renderer; those belong to the embedding browser.
+
+Non-empty `<details name>` groups initially keep only their first open member,
+including non-siblings. Normalization precedes selectors and generated markers.
+TTY progress/meter bars share raster value normalization and fit the available
+width; missing progress values use a question-mark bar. Meter low/high/optimum
+color semantics are not implemented. Live DOM group changes belong to the host.

@@ -443,7 +443,7 @@ func TestAtRulesAndMediaQueries(t *testing.T) {
 		`@import url(x.css); .c{background:green}`,
 		`@charset "utf-8"; @namespace svg url(http://www.w3.org/2000/svg); .c{background:green}`,
 		`@font-face{font-family:Custom;src:url(x)} .c{background:green}`,
-		`@supports (display:grid){.a{background:red}} .c{background:green}`,
+		`@supports (unsupported:value){.a{background:red}} .c{background:green}`,
 		`@keyframes spin{0%{opacity:0}100%{opacity:1}} .c{background:green}`,
 	} {
 		r, err := Render(ctx, strings.NewReader(`<style>`+css+`</style>`+blocks), Options{Width: 800})

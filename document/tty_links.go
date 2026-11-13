@@ -240,7 +240,11 @@ func (r *Result) TTYLayout(ctx context.Context, width int) (*TTYResult, error) {
 	if r == nil {
 		return &TTYResult{}, nil
 	}
-	return r.document.TTYLayout(ctx, width)
+	d, err := r.document.forInteraction(ctx, max(2, min(1000, width))*ttyWidthPxPerColumn, r.opts.ColorScheme, r.opts.HoverSource, r.opts.State)
+	if err != nil {
+		return nil, err
+	}
+	return d.TTYLayout(ctx, width)
 }
 
 // ANSI emits CSS colors/emphasis and OSC 8 links using truecolor.

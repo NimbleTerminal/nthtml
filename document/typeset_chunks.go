@@ -48,10 +48,11 @@ func (d *Document) IndexTypesetChunks(ctx context.Context, o Options, lim Typese
 		o.Width = 800
 	}
 	var err error
-	d, err = d.forMedia(ctx, o.Width, o.ColorScheme)
+	d, err = d.forInteraction(ctx, o.Width, o.ColorScheme, o.HoverSource, o.State)
 	if err != nil {
 		return nil, err
 	}
+	o.State = d.state
 	out := &TypesetChunks{d: d, limits: lim, ranges: make(map[string][2]int)}
 	type info struct {
 		nodes, bytes, depth, ownBytes int

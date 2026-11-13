@@ -207,10 +207,11 @@ func (d *Document) Render(ctx context.Context, o Options) (*Result, error) {
 		return nil, limitError("width")
 	}
 	origDoc := d
-	d, err := d.forInteraction(ctx, o.Width, o.ColorScheme, o.HoverSource)
+	d, err := d.forInteraction(ctx, o.Width, o.ColorScheme, o.HoverSource, o.State)
 	if err != nil {
 		return nil, err
 	}
+	o.State = d.state
 	lim := d.limits
 	if o.Limits != (Limits{}) {
 		ol, err := limits(o.Limits)

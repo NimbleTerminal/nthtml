@@ -1356,10 +1356,8 @@ func resolveContent(v string) (string, bool) {
 // parseCSS parses style rules and bounded @media blocks from s, counting all
 // parsed rules against budget. Statement at-rules (@import, @charset,
 // @namespace) are skipped up to ';'. Cascade layers preserve document-wide
-// order. Block at-rules other than @media and @layer
-// (@font-face, @keyframes, @supports, @page, and unknown block
-// at-rules) are skipped with brace matching; @supports bodies are skipped,
-// not evaluated.
+// order. @supports evaluates bounded renderer capabilities. Other block
+// at-rules are skipped with brace matching.
 func parseCSS(s string, budget int) ([]rule, error) {
 	return parseCSSLayers(s, budget, &cssLayers{})
 }
@@ -1423,6 +1421,11 @@ func parseCSSBlock(s string, media []string, depth int, out *[]rule, budget int,
 			prelude := strings.TrimSpace(s[1:idx])
 			inner := s[idx+1 : idx+closeRel]
 			s = s[idx+closeRel+1:]
+			if isSupportsAtRule(prelude) && depth < maxMediaDepth && Supports(strings.TrimSpace(prelude[8:])) {
+				if err := parseCSSBlock(inner, media, depth+1, out, budget, layers, layer); err != nil {
+					return err
+				}
+			}
 			if isMediaAtRule(prelude) {
 				query := strings.TrimSpace(prelude[5:])
 				if depth < maxMediaDepth && len(prelude) <= maxMediaPreludeBytes {
@@ -1519,6 +1522,11 @@ func emitStyleRule(selList []string, body string, media []string, depth int, out
 	for _, nr := range nested {
 		if strings.HasPrefix(nr.prelude, "@") {
 			prelude := strings.TrimSpace(nr.prelude[1:])
+			if isSupportsAtRule(prelude) && Supports(strings.TrimSpace(prelude[8:])) {
+				if err := emitStyleRule(selList, nr.body, media, depth+1, out, budget, layers, layer); err != nil {
+					return err
+				}
+			}
 			if isMediaAtRule(prelude) && len(prelude) <= maxMediaPreludeBytes {
 				next := make([]string, len(media)+1)
 				copy(next, media)
@@ -1808,16 +1816,16 @@ func findMatchingBrace(s string) int {
 	return -1
 }
 
-func (r rule) matchesMedia(width int, scheme string) bool {
+func (r rule) matchesMedia(width int, scheme string, preferences ...MediaPreferences) bool {
 	for _, m := range r.media {
-		if !evalMediaQueryList(m, width, scheme) {
+		if !evalMediaQueryList(m, width, scheme, preferences...) {
 			return false
 		}
 	}
 	return true
 }
 
-func evalMediaQueryList(prelude string, width int, scheme string) bool {
+func evalMediaQueryList(prelude string, width int, scheme string, preferences ...MediaPreferences) bool {
 	prelude = strings.TrimSpace(prelude)
 	if prelude == "" {
 		return true
@@ -1827,7 +1835,7 @@ func evalMediaQueryList(prelude string, width int, scheme string) bool {
 		return false
 	}
 	for _, part := range parts {
-		if evalSingleMediaQuery(part, width, scheme) {
+		if evalSingleMediaQuery(part, width, scheme, preferences...) {
 			return true
 		}
 	}
@@ -1861,7 +1869,7 @@ func splitMediaQueries(s string) ([]string, bool) {
 	return out, true
 }
 
-func evalSingleMediaQuery(q string, width int, scheme string) bool {
+func evalSingleMediaQuery(q string, width int, scheme string, preferences ...MediaPreferences) bool {
 	tokens, ok := tokenizeMediaQuery(q)
 	if !ok || len(tokens) == 0 {
 		return false
@@ -1878,7 +1886,7 @@ func evalSingleMediaQuery(q string, width int, scheme string) bool {
 	}
 	var result bool
 	if strings.HasPrefix(tokens[0], "(") {
-		val, valid := evalMediaFeature(tokens[0], width, scheme)
+		val, valid := evalMediaFeature(tokens[0], width, scheme, preferences...)
 		if !valid {
 			return false
 		}
@@ -1898,7 +1906,7 @@ func evalSingleMediaQuery(q string, width int, scheme string) bool {
 		if len(tokens) < 2 || !strings.EqualFold(tokens[0], "and") || !strings.HasPrefix(tokens[1], "(") {
 			return false
 		}
-		val, valid := evalMediaFeature(tokens[1], width, scheme)
+		val, valid := evalMediaFeature(tokens[1], width, scheme, preferences...)
 		if !valid {
 			return false
 		}
@@ -1959,11 +1967,18 @@ func isMediaIdentChar(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_'
 }
 
-func evalMediaFeature(expr string, width int, scheme string) (bool, bool) {
+func evalMediaFeature(expr string, width int, scheme string, preferences ...MediaPreferences) (bool, bool) {
 	if len(expr) < 2 || expr[0] != '(' || expr[len(expr)-1] != ')' {
 		return false, false
 	}
 	inner := strings.TrimSpace(expr[1 : len(expr)-1])
+	m := MediaPreferences{}
+	if len(preferences) > 0 {
+		m = preferences[0]
+	}
+	if value, valid, known := mediaPreferenceFeature(inner, m); known {
+		return value, valid
+	}
 	name, valStr, ok := strings.Cut(inner, ":")
 	if !ok {
 		return evalMediaWidthRange(inner, width)
@@ -2147,8 +2162,11 @@ func (d *Document) styled(n *node, parent style) style {
 	if value, ok := n.attrs["hidden"]; ok && !strings.EqualFold(value, "until-found") {
 		s.display = "none"
 	}
-	if n.tag == "dialog" {
-		if !hasAttr(n, "open") {
+	if hasAttr(n, "popover") && !n.popoverOpen && !(n.tag == "dialog" && hasAttr(n, "open")) {
+		s.display = "none"
+	}
+	if n.tag == "dialog" || n.popoverOpen {
+		if !hasAttr(n, "open") && !n.popoverOpen {
 			s.display = "none"
 		}
 		rawBW = [4]int{1, 1, 1, 1}
@@ -2784,7 +2802,7 @@ func (d *Document) styled(n *node, parent style) style {
 				}
 			} else if kw == "initial" {
 				s.position = "static"
-			} else {
+			} else if supportedPosition(v) {
 				s.position = v
 			}
 		case "z-index":
@@ -2820,7 +2838,7 @@ func (d *Document) styled(n *node, parent style) style {
 				s.display = parent.display
 			} else if kw == "initial" {
 				s.display = "inline"
-			} else if v == "none" || v == "block" || v == "inline" || v == "inline-block" || v == "flex" || v == "inline-flex" || v == "grid" || v == "inline-grid" {
+			} else if supportedDisplay(v) && !strings.HasPrefix(v, "-webkit-") {
 				s.display = v
 			} else if v == "-webkit-box" {
 				s.display = "block" // the legacy flexbox used only as a line-clamp container
@@ -3214,7 +3232,7 @@ func (d *Document) cascadeCandidates(n *node, pseudo string, candidates []int) m
 	scheme := normalizeColorScheme(d.cascadedScheme)
 	for _, ri := range candidates {
 		r := d.rules[ri]
-		if r.pseudo == pseudo && r.matchesMedia(w, scheme) && r.selector.matches(n) {
+		if r.pseudo == pseudo && r.matchesMedia(w, scheme, d.state.Media) && r.selector.matches(n) {
 			for k, v := range r.decl {
 				v, important := importance(v)
 				score := cascadeScore{important: important, layer: d.layerOrder[r.layer], specificity: r.specificity}
@@ -3235,4 +3253,8 @@ func (d *Document) cascadeCandidates(n *node, pseudo string, candidates []int) m
 		}
 	}
 	return values
+}
+
+func isSupportsAtRule(s string) bool {
+	return len(s) > 8 && strings.EqualFold(s[:8], "supports") && cssSpace(rune(s[8]))
 }

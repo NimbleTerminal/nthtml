@@ -95,6 +95,8 @@ type Options struct {
 	// ColorScheme selects "light" or "dark" for @media (prefers-color-scheme)
 	// queries. Empty defaults to "light".
 	ColorScheme string
+	// State is host-owned media and popover presentation state.
+	State RenderState
 	// Diagrams defaults to the pure-Go SVG/Mermaid renderer.
 	Diagrams DiagramRenderer
 	// DisableDiagrams keeps labels/source text without invoking a renderer.
@@ -124,6 +126,7 @@ type Options struct {
 }
 
 type node struct {
+	popoverOpen   bool
 	hovered       bool
 	decl          map[string]string
 	firstLineDecl map[string]string
@@ -150,6 +153,7 @@ type Document struct {
 	limits          Limits
 	hasAuthorColors bool
 	hasMedia        bool
+	state           RenderState
 	cascadedWidth   int
 	cascadedScheme  string
 	nodeSeq         int
@@ -342,7 +346,8 @@ func Parse(ctx context.Context, r io.Reader, budget Limits) (*Document, error) {
 			parent.children = append(parent.children, &node{parent: parent, text: t.Data})
 		}
 	}
-	d := &Document{root: root, limits: l}
+	normalizeDetails(root)
+	d := &Document{root: root, limits: l, state: RenderState{Media: (MediaPreferences{}).normalized()}}
 	layers := &cssLayers{}
 	d.layers = layers
 	var visit func(*node) error
@@ -421,12 +426,12 @@ func (d *Document) applyCascade(ctx context.Context, width int, scheme string, c
 	scheme = normalizeColorScheme(scheme)
 	d.cascadedWidth = width
 	d.cascadedScheme = scheme
-	d.layerOrder = d.layers.order(width, scheme)
+	d.layerOrder = d.layers.order(width, scheme, d.state.Media)
 	d.hasAuthorColors = false
 	linkSiblings(d.root)
 	hasBefore, hasAfter, hasFirstLine := false, false, false
 	for _, r := range d.rules {
-		if !r.matchesMedia(width, scheme) {
+		if !r.matchesMedia(width, scheme, d.state.Media) {
 			continue
 		}
 		switch r.pseudo {
@@ -587,10 +592,25 @@ func (d *Document) forMedia(ctx context.Context, width int, scheme string) (*Doc
 	return d.forInteraction(ctx, width, scheme, d.hoverSource)
 }
 
-func (d *Document) forInteraction(ctx context.Context, width int, scheme, hover string) (*Document, error) {
+func (d *Document) forInteraction(ctx context.Context, width int, scheme, hover string, states ...RenderState) (*Document, error) {
+	if d == nil {
+		return nil, nil
+	}
+	state := d.state
+	if len(states) > 0 {
+		var err error
+		state, err = states[0].normalized(d.limits)
+		if err != nil {
+			return nil, err
+		}
+	}
 	scheme = normalizeColorScheme(scheme)
-	if d == nil || (d.hoverSource == hover && (!d.hasMedia || (d.cascadedWidth == width && normalizeColorScheme(d.cascadedScheme) == scheme))) {
+	if state.equal(d.state) && (d.hoverSource == hover && (!d.hasMedia || (d.cascadedWidth == width && normalizeColorScheme(d.cascadedScheme) == scheme))) {
 		return d, nil
+	}
+	openPopovers := make(map[string]bool, len(state.OpenPopovers))
+	for _, id := range state.OpenPopovers {
+		openPopovers[id] = true
 	}
 	var clone func(*node, *node) *node
 	clone = func(n, parent *node) *node {
@@ -598,12 +618,13 @@ func (d *Document) forInteraction(ctx context.Context, width int, scheme, hover 
 			return nil
 		}
 		c := &node{
-			parent: parent,
-			id:     n.id,
-			tag:    n.tag,
-			text:   n.text,
-			svg:    n.svg,
-			attrs:  n.attrs,
+			parent:      parent,
+			id:          n.id,
+			tag:         n.tag,
+			text:        n.text,
+			svg:         n.svg,
+			attrs:       n.attrs,
+			popoverOpen: hasAttr(n, "popover") && openPopovers[n.attrs["id"]] && n.attrs["id"] != "",
 		}
 		for _, ch := range n.children {
 			if ch.pseudo != "" {
@@ -615,6 +636,7 @@ func (d *Document) forInteraction(ctx context.Context, width int, scheme, hover 
 	}
 	cp := &Document{
 		root:   clone(d.root, nil),
+		state:  state,
 		layers: d.layers, hoverSource: hover,
 		rules:    d.rules,
 		limits:   d.limits,

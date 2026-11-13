@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Pin the WASM-capable Bubble Tea fork in go.mod so native and browser checks
+  both run with GOWORK=off.
+
+- Evaluate bounded `@supports` conditions, including nested rules and fallback
+  branches, with shared CSS value parsers and public `document.Supports`.
+- Add host-owned media preferences and open-popover state through `Options.State`
+  and immutable `Document.WithRenderState`, including TTY and typeset paths.
+- Hide closed popovers, match `:popover-open` and `:open`, normalize named details
+  groups, and render progress/meter bars in TTY output.
+
+
 ## v0.6.0 (2026-11-10)
 
 This release makes the CSS page renderer hold up on large real-world sites:

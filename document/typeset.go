@@ -176,10 +176,11 @@ func (d *Document) ExtractTypeset(ctx context.Context, o Options) (*TypesetDocum
 		o.Width = 800
 	}
 	var err error
-	d, err = d.forMedia(ctx, o.Width, o.ColorScheme)
+	d, err = d.forInteraction(ctx, o.Width, o.ColorScheme, o.HoverSource, o.State)
 	if err != nil {
 		return nil, err
 	}
+	o.State = d.state
 	links, err := d.Links(ctx)
 	if err != nil {
 		return nil, err

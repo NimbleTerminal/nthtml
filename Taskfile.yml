@@ -145,7 +145,7 @@ tasks:
   test-wasm:
     desc: Build all WASM packages and run document/demo tests under Node
     env:
-      GOWORK: '{{.ROOT_DIR}}/wasm.work'
+      GOWORK: 'off'
       GOOS: js
       GOARCH: wasm
     cmds:
