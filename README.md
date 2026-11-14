@@ -889,6 +889,10 @@ CSS `:hover` matches the host-supplied target and its ancestors, including insid
 
 ### Declarative platform state
 
+`document.CSSRuleCount(css)` returns the renderer's rule count for host admission
+budgets, including expanded nesting, layers and supported conditions. It applies
+the renderer's byte/rule ceilings and parser bounds; reject a sheet on error.
+
 `@supports` and `document.Supports(condition)` use the renderer's bounded
 capability evaluator: declaration values reuse layout parsers, selectors use
 the CSS selector parser, and boolean conditions support `not`, `and`, and `or`

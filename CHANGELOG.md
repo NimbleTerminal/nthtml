@@ -2,16 +2,29 @@
 
 ## Unreleased
 
-- Pin the WASM-capable Bubble Tea fork in go.mod so native and browser checks
-  both run with GOWORK=off.
+## v0.7.0 (2026-11-13)
+
+This release adds declarative platform rendering and bounded CSS capability
+queries, with explicit host-owned presentation state.
 
 - Evaluate bounded `@supports` conditions, including nested rules and fallback
-  branches, with shared CSS value parsers and public `document.Supports`.
-- Add host-owned media preferences and open-popover state through `Options.State`
-  and immutable `Document.WithRenderState`, including TTY and typeset paths.
+  branches, using shared CSS value parsers and public `document.Supports`.
+- Add `document.CSSRuleCount` so hosts can apply stylesheet budgets with the
+  renderer's parser, including nesting, layers and supported conditions.
+- Add media preferences and open-popover state through `Options.State` and
+  immutable `Document.WithRenderState`, across CSS, TTY and typeset paths.
 - Hide closed popovers, match `:popover-open` and `:open`, normalize named details
   groups, and render progress/meter bars in TTY output.
+- Adopt oksvg v0.1.7 and the rasterx v0.1.1 fork for even-odd SVG holes. Update
+  other Go dependencies and the minimum Go version to 1.26.11.
+- Pin the WASM-capable Bubble Tea fork so native and browser checks both run
+  with `GOWORK=off`.
 
+**Adoption:** Hosts must supply shown popover IDs and their media preferences
+through `Options.State`; standalone defaults are reduced motion, no hover and
+no scripting. Popovers render in normal flow, without top-layer or modal
+semantics. Consumers must retain their own rasterx replacement because Go does
+not inherit dependency replacements.
 
 ## v0.6.0 (2026-11-10)
 
