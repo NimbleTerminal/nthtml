@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fix malformed UTF-8 and Unicode byte-offset panics while recognizing `var()`
+  in `@supports` and CSS variable substitution; use ASCII-insensitive matching
+  over the original bytes and retain regression fuzz seeds.
+- Run native and WASM CI checks with the published module graph (`GOWORK=off`).
+
 ## v0.7.0 (2026-11-13)
 
 This release adds declarative platform rendering and bounded CSS capability

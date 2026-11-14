@@ -349,21 +349,19 @@ func isCustomPropertyName(s string) bool {
 	return true
 }
 
-func containsVar(s string) bool {
-	lower := strings.ToLower(s)
-	idx := 0
-	for {
-		i := strings.Index(lower[idx:], "var(")
-		if i < 0 {
-			return false
+// indexVar finds an ASCII-case-insensitive CSS var() token in the original
+// bytes. Unicode case conversion can change byte lengths (including invalid
+// UTF-8), so offsets into a lowercased copy cannot be used to slice the input.
+func indexVar(s string) int {
+	for i := 0; i+4 <= len(s); i++ {
+		if (s[i]|0x20) == 'v' && (s[i+1]|0x20) == 'a' && (s[i+2]|0x20) == 'r' && s[i+3] == '(' && (i == 0 || !isMediaIdentChar(s[i-1])) {
+			return i
 		}
-		pos := idx + i
-		if pos == 0 || !isMediaIdentChar(lower[pos-1]) {
-			return true
-		}
-		idx = pos + 4
 	}
+	return -1
 }
+
+func containsVar(s string) bool { return indexVar(s) >= 0 }
 
 func expandVarDeclaration(k, v string, put func(string, string)) {
 	marker := "\x00" + k + ":" + v
@@ -601,21 +599,7 @@ func substituteVars(s string, vars *varScope, depth int) (string, bool) {
 	}
 	var out strings.Builder
 	for len(s) > 0 {
-		lower := strings.ToLower(s)
-		pos := -1
-		idx := 0
-		for {
-			i := strings.Index(lower[idx:], "var(")
-			if i < 0 {
-				break
-			}
-			cand := idx + i
-			if cand == 0 || !isMediaIdentChar(lower[cand-1]) {
-				pos = cand
-				break
-			}
-			idx = cand + 4
-		}
+		pos := indexVar(s)
 		if pos < 0 {
 			out.WriteString(s)
 			if out.Len() > maxVarValueBytes {

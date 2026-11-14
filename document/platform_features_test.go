@@ -160,7 +160,7 @@ func TestDetailsGroupsAndControlBars(t *testing.T) {
 }
 
 func FuzzSupports(f *testing.F) {
-	for _, s := range []string{"(display:grid)", "not ((width:1px) and (color:red) or (display:flex))", "selector(:has(a))", "(color:var(--x))"} {
+	for _, s := range []string{"(display:grid)", "not ((width:1px) and (color:red) or (display:flex))", "selector(:has(a))", "(color:var(--x))", "(:\xff\xffvar())", "(:\xff\xff var())", "(color:ȺȺȺvar())", "(color:İVAR(--x))"} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, s string) { Supports(s) })

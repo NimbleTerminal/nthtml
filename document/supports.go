@@ -174,7 +174,7 @@ func supportsLonghand(k, v string) bool {
 	}
 	if containsVar(v) {
 		// Validate var() names/fallback structure without resolving against a node.
-		for start := strings.Index(strings.ToLower(v), "var("); start >= 0; start = strings.Index(strings.ToLower(v), "var(") {
+		for start := indexVar(v); start >= 0; start = indexVar(v) {
 			end := findMatchingParen(v[start+3:])
 			if end < 0 {
 				return false

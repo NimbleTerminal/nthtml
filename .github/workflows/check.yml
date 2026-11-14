@@ -1,5 +1,8 @@
 name: check
 on: [push, pull_request]
+env:
+  GOWORK: 'off'
+  CGO_ENABLED: '0'
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -12,7 +15,7 @@ jobs:
       - run: go vet ./...
       - name: Fuzz each target for 10 seconds with two workers
         run: sh scripts/fuzz.sh
-      - run: GOWORK="$PWD/wasm.work" GOOS=js GOARCH=wasm go build ./...
+      - run: GOOS=js GOARCH=wasm go build ./...
       - uses: actions/setup-node@v7
         with:
           node-version: '26'
@@ -21,7 +24,7 @@ jobs:
           for demo in overview invoice field-notes status-report guide typography diagrams navigation reports positioning; do
             node scripts/wasm-smoke.cjs "$demo"
           done
-      - run: GOWORK="$PWD/wasm.work" GOOS=js GOARCH=wasm go test -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./document ./typeset ./examples/demo ./internal/conformance
+      - run: GOOS=js GOARCH=wasm go test -exec "$(go env GOROOT)/lib/wasm/go_js_wasm_exec" ./document ./typeset ./examples/demo ./internal/conformance
       - uses: actions/upload-artifact@v7
         with:
           name: browser-demo
