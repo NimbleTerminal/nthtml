@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.7.1 (2026-11-16)
+
 - Fix malformed UTF-8 and Unicode byte-offset panics while recognizing `var()`
   in `@supports` and CSS variable substitution; use ASCII-insensitive matching
   over the original bytes and retain regression fuzz seeds.
